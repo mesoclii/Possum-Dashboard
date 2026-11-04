@@ -519,6 +519,17 @@ export default function TicketsClient() {
                 </select>
               </div>
             </div>
+            <div style={{ marginTop: 10 }}>
+              <div>Fallback Transcript Channel</div>
+              <select style={input} value={cfg.transcriptLogId} onChange={(event) => setCfg((prev) => ({ ...prev, transcriptLogId: event.target.value }))}>
+                <option value="">Select channel</option>
+                {textChannels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    #{channel.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
               <div>

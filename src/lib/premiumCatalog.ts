@@ -1,4 +1,4 @@
-import { ENGINE_REGISTRY } from "@/lib/dashboard/engineRegistry";
+﻿import { ENGINE_REGISTRY } from "@/lib/dashboard/engineRegistry";
 
 export type FeatureCatalogEntry = {
   id: string;
@@ -35,7 +35,7 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/tts",
     summary: "Voice playback channels, speech routing, queue rules, and live text-to-speech controls.",
     premiumLabel: "Premium Feature",
-    includedIn: ["Pro", "Business", "Enterprise"],
+    includedIn: ["Pro"],
     pricingNote: "Included through paid guild plans."
   },
   {
@@ -44,7 +44,7 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/ai/persona",
     summary: "Hosted generative persona replies, prompt shaping, access rules, and persona photos on a path that stays separate from Possum AI and Bot Personalizer.",
     premiumLabel: "Premium Feature",
-    includedIn: ["Pro", "Business", "Enterprise"],
+    includedIn: ["Pro"],
     pricingNote: "Separate from Possum AI and Bot Personalizer."
   },
   {
@@ -53,7 +53,7 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/heist",
     summary: "Heist signup rotations, channel routing, logging, and event-session controls.",
     premiumLabel: "Premium Feature",
-    includedIn: ["Pro", "Business", "Enterprise"],
+    includedIn: ["Pro"],
     pricingNote: "Guild signup engine only."
   },
   {
@@ -62,7 +62,7 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/bot-personalizer",
     summary: "A second dedicated Discord bot with its own token, name, avatar and routing, so heavy features can run on a separate bot.",
     premiumLabel: "Premium Feature",
-    includedIn: ["Pro", "Business", "Enterprise"],
+    includedIn: ["Pro"],
     pricingNote: "Separate from the Custom Token Bot and the shared webhook identity."
   },
   {
@@ -71,7 +71,7 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/premium-features#advanced-security",
     summary: "Threat intel, link intelligence, behavioral drift, trust weighting, risk escalation, and auto-containment tuning layered on top of the free safety baseline.",
     premiumLabel: "Premium Suite",
-    includedIn: ["Business", "Enterprise"],
+    includedIn: ["Pro"],
     pricingNote: "Basic safety stays free. Premium unlocks intelligence, automation, and advanced operator control."
   },
   {
@@ -80,7 +80,7 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/premium-features#automation-suite",
     summary: "Advanced automation rules, higher execution limits, and elevated custom-command capacity without paywalling the basic operating baseline.",
     premiumLabel: "Premium Suite",
-    includedIn: ["Business", "Enterprise"],
+    includedIn: ["Pro"],
     pricingNote: "Free tier keeps a smaller cap. Premium expands rule depth and scale."
   },
   {
@@ -98,50 +98,22 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
 export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
-    label: "Pro",
-    monthlyUsd: 4.99,
-    yearlyUsd: 40.0,
-    lifetimeUsd: 75.0,
-    headline: "Premium engagement and threat protection for growing communities.",
+    label: "Possum Pro",
+    monthlyUsd: 25.0,
+    yearlyUsd: 45.0,
+    lifetimeUsd: 85.0,
+    headline: "Every premium feature for one server, with a limited monthly AI allowance. Need more AI? Buy optional AI usage add-ons.",
     included: [
       "TTS Engine",
       "Persona AI",
       "Heist Engine",
       "Second Token Bot",
-      "Included monthly AI usage credit",
-    ],
-    note: PRICING_FOOTNOTE,
-  },
-  {
-    id: "business",
-    label: "Business",
-    monthlyUsd: 9.99,
-    yearlyUsd: 80.0,
-    lifetimeUsd: 150.0,
-    headline: "Adds governance automation and higher included usage for active servers.",
-    included: [
-      "Everything in Pro",
       "Advanced Security + Governance Suite",
       "Automation + Custom Commands Suite",
-      "Higher included monthly AI usage credit",
-      "Expanded concurrency limits",
+      "Limited monthly AI usage included",
+      "Optional AI usage increases available as add-ons",
     ],
     note: PRICING_FOOTNOTE,
-  },
-  {
-    id: "enterprise",
-    label: "Enterprise",
-    monthlyUsd: 19.99,
-    yearlyUsd: 160.0,
-    lifetimeUsd: 300.0,
-    headline: "Priority control for serious communities with custom support and pooled usage.",
-    included: [
-      "Everything in Business",
-      "Priority support",
-      "Higher pooled monthly AI usage credit",
-      "Custom operational limits",
-    ],
-    note: `${PRICING_FOOTNOTE} Contact for custom limits and annual contracts.`,
   },
 ];
 

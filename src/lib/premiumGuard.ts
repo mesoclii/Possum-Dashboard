@@ -30,8 +30,9 @@ export function mapPremiumFeatureKey(rawFeature: string) {
   return feature;
 }
 
-function requiredPlanRank(featureKey: string) {
-  return ["advanced-security", "automation-suite"].includes(featureKey) ? 2 : 1;
+function requiredPlanRank(_featureKey: string) {
+  // One public plan now covers every premium feature.
+  return 1;
 }
 
 function planRank(plan: unknown) {

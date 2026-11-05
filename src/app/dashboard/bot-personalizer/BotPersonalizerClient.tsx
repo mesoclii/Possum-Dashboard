@@ -532,6 +532,26 @@ export default function BotPersonalizerClient() {
   }
 
   async function saveGuildPersonalizer() {
+    // Lanes are saved one at a time; routing is saved last so the chosen authority wins.
+    const mainResult = await runAction("applyProfile", { scope: "main", patch: buildMainBotPatch(cfg) });
+    if (!mainResult) return;
+    setMainAvatarPreviewFailedFor("");
+    setAvatarPreviewFailedFor("");
+
+    const webhookResult = await runAction("applyProfile", { scope: "webhook", patch: buildWebhookPatch(cfg) });
+    if (!webhookResult) return;
+
+    if (cfg.customBotEnabled) {
+      const customResult = await runAction("refreshCustomBot", { patch: buildCustomBotPatch(cfg) });
+      if (!customResult) return;
+    }
+
+    if (cfg.customBot2Enabled) {
+      const custom2Result = await runAction("refreshCustomBot2", { patch: buildCustomBot2Patch(cfg) });
+      if (!custom2Result) return;
+      updateCfg({ customBot2Token: "" });
+    }
+
     await save(cfg);
   }
 

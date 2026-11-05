@@ -7,10 +7,10 @@ import EngineContractPanel from "@/components/possum/EngineContractPanel";
 import ProgressionStackShell from "@/components/possum/ProgressionStackShell";
 
 type Role = { id: string; name: string };
-type Channel = { id: string; name: string };
+type Channel = { id: string; name: string; type?: number | string };
 type BackgroundOption = { id: string; label: string };
 
-type LevelRoleReward = { level: number; roleId: string; oneTime: boolean; keepOnDowngrade: boolean };
+type LevelRoleReward = { level: number; roleId: string; oneTime: boolean };
 type LevelCoinReward = { level: number; coins: number; oneTime: boolean };
 
 type Cfg = {
@@ -25,7 +25,6 @@ type Cfg = {
     maxLevel: number;
     ignoredChannelIds: string[];
     ignoredRoleIds: string[];
-    excludeBots: boolean;
   };
   levelUp: {
     enabled: boolean;
@@ -91,7 +90,6 @@ const DEFAULT_CFG: Cfg = {
     maxLevel: 200,
     ignoredChannelIds: [],
     ignoredRoleIds: [],
-    excludeBots: true
   },
   levelUp: {
     enabled: true,
@@ -125,7 +123,7 @@ const DEFAULT_CFG: Cfg = {
     roleSyncEnabled: true
   },
   rewards: {
-    levelRoleRewards: [{ level: 5, roleId: "", oneTime: false, keepOnDowngrade: true }],
+    levelRoleRewards: [{ level: 5, roleId: "", oneTime: false }],
     levelCoinRewards: [{ level: 10, coins: 250, oneTime: true }]
   },
   multipliers: {
@@ -216,6 +214,8 @@ export default function ProgressionPage() {
     [backgrounds]
   );
 
+  const textChannels = channels.filter((channel) => Number(channel.type) === 0 || Number(channel.type) === 5 || String(channel.type || "").toLowerCase().includes("text"));
+
   useEffect(() => setGuildId(getGuildId()), []);
 
   useEffect(() => {
@@ -234,32 +234,79 @@ export default function ProgressionPage() {
         const cfgJson = await cfgRes.json();
         const guildJson = await guildRes.json();
         const profileJson = await profileRes.json();
+        const failedResponse = [cfgRes, guildRes, profileRes].find((response) => !response.ok);
+        const failedPayload = [cfgJson, guildJson, profileJson].find((payload) => payload?.success === false);
+        if (failedResponse || failedPayload) {
+          throw new Error(failedPayload?.error || `Failed to load dashboard data (${failedResponse?.status || "API error"}).`);
+        }
 
         setCfg(mergeCfg(cfgJson?.config));
         setRoles(Array.isArray(guildJson?.roles) ? guildJson.roles.map((r: any) => ({ id: String(r.id), name: String(r.name) })) : []);
-        setChannels(Array.isArray(guildJson?.channels) ? guildJson.channels.map((c: any) => ({ id: String(c.id), name: String(c.name) })) : []);
+        setChannels(Array.isArray(guildJson?.channels) ? guildJson.channels.map((c: any) => ({ id: String(c.id), name: String(c.name), type: c.type })) : []);
         setBackgrounds(parseBackgroundRows(profileJson?.details?.backgrounds));
-      } catch {
-        setMsg("Failed to load live progression runtime.");
+      } catch (error: any) {
+        setMsg(error?.message || "Failed to load live progression runtime.");
       } finally {
         setLoading(false);
       }
     })();
   }, [guildId]);
 
+  function clampNumber(value: unknown, min: number, max: number, fallback = min, integer = true) {
+    const parsed = Number(value);
+    const safe = Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+    return integer ? Math.floor(safe) : safe;
+  }
+
   async function save() {
     if (!guildId) return;
+    const maxLevel = clampNumber(cfg.xp.maxLevel, 1, 10000, 200);
+    const safeCfg = {
+      ...cfg,
+      xp: {
+        ...cfg.xp,
+        xpPerMessageMin: clampNumber(cfg.xp.xpPerMessageMin, 1, 10000, 3),
+        xpPerMessageMax: Math.max(clampNumber(cfg.xp.xpPerMessageMin, 1, 10000, 3), clampNumber(cfg.xp.xpPerMessageMax, 1, 10000, 7)),
+        cooldownSeconds: clampNumber(cfg.xp.cooldownSeconds, 1, 86400, 45),
+        minMessageLength: clampNumber(cfg.xp.minMessageLength, 0, 2000, 6),
+        maxLevel,
+      },
+      rewards: {
+        ...cfg.rewards,
+        levelRoleRewards: cfg.rewards.levelRoleRewards.slice(0, 100).map((reward) => ({
+          ...reward,
+          level: clampNumber(reward.level, 1, maxLevel, 1),
+        })),
+        levelCoinRewards: cfg.rewards.levelCoinRewards.slice(0, 100).map((reward) => ({
+          ...reward,
+          level: clampNumber(reward.level, 1, maxLevel, 1),
+          coins: clampNumber(reward.coins, 0, 1_000_000_000, 0),
+        })),
+      },
+      multipliers: {
+        ...cfg.multipliers,
+        weekendMultiplier: clampNumber(cfg.multipliers.weekendMultiplier, 1, 10, 1, false),
+        vipMultiplier: clampNumber(cfg.multipliers.vipMultiplier, 1, 10, 1, false),
+        boosterMultiplier: clampNumber(cfg.multipliers.boosterMultiplier, 1, 10, 1, false),
+      },
+      antiAbuse: {
+        ...cfg.antiAbuse,
+        antiSpamWindowSec: clampNumber(cfg.antiAbuse.antiSpamWindowSec, 1, 86400, 30),
+        antiSpamMaxMessages: clampNumber(cfg.antiAbuse.antiSpamMaxMessages, 1, 10000, 6),
+        maxXpPerMinute: clampNumber(cfg.antiAbuse.maxXpPerMinute, 0, 1_000_000, 120),
+      },
+    };
     try {
       setSaving(true);
       setMsg("");
       const res = await fetch("/api/runtime/engine", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId, engine: "progression", patch: cfg })
+        body: JSON.stringify({ guildId, engine: "progression", patch: safeCfg })
       });
       const json = await res.json();
       if (!res.ok || json?.success === false) throw new Error(json?.error || "Save failed");
-      setCfg(mergeCfg(json?.config || cfg));
+      setCfg(mergeCfg(json?.config || safeCfg));
       setMsg("Saved live progression runtime.");
     } catch (e: any) {
       setMsg(e?.message || "Save failed.");
@@ -269,16 +316,18 @@ export default function ProgressionPage() {
   }
 
   function addRoleReward() {
+    if (cfg.rewards.levelRoleRewards.length >= 100) return;
     setCfg((p) => ({
       ...p,
       rewards: {
         ...p.rewards,
-        levelRoleRewards: [...p.rewards.levelRoleRewards, { level: 1, roleId: "", oneTime: false, keepOnDowngrade: true }]
+        levelRoleRewards: [...p.rewards.levelRoleRewards, { level: 1, roleId: "", oneTime: false }]
       }
     }));
   }
 
   function addCoinReward() {
+    if (cfg.rewards.levelCoinRewards.length >= 100) return;
     setCfg((p) => ({
       ...p,
       rewards: {
@@ -338,7 +387,7 @@ export default function ProgressionPage() {
 
             <div style={{ marginTop: 10 }}>
               <label><input type="checkbox" checked={cfg.xp.enabled} onChange={(e) => setCfg({ ...cfg, xp: { ...cfg.xp, enabled: e.target.checked } })} /> XP enabled</label>
-              <label style={{ marginLeft: 16 }}><input type="checkbox" checked={cfg.xp.excludeBots} onChange={(e) => setCfg({ ...cfg, xp: { ...cfg.xp, excludeBots: e.target.checked } })} /> Exclude bots</label>
+              <span style={{ marginLeft: 16 }}>Bots, webhooks, and direct messages are always excluded.</span>
             </div>
 
             <div style={{ marginTop: 10 }}>
@@ -361,7 +410,7 @@ export default function ProgressionPage() {
                 <label>Announce channel</label>
                 <select style={input} value={cfg.levelUp.announceChannelId} onChange={(e) => setCfg({ ...cfg, levelUp: { ...cfg.levelUp, announceChannelId: e.target.value } })}>
                   <option value="">Select channel</option>
-                  {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
+                  {textChannels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -392,7 +441,7 @@ export default function ProgressionPage() {
               <label>Achievement announce channel</label>
               <select style={input} value={cfg.achievements.announceChannelId} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, announceChannelId: e.target.value } })}>
                 <option value="">Select channel</option>
-                {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
+                {textChannels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
               </select>
             </div>
 
@@ -422,7 +471,7 @@ export default function ProgressionPage() {
                 <label>Badge panel channel</label>
                 <select style={input} value={cfg.badges.panelChannelId} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, panelChannelId: e.target.value } })}>
                   <option value="">Select channel</option>
-                  {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
+                  {textChannels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -474,11 +523,6 @@ export default function ProgressionPage() {
                   next[i] = { ...next[i], oneTime: e.target.checked };
                   setCfg({ ...cfg, rewards: { ...cfg.rewards, levelRoleRewards: next } });
                 }} /> one-time</label>
-                <label><input type="checkbox" checked={r.keepOnDowngrade} onChange={(e) => {
-                  const next = [...cfg.rewards.levelRoleRewards];
-                  next[i] = { ...next[i], keepOnDowngrade: e.target.checked };
-                  setCfg({ ...cfg, rewards: { ...cfg.rewards, levelRoleRewards: next } });
-                }} /> keep</label>
                 <button style={{ ...input, width: "auto" }} onClick={() => {
                   setCfg({ ...cfg, rewards: { ...cfg.rewards, levelRoleRewards: cfg.rewards.levelRoleRewards.filter((_, idx) => idx !== i) } });
                 }}>X</button>

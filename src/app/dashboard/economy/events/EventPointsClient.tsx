@@ -61,7 +61,7 @@ type RuntimeRow = {
 const DEFAULTS: Config = {
   enabled: false,
   currencyName: "Crowns",
-  currencyEmoji: "??",
+  currencyEmoji: "\uD83D\uDC51",
   groupLabelSingular: "House",
   groupLabelPlural: "Houses",
   eventChannelId: "",
@@ -81,11 +81,15 @@ const DEFAULTS: Config = {
   defaultEventImageUrl: "",
   defaultEventThumbnailUrl: "",
   houses: [
-    { id: "house_1", label: "House One", emoji: "??", roleId: "", colorHex: "#ff4a4a" },
-    { id: "house_2", label: "House Two", emoji: "??", roleId: "", colorHex: "#53a7ff" },
+    { id: "house_1", label: "House One", emoji: "\uD83D\uDFE5", roleId: "", colorHex: "#ff4a4a" },
+    { id: "house_2", label: "House Two", emoji: "\uD83D\uDFE6", roleId: "", colorHex: "#53a7ff" },
+    { id: "house_3", label: "House Three", emoji: "\uD83D\uDFE9", roleId: "", colorHex: "#57d17a" },
+    { id: "house_4", label: "House Four", emoji: "\uD83D\uDFE8", roleId: "", colorHex: "#ffd057" },
   ],
   taskTemplates: [
-    { id: "task_complete", label: "Task Complete", emoji: "?", points: 10, currency: 5, description: "Default event task reward." },
+    { id: "task_complete", label: "Task Complete", emoji: "\u2705", points: 10, currency: 5, description: "Default event task reward." },
+    { id: "bonus_round", label: "Bonus Round", emoji: "\u2B50", points: 20, currency: 10, description: "Bonus event reward." },
+    { id: "final_push", label: "Final Push", emoji: "\uD83C\uDFC1", points: 30, currency: 15, description: "Late-round comeback reward." },
   ],
   notes: "",
 };
@@ -116,7 +120,7 @@ function makeGroupEntry(index: number, singularLabel = "House"): HouseConfig {
   return {
     id: `house_${index + 1}`,
     label: `${singularLabel} ${index + 1}`,
-    emoji: "??",
+    emoji: "\uD83D\uDFE5",
     roleId: "",
     colorHex: "#ff4a4a",
   };
@@ -139,7 +143,15 @@ export default function EventPointsClient() {
     runAction,
   } = useGuildEngineEditor<Config>("eventPoints", DEFAULTS);
 
-  const cfg = useMemo(() => ({ ...DEFAULTS, ...(rawCfg || {}) }), [rawCfg]);
+  const cfg = useMemo(() => {
+    const source = rawCfg || {};
+    return {
+      ...DEFAULTS,
+      ...source,
+      houses: Array.isArray(source.houses) ? source.houses.slice(0, 25) : DEFAULTS.houses,
+      taskTemplates: Array.isArray(source.taskTemplates) ? source.taskTemplates.slice(0, 25) : DEFAULTS.taskTemplates,
+    };
+  }, [rawCfg]);
   const textChannels = useMemo(
     () => channels.filter((c) => Number(c?.type) === 0 || Number(c?.type) === 5 || String(c?.type || "").toLowerCase().includes("text")),
     [channels]
@@ -178,6 +190,7 @@ export default function EventPointsClient() {
   }
 
   function addHouse() {
+    if (cfg.houses.length >= 25) return;
     const next = [...cfg.houses, makeGroupEntry(cfg.houses.length, groupLabelSingular)];
     setCfg({ ...cfg, houses: next });
   }
@@ -193,13 +206,32 @@ export default function EventPointsClient() {
   }
 
   function addTask() {
-    const next = [...cfg.taskTemplates, { id: `task_${cfg.taskTemplates.length + 1}`, label: `Task ${cfg.taskTemplates.length + 1}`, emoji: "?", points: 10, currency: 5, description: "" }];
+    if (cfg.taskTemplates.length >= 25) return;
+    const next = [...cfg.taskTemplates, { id: `task_${cfg.taskTemplates.length + 1}`, label: `Task ${cfg.taskTemplates.length + 1}`, emoji: "\u2705", points: 10, currency: 5, description: "" }];
     setCfg({ ...cfg, taskTemplates: next });
   }
 
   function removeTask(index: number) {
     const next = cfg.taskTemplates.filter((_, entryIndex) => entryIndex !== index);
     setCfg({ ...cfg, taskTemplates: next.length ? next : DEFAULTS.taskTemplates });
+  }
+
+  function clampInteger(value: unknown, min: number, max: number, fallback = min) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.floor(number))) : fallback;
+  }
+
+  function normalizedConfig() {
+    return {
+      ...cfg,
+      economyCoinsPerCurrency: Math.min(1_000_000, Math.max(0, Number.isFinite(Number(cfg.economyCoinsPerCurrency)) ? Number(cfg.economyCoinsPerCurrency) : 0)),
+      houses: cfg.houses.slice(0, 25),
+      taskTemplates: cfg.taskTemplates.slice(0, 25).map((task) => ({
+        ...task,
+        points: clampInteger(task.points, 0, 1_000_000_000),
+        currency: clampInteger(task.currency, 0, 1_000_000_000),
+      })),
+    };
   }
 
   async function createEvent() {
@@ -242,6 +274,7 @@ export default function EventPointsClient() {
         but can mirror rewards into economy coins when you want the two systems tied together.
       </p>
       {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {!cfg.enabled ? <div style={{ ...box, color: "#ffd27a" }}>Enable Event points in Core Controls before creating events or awarding points.</div> : null}
 
       <EngineInsights summary={summary} details={details} showDetails />
 
@@ -382,7 +415,7 @@ export default function EventPointsClient() {
           ))}
         </div>
         <div style={{ marginTop: 10 }}>
-          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={addHouse}>Add {groupLabelSingular}</button>
+          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} disabled={cfg.houses.length >= 25} onClick={addHouse}>Add {groupLabelSingular}</button>
         </div>
       </div>
 
@@ -418,7 +451,7 @@ export default function EventPointsClient() {
           ))}
         </div>
         <div style={{ marginTop: 10 }}>
-          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={addTask}>Add Task Template</button>
+          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} disabled={cfg.taskTemplates.length >= 25} onClick={addTask}>Add Task Template</button>
         </div>
       </div>
 
@@ -450,7 +483,7 @@ export default function EventPointsClient() {
           </div>
         </div>
         <div style={{ marginTop: 10 }}>
-          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving} onClick={() => void createEvent()}>
+          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving || !cfg.enabled} onClick={() => void createEvent()}>
             {saving ? "Working..." : "Create Event"}
           </button>
         </div>
@@ -498,10 +531,10 @@ export default function EventPointsClient() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving || !awardForm.taskId} onClick={() => void awardTask()}>
+          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving || !cfg.enabled || !awardForm.taskId} onClick={() => void awardTask()}>
             Award Task Template
           </button>
-          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving} onClick={() => void awardCustom()}>
+          <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving || !cfg.enabled} onClick={() => void awardCustom()}>
             Award Custom {groupLabelSingular}
           </button>
         </div>
@@ -566,7 +599,7 @@ export default function EventPointsClient() {
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-        <button onClick={() => save(cfg)} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
+        <button onClick={() => save(normalizedConfig())} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
           {saving ? "Saving..." : "Save Event Points"}
         </button>
       </div>

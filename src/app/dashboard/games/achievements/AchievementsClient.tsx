@@ -99,6 +99,11 @@ const EMPTY_SETTINGS: AchSettings = {
 
 const NOTICE_MODES = ["disabled", "channel", "dm", "both"];
 
+function boundedInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.floor(parsed))) : fallback;
+}
+
 function normalizeAchievementRow(input?: Partial<AchievementRow> | null): AchievementRow {
   return {
     id: String(input?.id || "").trim(),
@@ -108,15 +113,15 @@ function normalizeAchievementRow(input?: Partial<AchievementRow> | null): Achiev
     tier: String(input?.tier || "standard").trim() || "standard",
     flavor: String(input?.flavor || "").trim(),
     action: String(input?.action || "manual").trim() || "manual",
-    count: Math.max(1, Number(input?.count || 1)),
+    count: boundedInt(input?.count, 1, 1, 1_000_000_000),
     enabled: input?.enabled !== false,
     overrideAnnouncement: input?.overrideAnnouncement === true,
     announcementMessage: String(input?.announcementMessage || "").trim(),
     rewards: {
       ...EMPTY_REWARDS,
       ...(input?.rewards || {}),
-      xpAmount: Math.max(0, Number(input?.rewards?.xpAmount || 0)),
-      coinAmount: Math.max(0, Number(input?.rewards?.coinAmount || 0)),
+      xpAmount: boundedInt(input?.rewards?.xpAmount, 0, 0, 1_000_000_000),
+      coinAmount: boundedInt(input?.rewards?.coinAmount, 0, 0, 1_000_000_000),
     },
     settings: {
       ...EMPTY_SETTINGS,
@@ -601,7 +606,7 @@ export default function AchievementsClient() {
 
                 <div>
                   <div style={{ color: "#ffb0b0", fontSize: 12, marginBottom: 6 }}>Count</div>
-                  <input type="number" style={input} value={selected.count} onChange={(e) => updateCatalogRow(selected.id, { count: Number(e.target.value || 1) })} />
+                  <input type="number" style={input} min={1} max={1_000_000_000} step={1} value={selected.count} onChange={(e) => updateCatalogRow(selected.id, { count: boundedInt(e.target.value, 1, 1, 1_000_000_000) })} />
                 </div>
 
                 <label style={{ fontSize: 12, color: "#ffd1d1" }}>
@@ -635,12 +640,12 @@ export default function AchievementsClient() {
 
                   <label style={{ display: "block", marginTop: 8 }}><input type="checkbox" checked={selected.rewards.giveXp} onChange={(e) => updateReward(selected.id, { giveXp: e.target.checked })} /> Give XP for achieving</label>
                   {selected.rewards.giveXp ? (
-                    <input type="number" style={{ ...input, marginTop: 6 }} value={selected.rewards.xpAmount || 0} onChange={(e) => updateReward(selected.id, { xpAmount: Number(e.target.value || 0) })} />
+                    <input type="number" style={{ ...input, marginTop: 6 }} min={0} max={1_000_000_000} step={1} value={selected.rewards.xpAmount || 0} onChange={(e) => updateReward(selected.id, { xpAmount: boundedInt(e.target.value, 0, 0, 1_000_000_000) })} />
                   ) : null}
 
                   <label style={{ display: "block", marginTop: 8 }}><input type="checkbox" checked={selected.rewards.giveCoins} onChange={(e) => updateReward(selected.id, { giveCoins: e.target.checked })} /> Give coins for achieving</label>
                   {selected.rewards.giveCoins ? (
-                    <input type="number" style={{ ...input, marginTop: 6 }} value={selected.rewards.coinAmount || 0} onChange={(e) => updateReward(selected.id, { coinAmount: Number(e.target.value || 0) })} />
+                    <input type="number" style={{ ...input, marginTop: 6 }} min={0} max={1_000_000_000} step={1} value={selected.rewards.coinAmount || 0} onChange={(e) => updateReward(selected.id, { coinAmount: boundedInt(e.target.value, 0, 0, 1_000_000_000) })} />
                   ) : null}
                 </div>
 

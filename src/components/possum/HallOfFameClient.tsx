@@ -99,6 +99,9 @@ export default function HallOfFameClient() {
         setSummary(Array.isArray(runtimeJson?.summary) ? runtimeJson.summary : []);
         setDetails(runtimeJson?.details && typeof runtimeJson.details === "object" ? runtimeJson.details : {});
         setConfig({ ...EMPTY_CONFIG, ...(runtimeJson?.config || {}) });
+        if (!guildRes.ok || guildJson?.success === false) {
+          setMessage(guildJson?.error || "Hall Of Fame settings loaded, but Discord channels could not be loaded.");
+        }
       } catch (err: any) {
         setMessage(err?.message || "Failed loading Hall of Fame.");
       } finally {
@@ -118,7 +121,7 @@ export default function HallOfFameClient() {
         body: JSON.stringify({
           guildId,
           engine: "hallOfFame",
-          patch: config,
+          patch: { ...config, messageTemplate: String(config.messageTemplate || "").slice(0, 2000) },
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -245,6 +248,7 @@ export default function HallOfFameClient() {
             <div style={{ marginBottom: 6 }}>Announcement Template</div>
             <textarea
               style={{ ...input, minHeight: 90 }}
+              maxLength={2000}
               value={config.messageTemplate}
               onChange={(e) => setConfig((prev) => ({ ...prev, messageTemplate: e.target.value }))}
             />
@@ -257,6 +261,7 @@ export default function HallOfFameClient() {
             <div style={{ marginBottom: 6 }}>Recognition Notes</div>
             <textarea
               style={{ ...input, minHeight: 120 }}
+              maxLength={2000}
               value={config.notes}
               onChange={(e) => setConfig((prev) => ({ ...prev, notes: e.target.value }))}
             />

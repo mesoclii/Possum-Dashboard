@@ -26,14 +26,17 @@ const input: React.CSSProperties = { width: "100%", background: "#0a0a0a", color
 
 function toRows(value: Record<string, string>) {
   const rows = Object.entries(value || {})
+    .slice(0, 100)
     .map(([prestige, roleId]) => ({ prestige: Number(prestige || 0), roleId: String(roleId || "") }))
-    .filter((row) => Number.isFinite(row.prestige) && row.prestige > 0);
+    .filter((row) => Number.isFinite(row.prestige) && row.prestige > 0)
+    .map((row) => ({ ...row, prestige: Math.min(10000, Math.max(1, Math.floor(row.prestige))) }));
   return rows.length ? rows.sort((a, b) => a.prestige - b.prestige) : [{ prestige: 1, roleId: "" }];
 }
 
 function rowsToRewards(rows: Array<{ prestige: number; roleId: string }>) {
   return rows.reduce<Record<string, string>>((out, row) => {
-    const prestige = Math.max(1, Number(row.prestige || 0));
+    const parsed = Number(row.prestige);
+    const prestige = Number.isFinite(parsed) ? Math.min(10000, Math.max(1, Math.floor(parsed))) : 1;
     const roleId = String(row.roleId || "").trim();
     if (roleId) out[String(prestige)] = roleId;
     return out;
@@ -56,8 +59,28 @@ export default function PrestigePage() {
     save,
   } = useGuildEngineEditor<PrestigeCfg>("prestige", DEFAULT_PRESTIGE);
 
-  const textChannels = channels.filter((c) => Number(c?.type) === 0 || String(c?.type || "").toLowerCase().includes("text"));
+  const textChannels = channels.filter((c) => Number(c?.type) === 0 || Number(c?.type) === 5 || String(c?.type || "").toLowerCase().includes("text"));
   const roleRows = toRows(cfg.roleRewards);
+
+  function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+  }
+
+  function savePrestige() {
+    const safeMaxLevel = Math.floor(clampNumber(cfg.maxLevel, 1, 10000, 50));
+    const safeCfg = {
+      ...cfg,
+      maxLevel: safeMaxLevel,
+      xpMultiplierPerPrestige: clampNumber(cfg.xpMultiplierPerPrestige, 0, 1, 0.1),
+      roleRewards: Object.entries(cfg.roleRewards || {}).reduce<Record<string, string>>((out, [count, roleId]) => {
+        const normalizedRoleId = String(roleId || "").trim();
+        if (normalizedRoleId) out[String(Math.floor(clampNumber(count, 1, 10000, 1)))] = normalizedRoleId;
+        return out;
+      }, {}),
+    };
+    void save(safeCfg);
+  }
 
   function updateRoleReward(index: number, patch: Partial<{ prestige: number; roleId: string }>) {
     const next = [...roleRows];
@@ -66,6 +89,7 @@ export default function PrestigePage() {
   }
 
   function addRoleReward() {
+    if (roleRows.length >= 100) return;
     const next = [...roleRows, { prestige: roleRows.length + 1, roleId: "" }];
     setCfg((p) => ({ ...p, roleRewards: rowsToRewards(next) }));
   }
@@ -102,11 +126,11 @@ export default function PrestigePage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
               <div>
                 <div style={{ marginBottom: 6 }}>Required Max Level</div>
-                <input style={input} type="number" min={1} value={cfg.maxLevel} onChange={(e) => setCfg((p) => ({ ...p, maxLevel: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={10000} value={cfg.maxLevel} onChange={(e) => setCfg((p) => ({ ...p, maxLevel: Number(e.target.value || 0) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>XP Multiplier Per Prestige</div>
-                <input style={input} type="number" min={0} step="0.01" value={cfg.xpMultiplierPerPrestige} onChange={(e) => setCfg((p) => ({ ...p, xpMultiplierPerPrestige: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={1} step="0.01" value={cfg.xpMultiplierPerPrestige} onChange={(e) => setCfg((p) => ({ ...p, xpMultiplierPerPrestige: Number(e.target.value || 0) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Announce Channel</div>
@@ -127,7 +151,7 @@ export default function PrestigePage() {
                 <div style={{ color: "#ffb0b0", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>Prestige Role Rewards</div>
                 <div style={{ color: "#ff9898", fontSize: 12 }}>Assign milestone roles by prestige count instead of editing raw `prestige:roleId` text.</div>
               </div>
-              <button onClick={addRoleReward} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>+ Add Reward</button>
+              <button onClick={addRoleReward} disabled={roleRows.length >= 100} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>+ Add Reward</button>
             </div>
             <div style={{ display: "grid", gap: 10 }}>
               {roleRows.map((row, index) => (
@@ -138,6 +162,7 @@ export default function PrestigePage() {
                       style={input}
                       type="number"
                       min={1}
+                      max={10000}
                       value={row.prestige}
                       onChange={(e) => updateRoleReward(index, { prestige: Number(e.target.value || 0) })}
                     />
@@ -165,7 +190,7 @@ export default function PrestigePage() {
             </div>
           </section>
 
-          <button onClick={() => save()} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
+          <button onClick={savePrestige} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
             {saving ? "Saving..." : "Save Prestige"}
           </button>
         </>

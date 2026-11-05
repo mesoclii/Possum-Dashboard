@@ -38,11 +38,23 @@ function getGuildId(): string {
   return guildId;
 }
 
+function boundedInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.floor(parsed))) : fallback;
+}
+
 function mergeCfg(raw: any): RadioBirthdayConfig {
   return {
     ...DEFAULT_CFG,
     ...(raw || {}),
-    birthday: { ...DEFAULT_CFG.birthday, ...(raw?.birthday || {}) },
+    birthday: {
+      ...DEFAULT_CFG.birthday,
+      ...(raw?.birthday || {}),
+      rewardCoins: boundedInt(raw?.birthday?.rewardCoins, DEFAULT_CFG.birthday.rewardCoins, 0, 1_000_000_000),
+      roleId: String(raw?.birthday?.roleId || ""),
+      broadcastChannelId: String(raw?.birthday?.broadcastChannelId || ""),
+      timezone: String(raw?.birthday?.timezone || DEFAULT_CFG.birthday.timezone),
+    },
   };
 }
 
@@ -244,11 +256,14 @@ export default function RadioBirthdayPage() {
                 <input
                   style={input}
                   type="number"
+                  min={0}
+                  max={1_000_000_000}
+                  step={1}
                   value={cfg.birthday.rewardCoins}
                   onChange={(e) =>
                     setCfg((p) => ({
                       ...p,
-                      birthday: { ...p.birthday, rewardCoins: Number(e.target.value || 0) },
+                      birthday: { ...p.birthday, rewardCoins: boundedInt(e.target.value, 0, 0, 1_000_000_000) },
                     }))
                   }
                 />

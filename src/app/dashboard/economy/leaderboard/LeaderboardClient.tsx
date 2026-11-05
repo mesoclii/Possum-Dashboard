@@ -22,6 +22,11 @@ const card: CSSProperties = {
   marginBottom: 12,
 };
 
+function boundedInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(min, Math.min(max, Math.floor(parsed))) : fallback;
+}
+
 const input: CSSProperties = {
   width: "100%",
   background: "#0a0a0a",
@@ -82,9 +87,15 @@ export default function LeaderboardClient() {
     try {
       setSaving(true);
       setMessage("");
-      const json = await saveRuntimeEngine(guildId, "inviteTracker", runtime.config || {});
+      const config = {
+        ...(runtime.config || {}),
+        stayDays: boundedInt(runtime.config?.stayDays, 7, 0, 3650),
+        minAccountAgeDays: boundedInt(runtime.config?.minAccountAgeDays, 3, 0, 3650),
+        recruiterThreshold: boundedInt(runtime.config?.recruiterThreshold, 10, 0, 1_000_000),
+      };
+      const json = await saveRuntimeEngine(guildId, "inviteTracker", config);
       setRuntime({
-        config: json?.config || {},
+        config: json?.config || config,
         summary: Array.isArray(json?.summary) ? json.summary : [],
         details: json?.details && typeof json.details === "object" ? json.details : {},
       });
@@ -159,9 +170,9 @@ export default function LeaderboardClient() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(180px,1fr))", gap: 10 }}>
               <label><input type="checkbox" checked={Boolean(runtime.config?.enabled)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), enabled: event.target.checked } }))} /> Engine enabled</label>
               <label><input type="checkbox" checked={Boolean(runtime.config?.removeVipOnDrop)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), removeVipOnDrop: event.target.checked } }))} /> Remove VIP when inviter drops</label>
-              <div><label>Stay days</label><input style={input} type="number" value={Number(runtime.config?.stayDays || 7)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), stayDays: Number(event.target.value || 0) } }))} /></div>
-              <div><label>Min account age days</label><input style={input} type="number" value={Number(runtime.config?.minAccountAgeDays || 3)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), minAccountAgeDays: Number(event.target.value || 0) } }))} /></div>
-              <div><label>Recruiter threshold</label><input style={input} type="number" value={Number(runtime.config?.recruiterThreshold || 10)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), recruiterThreshold: Number(event.target.value || 0) } }))} /></div>
+              <div><label>Stay days</label><input style={input} type="number" min={0} max={3650} step={1} value={boundedInt(runtime.config?.stayDays, 7, 0, 3650)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), stayDays: boundedInt(event.target.value, 7, 0, 3650) } }))} /></div>
+              <div><label>Min account age days</label><input style={input} type="number" min={0} max={3650} step={1} value={boundedInt(runtime.config?.minAccountAgeDays, 3, 0, 3650)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), minAccountAgeDays: boundedInt(event.target.value, 3, 0, 3650) } }))} /></div>
+              <div><label>Recruiter threshold</label><input style={input} type="number" min={0} max={1_000_000} step={1} value={boundedInt(runtime.config?.recruiterThreshold, 10, 0, 1_000_000)} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), recruiterThreshold: boundedInt(event.target.value, 10, 0, 1_000_000) } }))} /></div>
               <div>
                 <label>Join Log Channel</label>
                 <select style={input} value={String(runtime.config?.joinLogChannelId || "")} onChange={(event) => setRuntime((prev) => ({ ...prev, config: { ...(prev.config || {}), joinLogChannelId: event.target.value } }))}>

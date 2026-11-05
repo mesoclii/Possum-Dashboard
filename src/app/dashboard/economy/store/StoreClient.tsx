@@ -114,9 +114,9 @@ function normalizeItems(raw: unknown): StoreItem[] {
       description: String(item.description || "").trim(),
       type,
       roleId: String(item.roleId || "").trim(),
-      priceCoins: Number.isFinite(rawPrice) ? Math.max(0, rawPrice) : 0,
+      priceCoins: Number.isFinite(rawPrice) ? Math.min(1_000_000_000, Math.max(0, Math.floor(rawPrice))) : 0,
       priceCurrencyType,
-      stock: Number.isFinite(rawStock) ? rawStock : -1,
+      stock: Number.isFinite(rawStock) ? Math.min(1_000_000, Math.max(-1, Math.floor(rawStock))) : -1,
       oneTime: Boolean(item.oneTime ?? meta.oneTime),
       enabled: item.enabled !== false,
       imageUrl: String(item.imageUrl || meta.imageUrl || "").trim(),
@@ -229,9 +229,26 @@ export default function StorePage() {
   async function saveStore(nextConfig: StoreConfig = cfg) {
     setLocalMsg("");
     const normalized = mergeConfig(nextConfig);
+    const seenIds = new Set<string>();
+    for (const [index, item] of normalized.items.entries()) {
+      const engineId = item.id.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+      const label = item.name || item.id || `#${index + 1}`;
+      if (!engineId) {
+        setLocalMsg(`Item "${label}" needs an Item ID (letters, numbers, - or _).`);
+        return;
+      }
+      if (!item.name.trim()) {
+        setLocalMsg(`Item "${item.id}" needs a display name.`);
+        return;
+      }
+      if (seenIds.has(engineId)) {
+        setLocalMsg(`Item ID "${engineId}" is used more than once. IDs must be unique.`);
+        return;
+      }
+      seenIds.add(engineId);
+    }
     setCfg(normalized);
-    const result = await save(normalized);
-    if (!result) return;
+    await save(normalized);
   }
 
   function addPanelImage(newImageUrl: string, newImageLabel: string, reset: () => void) {
@@ -333,13 +350,13 @@ export default function StorePage() {
             <h3 style={{ marginTop: 0, color: "#ff4444" }}>Store Panel</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <label>Panel channel</label>
+                <label>Panel channel (blank = channel where /showstore is used)</label>
                 <select
                   style={input}
                   value={cfg.panel.channelId}
                   onChange={(e) => setCfg((prev) => ({ ...prev, panel: { ...prev.panel, channelId: e.target.value } }))}
                 >
-                  <option value="">Select channel</option>
+                  <option value="">Current channel</option>
                   {textChannels.map((channel) => (
                     <option key={channel.id} value={channel.id}>
                       #{channel.name}
@@ -382,19 +399,12 @@ export default function StorePage() {
               />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 10 }}>
-              <div>
-                <label>Button label</label>
-                <input
-                  style={input}
-                  value={cfg.panel.buttonLabel}
-                  onChange={(e) => setCfg((prev) => ({ ...prev, panel: { ...prev.panel, buttonLabel: e.target.value } }))}
-                />
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
               <div>
                 <label>Embed color</label>
                 <input
                   style={input}
+                  placeholder="#ff3b3b"
                   value={cfg.panel.embedColor}
                   onChange={(e) => setCfg((prev) => ({ ...prev, panel: { ...prev.panel, embedColor: e.target.value } }))}
                 />
@@ -482,16 +492,7 @@ export default function StorePage() {
 
           <div style={box}>
             <h3 style={{ marginTop: 0, color: "#ff4444" }}>Policies</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div>
-                <label>Max items per purchase</label>
-                <input
-                  style={input}
-                  type="number"
-                  value={cfg.policies.maxItemsPerPurchase}
-                  onChange={(e) => setCfg((prev) => ({ ...prev, policies: { ...prev.policies, maxItemsPerPurchase: Number(e.target.value || 1) } }))}
-                />
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
               <div>
                 <label>Require staff approval</label>
                 <br />
@@ -500,6 +501,9 @@ export default function StorePage() {
                   checked={cfg.policies.requireStaffApproval}
                   onChange={(e) => setCfg((prev) => ({ ...prev, policies: { ...prev.policies, requireStaffApproval: e.target.checked } }))}
                 />
+                <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
+                  Role purchases are charged and logged to the log channel; staff then grant the role manually.
+                </div>
               </div>
             </div>
             <div style={{ marginTop: 8 }}>

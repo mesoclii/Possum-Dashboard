@@ -178,7 +178,14 @@ export default function EconomyRewardsClient() {
       />
 
       <button
-        onClick={() => void save(safeCfg)}
+        onClick={() => void save({
+          ...safeCfg,
+          work: {
+            ...safeCfg.work,
+            coinsMax: Math.max(safeCfg.work.coinsMin, safeCfg.work.coinsMax),
+            xpMax: Math.max(safeCfg.work.xpMin, safeCfg.work.xpMax),
+          },
+        })}
         disabled={saving}
         style={{ ...styles.input, width: "auto", cursor: "pointer", fontWeight: 900 }}
       >

@@ -87,8 +87,14 @@ export default function LoyaltyEngineClient() {
     setSaving(true);
     setMsg("");
     try {
-      const json = await saveRuntimeEngine(guildId, "loyalty", cfg as unknown as Record<string, unknown>);
-      setCfg({ ...EMPTY, ...(json?.config || cfg) });
+      new Intl.DateTimeFormat("en-US", { timeZone: String(cfg.timezone || "").trim() });
+      const normalized = {
+        ...cfg,
+        heistExemptDays: Math.max(1, Math.min(3650, Math.floor(Number(cfg.heistExemptDays) || 7))),
+        yearRewardDays: Math.max(1, Math.min(3650, Math.floor(Number(cfg.yearRewardDays) || 30))),
+      };
+      const json = await saveRuntimeEngine(guildId, "loyalty", normalized as unknown as Record<string, unknown>);
+      setCfg({ ...EMPTY, ...(json?.config || normalized) });
       setSummary(Array.isArray(json?.summary) ? json.summary : []);
       setDetails(json?.details && typeof json.details === "object" ? json.details : {});
       setMsg("Loyalty engine settings saved.");
@@ -127,12 +133,12 @@ export default function LoyaltyEngineClient() {
           <section style={box}>
             <label><input type="checkbox" checked={cfg.active} onChange={(e) => setCfg((p) => ({ ...p, active: e.target.checked }))} /> Loyalty Processing Enabled</label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-              <div><div>Timezone</div><input style={input} value={cfg.timezone} onChange={(e) => setCfg((p) => ({ ...p, timezone: e.target.value }))} /></div>
+              <div><div>Timezone</div><input style={input} value={cfg.timezone} onChange={(e) => setCfg((p) => ({ ...p, timezone: e.target.value }))} placeholder="America/Los_Angeles" /></div>
               <div><div>Announce Channel</div><select style={input} value={cfg.announceChannelId || ""} onChange={(e) => setCfg((p) => ({ ...p, announceChannelId: e.target.value }))}><option value="">Select channel</option>{channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}</select></div>
               <div><div>Heist Exempt Role</div><select style={input} value={cfg.heistExemptRoleId || ""} onChange={(e) => setCfg((p) => ({ ...p, heistExemptRoleId: e.target.value }))}><option value="">Select role</option>{roles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}</select></div>
-              <div><div>Heist Exempt Days</div><input style={input} type="number" value={cfg.heistExemptDays} onChange={(e) => setCfg((p) => ({ ...p, heistExemptDays: Number(e.target.value || 0) }))} /></div>
+              <div><div>Heist Exempt Days</div><input style={input} type="number" min={1} max={3650} step={1} value={cfg.heistExemptDays} onChange={(e) => setCfg((p) => ({ ...p, heistExemptDays: Math.max(1, Math.min(3650, Math.floor(Number(e.target.value) || 1))) }))} /></div>
               <div><div>Year Reward Role</div><select style={input} value={cfg.yearRewardRoleId || ""} onChange={(e) => setCfg((p) => ({ ...p, yearRewardRoleId: e.target.value }))}><option value="">Select role</option>{roles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}</select></div>
-              <div><div>Year Reward Days</div><input style={input} type="number" value={cfg.yearRewardDays} onChange={(e) => setCfg((p) => ({ ...p, yearRewardDays: Number(e.target.value || 0) }))} /></div>
+              <div><div>Year Reward Days</div><input style={input} type="number" min={1} max={3650} step={1} value={cfg.yearRewardDays} onChange={(e) => setCfg((p) => ({ ...p, yearRewardDays: Math.max(1, Math.min(3650, Math.floor(Number(e.target.value) || 1))) }))} /></div>
             </div>
             <div style={{ marginTop: 10 }}>
               <div>Notes</div>

@@ -11,7 +11,7 @@ type EnginePayload = {
   details?: Record<string, any>;
 };
 
-type EngineKey = "store" | "progression" | "inviteTracker" | "radio" | "giveaways" | "eventPoints";
+type EngineKey = "store" | "economyRewards" | "progression" | "inviteTracker" | "radio" | "giveaways" | "eventPoints";
 
 const card: CSSProperties = {
   border: "1px solid rgba(255,0,0,.28)",
@@ -34,6 +34,7 @@ const input: CSSProperties = {
 const LINKS: Array<{ engine: EngineKey; href: string; title: string; description: string }> = [
   { engine: "eventPoints", href: "/dashboard/economy/events", title: "Event Points", description: "Separate event-only currency, house standings, and custom event boards." },
   { engine: "store", href: "/dashboard/economy/store", title: "Store", description: "Catalog, stock, pricing, and role/item grant behavior." },
+  { engine: "economyRewards", href: "/dashboard/economy/rewards", title: "Daily + Work", description: "/daily and /work payouts, cooldowns, and optional work XP." },
   { engine: "progression", href: "/dashboard/economy/progression", title: "Progression", description: "XP intake, level rewards, multipliers, and anti-abuse." },
   { engine: "inviteTracker", href: "/dashboard/economy/leaderboard", title: "Invite Tracker", description: "Invite leaderboard routing and recruiter thresholds." },
   { engine: "radio", href: "/dashboard/economy/radio-birthday", title: "Radio", description: "Birthday rewards, broadcast routing, and Radio profiles." },
@@ -47,6 +48,7 @@ export default function EconomyClient() {
   const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({
     eventPoints: {},
     store: {},
+    economyRewards: {},
     progression: {},
     inviteTracker: {},
     radio: {},
@@ -71,19 +73,26 @@ export default function EconomyClient() {
     try {
       setLoading(true);
       setMessage("");
+      const failedEngines: string[] = [];
       const [dashboard, ...runtimeEntries] = await Promise.all([
         fetchDashboardConfig(targetGuildId),
         ...LINKS.map(async (entry) => {
-          const json = await fetchRuntimeEngine(targetGuildId, entry.engine);
-          return [entry.engine, {
-            config: json?.config || {},
-            summary: Array.isArray(json?.summary) ? json.summary : [],
-            details: json?.details && typeof json.details === "object" ? json.details : {},
-          }] as const;
+          try {
+            const json = await fetchRuntimeEngine(targetGuildId, entry.engine);
+            return [entry.engine, {
+              config: json?.config || {},
+              summary: Array.isArray(json?.summary) ? json.summary : [],
+              details: json?.details && typeof json.details === "object" ? json.details : {},
+            }] as const;
+          } catch {
+            failedEngines.push(entry.title);
+            return [entry.engine, {}] as const;
+          }
         }),
       ]);
       setEconomyEnabled(Boolean(dashboard?.features?.economyEnabled));
       setEngines(Object.fromEntries(runtimeEntries) as Record<EngineKey, EnginePayload>);
+      if (failedEngines.length) setMessage(`Could not load: ${failedEngines.join(", ")}. Controls for those are read-only until a reload succeeds.`);
     } catch (err: any) {
       setMessage(err?.message || "Failed to load economy hub.");
     } finally {
@@ -114,7 +123,11 @@ export default function EconomyClient() {
       const json = await saveRuntimeEngine(guildId, engine, patch);
       setEngines((prev) => ({
         ...prev,
-        [engine]: { config: json?.config || {}, summary: Array.isArray(json?.summary) ? json.summary : [] },
+        [engine]: {
+          config: json?.config || {},
+          summary: Array.isArray(json?.summary) ? json.summary : [],
+          details: prev[engine]?.details || {},
+        },
       }));
       setMessage(okLabel);
     } catch (err: any) {
@@ -135,8 +148,8 @@ export default function EconomyClient() {
       setMessage("Enter a valid member ID or paste a Discord mention.");
       return;
     }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage("Coin grant amount must be a positive whole number.");
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) {
+      setMessage("Coin grant amount must be a whole number between 1 and 1,000,000,000.");
       return;
     }
 
@@ -201,7 +214,12 @@ export default function EconomyClient() {
             {LINKS.map((entry) => (
               <div key={entry.engine} style={card}>
                 <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ffadad" }}>{entry.title}</div>
-                <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, color: "#fff" }}>{(engines[entry.engine].summary || [])[0]?.value || "Unknown"}</div>
+                <div style={{ marginTop: 6, fontSize: 22, fontWeight: 900, color: "#fff" }}>
+                  {(engines[entry.engine].summary || [])[0]?.value
+                    || (entry.engine === "economyRewards" && engines.economyRewards.config
+                      ? (engines.economyRewards.config.enabled === false ? "Disabled" : "Enabled")
+                      : "Unknown")}
+                </div>
                 <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>{entry.description}</div>
               </div>
             ))}
@@ -292,6 +310,15 @@ export default function EconomyClient() {
                 <label><input type="checkbox" checked={Boolean(engines.store.config?.active)} onChange={(event) => void saveEngine("store", { active: event.target.checked }, `Store ${event.target.checked ? "enabled" : "disabled"}.`)} /> Active</label>
                 <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>{(engines.store.summary || []).map((row) => `${row.label}: ${row.value}`).join(" | ")}</div>
                 <div style={{ marginTop: 10 }}><Link href={`/dashboard/economy/store?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Store</Link></div>
+              </div>
+
+              <div style={{ border: "1px solid #4f0000", borderRadius: 10, padding: 12 }}>
+                <div style={{ fontWeight: 900, marginBottom: 8 }}>Daily + Work</div>
+                <label><input type="checkbox" checked={engines.economyRewards.config?.enabled !== false} onChange={(event) => void saveEngine("economyRewards", { enabled: event.target.checked }, `Daily + Work rewards ${event.target.checked ? "enabled" : "disabled"}.`)} /> Rewards enabled</label>
+                <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>
+                  Daily: {Number(engines.economyRewards.config?.daily?.coins ?? 250)} coins / {Number(engines.economyRewards.config?.daily?.cooldownHours ?? 24)}h | Work: {Number(engines.economyRewards.config?.work?.coinsMin ?? 25)}-{Number(engines.economyRewards.config?.work?.coinsMax ?? 75)} coins / {Number(engines.economyRewards.config?.work?.cooldownMinutes ?? 30)}m
+                </div>
+                <div style={{ marginTop: 10 }}><Link href={`/dashboard/economy/rewards?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Daily + Work</Link></div>
               </div>
 
               <div style={{ border: "1px solid #4f0000", borderRadius: 10, padding: 12 }}>

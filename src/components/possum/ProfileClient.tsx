@@ -90,10 +90,10 @@ function mergeBackgroundOptions(detailRows: Array<{ id: string; label: string; m
 
 function normalizeBackgroundLibrary(value: unknown): ProfileBackgroundAsset[] {
   if (!Array.isArray(value)) return [];
-  return value.map((row: any, index) => ({
-    id: String(row?.id || `background-${index + 1}`).trim() || `background-${index + 1}`,
-    name: String(row?.name || row?.id || `Background ${index + 1}`).trim() || `Background ${index + 1}`,
-    imageUrl: String(row?.imageUrl || "").trim(),
+  return value.slice(0, 100).map((row: any, index) => ({
+    id: String(row?.id || `background-${index + 1}`).trim().slice(0, 100) || `background-${index + 1}`,
+    name: String(row?.name || row?.id || `Background ${index + 1}`).trim().slice(0, 100) || `Background ${index + 1}`,
+    imageUrl: String(row?.imageUrl || "").trim().slice(0, 2048),
     accentColor: String(row?.accentColor || "#c1121f").trim() || "#c1121f",
     unlockedByDefault: row?.unlockedByDefault !== false,
   }));
@@ -148,6 +148,17 @@ export default function ProfileClient() {
         ],
       },
     }));
+  }
+
+  function saveProfile() {
+    const normalized = {
+      ...cfg,
+      repCooldownHours: Math.max(1, Math.min(8760, Math.floor(Number(cfg.repCooldownHours) || 24))),
+      maxEquippedBadges: Math.max(1, Math.min(25, Math.floor(Number(cfg.maxEquippedBadges) || 3))),
+      titleMaxLength: Math.max(1, Math.min(100, Math.floor(Number(cfg.titleMaxLength) || 32))),
+      assetLibrary: { backgrounds: normalizeBackgroundLibrary(cfg.assetLibrary?.backgrounds) },
+    };
+    void save(normalized);
   }
 
   function removeBackground(index: number) {
@@ -210,15 +221,15 @@ export default function ProfileClient() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
               <div>
                 <div style={label}>Rep Cooldown (hours)</div>
-                <input style={input} type="number" min={1} value={cfg.repCooldownHours} onChange={(e) => setCfg((prev) => ({ ...prev, repCooldownHours: Number(e.target.value || 1) }))} />
+                <input style={input} type="number" min={1} max={8760} step={1} value={Math.max(1, Math.min(8760, Math.floor(Number(cfg.repCooldownHours) || 24)))} onChange={(e) => setCfg((prev) => ({ ...prev, repCooldownHours: Math.max(1, Math.min(8760, Math.floor(Number(e.target.value) || 1))) }))} />
               </div>
               <div>
                 <div style={label}>Max Equipped Badges</div>
-                <input style={input} type="number" min={1} value={cfg.maxEquippedBadges} onChange={(e) => setCfg((prev) => ({ ...prev, maxEquippedBadges: Number(e.target.value || 1) }))} />
+                <input style={input} type="number" min={1} max={25} step={1} value={Math.max(1, Math.min(25, Math.floor(Number(cfg.maxEquippedBadges) || 3)))} onChange={(e) => setCfg((prev) => ({ ...prev, maxEquippedBadges: Math.max(1, Math.min(25, Math.floor(Number(e.target.value) || 1))) }))} />
               </div>
               <div>
                 <div style={label}>Title Max Length</div>
-                <input style={input} type="number" min={1} value={cfg.titleMaxLength} onChange={(e) => setCfg((prev) => ({ ...prev, titleMaxLength: Number(e.target.value || 1) }))} />
+                <input style={input} type="number" min={1} max={100} step={1} value={Math.max(1, Math.min(100, Math.floor(Number(cfg.titleMaxLength) || 32)))} onChange={(e) => setCfg((prev) => ({ ...prev, titleMaxLength: Math.max(1, Math.min(100, Math.floor(Number(e.target.value) || 1))) }))} />
               </div>
             </div>
           </section>
@@ -264,7 +275,7 @@ export default function ProfileClient() {
                   Build the shared background library for profile cards, rank cards, level-up cards, and badge cards. If an image URL is set, the live embeds will use it.
                 </div>
               </div>
-              <button onClick={addBackground} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>Add Background</button>
+              <button onClick={addBackground} disabled={backgroundLibrary.length >= 100} style={{ ...input, width: "auto", cursor: backgroundLibrary.length >= 100 ? "not-allowed" : "pointer", fontWeight: 900 }}>Add Background</button>
             </div>
 
             {backgroundLibrary.length ? (
@@ -274,11 +285,11 @@ export default function ProfileClient() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
                       <div>
                         <div style={label}>Background Id</div>
-                        <input style={input} value={row.id} onChange={(e) => updateBackground(index, { id: e.target.value })} />
+                        <input style={input} maxLength={100} value={row.id} onChange={(e) => updateBackground(index, { id: e.target.value })} />
                       </div>
                       <div>
                         <div style={label}>Display Name</div>
-                        <input style={input} value={row.name} onChange={(e) => updateBackground(index, { name: e.target.value })} />
+                        <input style={input} maxLength={100} value={row.name} onChange={(e) => updateBackground(index, { name: e.target.value })} />
                       </div>
                       <div>
                         <div style={label}>Accent Color</div>
@@ -286,7 +297,7 @@ export default function ProfileClient() {
                       </div>
                       <div>
                         <div style={label}>Image URL</div>
-                        <input style={input} value={row.imageUrl} onChange={(e) => updateBackground(index, { imageUrl: e.target.value })} placeholder="https://..." />
+                        <input style={input} type="url" maxLength={2048} value={row.imageUrl} onChange={(e) => updateBackground(index, { imageUrl: e.target.value })} placeholder="https://..." />
                       </div>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
@@ -317,7 +328,7 @@ export default function ProfileClient() {
             <div style={{ color: "#ffb8b8", lineHeight: 1.6, maxWidth: 840 }}>
               This page owns the live profile policy. Achievement progression, hall-of-fame recognition, loyalty, and prestige stay linked, but the actual member-facing identity rules live here.
             </div>
-            <button onClick={() => save()} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
+            <button onClick={saveProfile} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
               {saving ? "Saving..." : "Save Profile"}
             </button>
           </section>

@@ -94,11 +94,26 @@ const MAX_AVATAR_UPLOAD_BYTES = 2_000_000;
 const GUILD_ROUTE_FEATURES: Array<{ key: string; label: string }> = [
   { key: "chat", label: "Chat replies (people talking to the bot)" },
   { key: "crew", label: "Crew posts and cards" },
+  { key: "games", label: "Games, gamer cards and playtime" },
+  { key: "birthdays", label: "Birthday and radio posts" },
+  { key: "community", label: "Community studio and lookups" },
+  { key: "moderation", label: "Moderation panels" },
 ];
 
 const DM_ROUTE_FEATURES: Array<{ key: string; label: string }> = [
   { key: "giveaways", label: "Giveaway DMs" },
   { key: "moderation", label: "Moderation notice DMs" },
+  { key: "onboarding", label: "Onboarding DMs" },
+  { key: "verification", label: "Verification DMs" },
+  { key: "progression", label: "Progression and achievement DMs" },
+  { key: "loyalty", label: "Loyalty DMs" },
+  { key: "crew", label: "Crew invite DMs" },
+  { key: "games", label: "Game connect DMs" },
+  { key: "birthdays", label: "Birthday DMs" },
+  { key: "automation", label: "Automation DMs" },
+  { key: "activity", label: "Activity warning DMs" },
+  { key: "governance", label: "Governance DMs" },
+  { key: "notices", label: "System notice DMs" },
 ];
 
 function sanitizeRouting(raw: unknown, allowed: string[]): Record<string, string> {

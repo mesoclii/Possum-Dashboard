@@ -1,6 +1,6 @@
 const INVITE_PATH = "/api/auth/discord/invite";
 const SUPPORT_SERVER_PATH = "/api/support-server";
-export const SUPPORT_SERVER_GUILD_ID = "1480942991328809223";
+export const SUPPORT_SERVER_GUILD_ID = "1567807367427661895";
 
 export function buildPublicInviteUrl(guildId?: string) {
   if (!guildId) return INVITE_PATH;

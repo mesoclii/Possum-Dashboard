@@ -17,7 +17,7 @@ export function isDashboardControlOwner(userId?: string | null) {
 export const FALLBACK_GUILD_NAMES: Record<string, string> = {
   "1431799056211906582": "Saviors Gaming 18+",
   "1336178965202599936": "Possum Bot Games",
-  "1480942991328809223": "Possum Bot Support",
+  "1567807367427661895": "Possum Bot Support",
 };
 
 const EXTRA_CONTROL_GUILDS = String(process.env.CONTROL_GUILD_IDS || "")

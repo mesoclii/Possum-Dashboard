@@ -64,6 +64,12 @@ export default function PremiumFeaturesClient() {
   }, [guildId]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") setStatusMsg("Payment received. Premium activates within a few seconds; refresh if it does not show.");
+    else if (params.get("cancel") === "true") setStatusMsg("Checkout canceled. You were not charged.");
+  }, []);
+
+  useEffect(() => {
     void loadStatus();
   }, [loadStatus]);
 
@@ -98,6 +104,30 @@ export default function PremiumFeaturesClient() {
     } catch (error: any) {
       setStatusMsg(error?.message || "Failed to update premium plan.");
     } finally {
+      setSaving(false);
+    }
+  }
+
+  async function startCheckout(plan: "monthly" | "yearly" | "lifetime" | "ai_addon") {
+    if (!guildId) {
+      setStatusMsg("Select a server first.");
+      return;
+    }
+    setSaving(true);
+    setStatusMsg("");
+    try {
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, plan }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false || !json?.url) {
+        throw new Error(json?.error || "Checkout failed.");
+      }
+      window.location.href = json.url;
+    } catch (error: any) {
+      setStatusMsg(error?.message || "Checkout failed.");
       setSaving(false);
     }
   }
@@ -429,6 +459,24 @@ export default function PremiumFeaturesClient() {
               <div style={{ color: "#ffbdbd", fontSize: 13, lineHeight: 1.65, marginTop: 10 }}>
                 {plan.included.map((item) => (
                   <div key={item}>{item}</div>
+                ))}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+                {([
+                  ["monthly", "Monthly"],
+                  ["yearly", "Yearly"],
+                  ["lifetime", "Lifetime"],
+                  ["ai_addon", "AI Add-on"],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void startCheckout(key)}
+                    style={{ ...action, border: "1px solid rgba(255,0,0,.5)", background: "rgba(120,0,0,.35)", color: "#fff1c7", cursor: "pointer", fontSize: 12 }}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
             </div>

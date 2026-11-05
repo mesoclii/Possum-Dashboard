@@ -43,6 +43,7 @@ function resolveGuildId() {
 export default function PremiumGate({ featureKey, featureLabel, children }: PremiumGateProps) {
   const premiumEnforced = isPremiumEnforcementEnabled();
   const [guildId, setGuildId] = useState("");
+  const [guildName, setGuildName] = useState("");
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
   const [plan, setPlan] = useState("FREE");
@@ -58,6 +59,7 @@ export default function PremiumGate({ featureKey, featureLabel, children }: Prem
 
     const id = resolveGuildId();
     setGuildId(id);
+    setGuildName(localStorage.getItem("activeGuildName") || "");
     if (!id) {
       setLoading(false);
       setAllowed(false);
@@ -116,7 +118,7 @@ export default function PremiumGate({ featureKey, featureLabel, children }: Prem
           : `${featureLabel} requires an active ${["advanced-security", "automation-suite"].includes(featureKey) ? "Business or Enterprise" : "Pro, Business, or Enterprise"} plan before it can be configured live.`}
       </p>
       <div style={{ color: "#ffd7a6", fontSize: 13, marginBottom: 12 }}>
-        Guild: {guildId || "Not selected"} | Current Plan: {plan}
+        Guild: {guildName || guildId || "Not selected"} | Current Plan: {plan}
       </div>
       <div style={{ color: "#ffb5b5", fontSize: 12, marginBottom: 12 }}>
         Feature key: {featureKey}

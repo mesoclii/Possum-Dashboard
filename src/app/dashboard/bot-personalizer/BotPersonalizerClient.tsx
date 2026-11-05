@@ -348,6 +348,11 @@ function buildMainBotPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     activityType: cfg.activityType,
     activityText: cfg.activityText,
     status: cfg.status,
+    dmAuthority: cfg.dmAuthority,
+    guildMessageAuthority: cfg.guildMessageAuthority,
+    featureRouting: cfg.featureRouting,
+    dmFeatureRouting: cfg.dmFeatureRouting,
+    voiceRouting: cfg.voiceRouting,
   };
 }
 
@@ -566,13 +571,12 @@ export default function BotPersonalizerClient() {
     const customPatch = sanitizeConfig({
       ...cfg,
       customBotEnabled: true,
-      dmAuthority: "custom",
     });
     const result = await runAction("refreshCustomBot", {
       patch: buildCustomBotPatch(customPatch),
     });
     if (!result) return;
-    updateCfg({ customBotEnabled: true, dmAuthority: "custom" });
+    updateCfg({ customBotEnabled: true });
   }
 
   if (!guildId) {

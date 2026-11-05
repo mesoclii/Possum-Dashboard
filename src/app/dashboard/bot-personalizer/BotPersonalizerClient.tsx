@@ -57,6 +57,16 @@ type PersonaConfig = {
   customBot2Token: string;
   customBot2HasToken: boolean;
   customBot2ClearToken: boolean;
+  customBot3Enabled: boolean;
+  customBot3Nickname: string;
+  customBot3AvatarUrl: string;
+  customBot3Status: string;
+  customBot3ActivityType: string;
+  customBot3ActivityText: string;
+  customBot3ClientId: string;
+  customBot3Token: string;
+  customBot3HasToken: boolean;
+  customBot3ClearToken: boolean;
   profileBannerUrl: string;
   activityType: string;
   activityText: string;
@@ -107,6 +117,16 @@ const DEFAULT_CFG: PersonaConfig = {
   customBot2Token: "",
   customBot2HasToken: false,
   customBot2ClearToken: false,
+  customBot3Enabled: false,
+  customBot3Nickname: "",
+  customBot3AvatarUrl: "",
+  customBot3Status: "",
+  customBot3ActivityType: "LISTENING",
+  customBot3ActivityText: "",
+  customBot3ClientId: "",
+  customBot3Token: "",
+  customBot3HasToken: false,
+  customBot3ClearToken: false,
   profileBannerUrl: "",
   activityType: "LISTENING",
   activityText: "/help",
@@ -235,9 +255,9 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBotEnabled: Boolean(src.customBotEnabled),
     dmAuthority: String(src.dmAuthority || "custom"),
     guildMessageAuthority: String(src.guildMessageAuthority || "custom"),
-    featureRouting: sanitizeRouting(src.featureRouting, ["main", "webhook", "custom", "custom2"]),
-    voiceRouting: sanitizeRouting(src.voiceRouting, ["main", "custom", "custom2"]),
-    dmFeatureRouting: sanitizeRouting(src.dmFeatureRouting, ["main", "custom", "custom2"]),
+    featureRouting: sanitizeRouting(src.featureRouting, ["main", "webhook", "custom", "custom2", "custom3"]),
+    voiceRouting: sanitizeRouting(src.voiceRouting, ["main", "custom", "custom2", "custom3"]),
+    dmFeatureRouting: sanitizeRouting(src.dmFeatureRouting, ["main", "custom", "custom2", "custom3"]),
     showSetupSupportText: src.showSetupSupportText !== false,
     setupSupportText: String(src.setupSupportText || "Need help with setup? Message the developer for direct setup assistance."),
     customBotNickname: String(src.customBotNickname || ""),
@@ -266,6 +286,16 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBot2Token: String(src.customBot2Token || ""),
     customBot2HasToken: Boolean(src.customBot2HasToken),
     customBot2ClearToken: Boolean(src.customBot2ClearToken),
+    customBot3Enabled: Boolean(src.customBot3Enabled),
+    customBot3Nickname: String(src.customBot3Nickname || ""),
+    customBot3AvatarUrl: String(src.customBot3AvatarUrl || ""),
+    customBot3Status: String(src.customBot3Status || ""),
+    customBot3ActivityType: String(src.customBot3ActivityType || "LISTENING"),
+    customBot3ActivityText: String(src.customBot3ActivityText || ""),
+    customBot3ClientId: String(src.customBot3ClientId || ""),
+    customBot3Token: String(src.customBot3Token || ""),
+    customBot3HasToken: Boolean(src.customBot3HasToken),
+    customBot3ClearToken: Boolean(src.customBot3ClearToken),
     profileBannerUrl: String(src.profileBannerUrl || ""),
     activityType: String(src.activityType || "LISTENING"),
     activityText: String(src.activityText || "/help"),
@@ -386,6 +416,23 @@ function buildCustomBot2Patch(cfg: PersonaConfig): Partial<PersonaConfig> {
   };
 }
 
+function buildCustomBot3Patch(cfg: PersonaConfig): Partial<PersonaConfig> {
+  return {
+    customBot3Enabled: cfg.customBot3Enabled,
+    customBot3Nickname: cfg.customBot3Nickname,
+    customBot3AvatarUrl: cfg.customBot3AvatarUrl,
+    customBot3Status: cfg.customBot3Status,
+    customBot3ActivityType: cfg.customBot3ActivityType,
+    customBot3ActivityText: cfg.customBot3ActivityText,
+    customBot3ClientId: cfg.customBot3ClientId,
+    customBot3Token: cfg.customBot3Token,
+    customBot3ClearToken: cfg.customBot3ClearToken,
+    featureRouting: cfg.featureRouting,
+    voiceRouting: cfg.voiceRouting,
+    dmFeatureRouting: cfg.dmFeatureRouting,
+  };
+}
+
 function buildCustomBotPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
   return {
     enabled: cfg.enabled,
@@ -425,6 +472,10 @@ const CUSTOM_BOT_IDENTITY_KEYS = [
 const CUSTOM_BOT2_IDENTITY_KEYS = [
   "customBot2Enabled", "customBot2Nickname", "customBot2AvatarUrl", "customBot2Status", "customBot2ActivityType",
   "customBot2ActivityText", "customBot2ClientId", "customBot2Token", "customBot2ClearToken",
+] as const;
+const CUSTOM_BOT3_IDENTITY_KEYS = [
+  "customBot3Enabled", "customBot3Nickname", "customBot3AvatarUrl", "customBot3Status", "customBot3ActivityType",
+  "customBot3ActivityText", "customBot3ClientId", "customBot3Token", "customBot3ClearToken",
 ] as const;
 
 function laneChanged(keys: readonly string[], current: PersonaConfig, baseline: PersonaConfig | null) {
@@ -580,8 +631,14 @@ export default function BotPersonalizerClient() {
       updateCfg({ customBot2Token: "" });
     }
 
+    if (cfg.customBot3Enabled && laneChanged(CUSTOM_BOT3_IDENTITY_KEYS, cfg, baseline)) {
+      const custom3Result = await runAction("refreshCustomBot3", { patch: buildCustomBot3Patch(cfg) });
+      if (!custom3Result) return;
+      updateCfg({ customBot3Token: "" });
+    }
+
     await save(cfg);
-    syncedCfgRef.current = sanitizeConfig({ ...cfg, customBot2Token: "" });
+    syncedCfgRef.current = sanitizeConfig({ ...cfg, customBot2Token: "", customBot3Token: "" });
   }
 
   async function saveAndApplyMainBotIdentity() {
@@ -617,6 +674,14 @@ export default function BotPersonalizerClient() {
     if (!result) return;
     syncedCfgRef.current = cfg;
     updateCfg({ customBot2Enabled: true, customBot2Token: "" });
+  }
+
+  async function saveAndDeployCustomBot3() {
+    const patch = buildCustomBot3Patch(sanitizeConfig({ ...cfg, customBot3Enabled: true }));
+    const result = await runAction("refreshCustomBot3", { patch });
+    if (!result) return;
+    syncedCfgRef.current = cfg;
+    updateCfg({ customBot3Enabled: true, customBot3Token: "" });
   }
 
   async function saveAndDeployCustomBot() {
@@ -799,6 +864,7 @@ export default function BotPersonalizerClient() {
                         >
                           <option value="custom">Custom Token Bot</option>
                           <option value="custom2">Second Token Bot (Yearly+)</option>
+                          <option value="custom3">Third Token Bot (Lifetime)</option>
                           <option value="main">Main Possum</option>
                         </select>
                         <div style={{ ...hint, marginTop: 6 }}>
@@ -814,6 +880,7 @@ export default function BotPersonalizerClient() {
                         >
                           <option value="custom">Custom Token Bot</option>
                           <option value="custom2">Second Token Bot (Yearly+)</option>
+                          <option value="custom3">Third Token Bot (Lifetime)</option>
                           <option value="webhook">Shared Possum Webhook</option>
                           <option value="main">Main Possum</option>
                         </select>
@@ -867,6 +934,7 @@ export default function BotPersonalizerClient() {
                                 <option value="webhook">Shared Possum Webhook</option>
                                 <option value="custom">Custom Token Bot</option>
                                 <option value="custom2">Second Token Bot (Yearly+)</option>
+                                <option value="custom3">Third Token Bot (Lifetime)</option>
                               </select>
                             </div>
                           ))}
@@ -886,6 +954,7 @@ export default function BotPersonalizerClient() {
                                 <option value="">Main Possum</option>
                                 <option value="custom">Custom Token Bot</option>
                                 <option value="custom2">Second Token Bot (Yearly+)</option>
+                                <option value="custom3">Third Token Bot (Lifetime)</option>
                               </select>
                             </div>
                           ))}
@@ -906,6 +975,7 @@ export default function BotPersonalizerClient() {
                                 <option value="main">Main Possum</option>
                                 <option value="custom">Custom Token Bot</option>
                                 <option value="custom2">Second Token Bot (Yearly+)</option>
+                                <option value="custom3">Third Token Bot (Lifetime)</option>
                               </select>
                             </div>
                           ))}
@@ -1188,6 +1258,78 @@ export default function BotPersonalizerClient() {
                   </button>
                   <button type="button" style={subAction} onClick={() => updateCfg({ customBot2ClearToken: !cfg.customBot2ClearToken, customBot2Token: "" })}>
                     {cfg.customBot2ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
+                <div style={{ fontWeight: 900, color: "#ff8b8b", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Third token bot (Yearly+)
+                </div>
+                <div style={hint}>
+                  A fully separate third Discord-portal bot with its own token, name, avatar and presence. It never shares state with the Custom Token Bot,
+                  and does nothing until you route a feature to it above. Requires a Lifetime plan on this server. Invite it to the server like any bot.
+                </div>
+                <label style={{ display: "block", marginTop: 10, fontWeight: 800 }}>
+                  <input type="checkbox" checked={cfg.customBot3Enabled} onChange={(e) => updateCfg({ customBot3Enabled: e.target.checked })} /> Enable third token bot
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 12 }}>
+                  <div>
+                    <label>Client ID</label>
+                    <input style={input} value={cfg.customBot3ClientId} onChange={(e) => updateCfg({ customBot3ClientId: e.target.value })} placeholder="Discord application client ID" />
+                  </div>
+                  <div>
+                    <label>Bot token</label>
+                    <input
+                      style={input}
+                      type="password"
+                      value={cfg.customBot3Token}
+                      onChange={(e) => updateCfg({ customBot3Token: e.target.value, customBot3ClearToken: false })}
+                      placeholder={cfg.customBot3HasToken ? "Stored securely. Enter a new token to rotate it." : "Enter third bot token"}
+                    />
+                    <div style={{ ...hint, marginTop: 6 }}>{cfg.customBot3HasToken ? "A token is stored securely." : "No token stored yet."}</div>
+                  </div>
+                  <div>
+                    <label>Nickname (this guild)</label>
+                    <input style={input} value={cfg.customBot3Nickname} onChange={(e) => updateCfg({ customBot3Nickname: e.target.value })} placeholder="Leave blank for app default" />
+                  </div>
+                  <div>
+                    <label>Avatar URL (this guild only)</label>
+                    <input style={input} value={cfg.customBot3AvatarUrl} onChange={(e) => updateCfg({ customBot3AvatarUrl: e.target.value })} placeholder="https://..." />
+                  </div>
+                  <div>
+                    <label>Status</label>
+                    <select style={input} value={cfg.customBot3Status} onChange={(e) => updateCfg({ customBot3Status: e.target.value })}>
+                      <option value="">Use app default</option>
+                      <option value="online">online</option>
+                      <option value="idle">idle</option>
+                      <option value="dnd">dnd</option>
+                      <option value="invisible">invisible</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Activity type</label>
+                    <select style={input} value={cfg.customBot3ActivityType} onChange={(e) => updateCfg({ customBot3ActivityType: e.target.value })}>
+                      <option value="PLAYING">PLAYING</option>
+                      <option value="LISTENING">LISTENING</option>
+                      <option value="WATCHING">WATCHING</option>
+                      <option value="COMPETING">COMPETING</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Activity text</label>
+                    <input style={input} value={cfg.customBot3ActivityText} onChange={(e) => updateCfg({ customBot3ActivityText: e.target.value })} placeholder="Leave blank for app default" />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void saveAndDeployCustomBot3()}>
+                    Save + Deploy Third bot
+                  </button>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("stopCustomBot3")}>
+                    Stop Runtime
+                  </button>
+                  <button type="button" style={subAction} onClick={() => updateCfg({ customBot3ClearToken: !cfg.customBot3ClearToken, customBot3Token: "" })}>
+                    {cfg.customBot3ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
                   </button>
                 </div>
               </div>

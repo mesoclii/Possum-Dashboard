@@ -195,7 +195,7 @@ export const PLAN_TIERS: PlanTier[] = [
     badge: "Best deal",
     extras: [
       "Everything in Yearly",
-      "Third Token Bot (coming soon)",
+      "Third Token Bot",
       "500 custom commands, 200 automations",
       "2,000 log entries kept",
       "Highest automation rate limits",

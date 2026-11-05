@@ -78,7 +78,7 @@ export default function PremiumGate({ featureKey, featureLabel, children }: Prem
         const developerBypass = Boolean(json?.status?.developerBypass);
         const plan = String(json?.status?.plan || "FREE").toLowerCase();
         const planRank = plan === "enterprise" ? 3 : plan === "business" || plan === "elite" ? 2 : plan === "pro" ? 1 : 0;
-        const minimumRank = featureKey === "secondbot" ? 2 : 1;
+        const minimumRank = featureKey === "thirdbot" ? 3 : featureKey === "secondbot" ? 2 : 1;
         const creatorAccess = Boolean(json?.canManagePremium);
         const planAllowed = Boolean(json?.status?.active) && planRank >= minimumRank;
         setAllowed(featureKey === "openai-platform" ? creatorAccess : planAllowed || developerBypass || DEV_MODE);

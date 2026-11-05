@@ -194,8 +194,10 @@ export default function SocialAlertsClient() {
     try {
       setSavingKey(`run:${provider}`);
       setMessage("");
-      await runRuntimeEngineAction(guildId, "signalRelay", "checkNow", { sourceId: firstEnabled.id });
-      setMessage(`${PROVIDERS.find((entry) => entry.key === provider)?.label || provider} check finished.`);
+      const result: any = await runRuntimeEngineAction(guildId, "signalRelay", "checkNow", { sourceId: firstEnabled.id });
+      const posted = Number(result?.result?.posted ?? result?.posted ?? 0);
+      const label = PROVIDERS.find((entry) => entry.key === provider)?.label || provider;
+      setMessage(posted > 0 ? `${label} check finished. Posted ${posted} new alert${posted === 1 ? "" : "s"}.` : `${label} check finished. Nothing new to post.`);
     } catch (err: any) {
       setMessage(err?.message || "Provider check failed.");
     } finally {

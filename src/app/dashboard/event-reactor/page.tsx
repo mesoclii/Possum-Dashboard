@@ -130,6 +130,7 @@ export default function EventReactorPage() {
   } = useGuildEngineEditor<EventCfg>("eventReactor", EMPTY);
 
   const [routesJson, setRoutesJson] = useState("[]");
+  const [jsonError, setJsonError] = useState("");
 
   const textChannels = (channels as Channel[]).filter((channel) => Number(channel?.type) === 0 || Number(channel?.type) === 5);
 
@@ -161,11 +162,17 @@ export default function EventReactorPage() {
   }
 
   async function applyJsonRoutes() {
-    let parsed: unknown = [];
-    if (routesJson.trim()) {
-      parsed = JSON.parse(routesJson);
+    try {
+      const parsed: unknown = routesJson.trim() ? JSON.parse(routesJson) : [];
+      if (!Array.isArray(parsed)) {
+        setJsonError("Routes JSON must be a list, like [ { ... } ].");
+        return;
+      }
+      setCfg((prev) => ({ ...prev, customRoutes: normalizeRoutes(parsed) }));
+      setJsonError("");
+    } catch (err) {
+      setJsonError(`That JSON isn't valid: ${err instanceof Error ? err.message : "parse error"}`);
     }
-    setCfg((prev) => ({ ...prev, customRoutes: normalizeRoutes(parsed) }));
   }
 
   if (!guildId) return <div style={{ color: "#ff8080", padding: 24 }}>Missing guildId. Open from /guilds first.</div>;
@@ -399,6 +406,7 @@ export default function EventReactorPage() {
               <button onClick={() => setRoutesJson(JSON.stringify(cfg.customRoutes || [], null, 2))} style={action}>Copy Current Routes Into JSON</button>
               <button onClick={() => void applyJsonRoutes()} style={action}>Load JSON Into Editor</button>
             </div>
+            {jsonError ? <div style={{ color: "#ff8080", fontSize: 12, marginTop: 8 }}>{jsonError}</div> : null}
             <div style={{ marginTop: 12 }}>
               <ConfigJsonEditor
                 title="Full Event Alerts Config"

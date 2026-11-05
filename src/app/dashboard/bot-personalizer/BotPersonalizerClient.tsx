@@ -31,6 +31,7 @@ type PersonaConfig = {
   showSetupSupportText: boolean;
   setupSupportText: string;
   customBotNickname: string;
+  customBotAvatarUrl: string;
   customBotStatus: string;
   customBotActivityType: string;
   customBotActivityText: string;
@@ -69,6 +70,7 @@ const DEFAULT_CFG: PersonaConfig = {
   showSetupSupportText: true,
   setupSupportText: "Need help with setup? Message the developer for direct setup assistance.",
   customBotNickname: "",
+  customBotAvatarUrl: "",
   customBotStatus: "",
   customBotActivityType: "LISTENING",
   customBotActivityText: "",
@@ -177,6 +179,7 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     showSetupSupportText: src.showSetupSupportText !== false,
     setupSupportText: String(src.setupSupportText || "Need help with setup? Message the developer for direct setup assistance."),
     customBotNickname: String(src.customBotNickname || ""),
+    customBotAvatarUrl: String(src.customBotAvatarUrl || ""),
     customBotStatus: String(src.customBotStatus || ""),
     customBotActivityType: String(src.customBotActivityType || "LISTENING"),
     customBotActivityText: String(src.customBotActivityText || ""),
@@ -283,6 +286,8 @@ function buildWebhookPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     webhookName: cfg.webhookName,
     webhookAvatarUrl: cfg.webhookAvatarUrl,
     avatarLibrary: cfg.avatarLibrary,
+    guildMessageAuthority: cfg.guildMessageAuthority,
+    featureRouting: cfg.featureRouting,
   };
 }
 
@@ -297,6 +302,7 @@ function buildCustomBotPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     showSetupSupportText: cfg.showSetupSupportText,
     setupSupportText: cfg.setupSupportText,
     customBotNickname: cfg.customBotNickname,
+    customBotAvatarUrl: cfg.customBotAvatarUrl,
     customBotStatus: cfg.customBotStatus,
     customBotActivityType: cfg.customBotActivityType,
     customBotActivityText: cfg.customBotActivityText,
@@ -746,6 +752,15 @@ export default function BotPersonalizerClient() {
                           value={cfg.customBotNickname || ""}
                           onChange={(e) => updateCfg({ customBotNickname: e.target.value })}
                           placeholder="Leave blank to keep app default"
+                        />
+                      </div>
+                      <div>
+                        <label>Custom bot avatar (this guild only)</label>
+                        <input
+                          style={input}
+                          value={cfg.customBotAvatarUrl || ""}
+                          onChange={(e) => updateCfg({ customBotAvatarUrl: e.target.value })}
+                          placeholder="https://... or leave blank to keep app default"
                         />
                       </div>
                       <div>

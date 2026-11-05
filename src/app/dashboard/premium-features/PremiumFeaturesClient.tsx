@@ -446,17 +446,17 @@ export default function PremiumFeaturesClient() {
               <div style={{ color: "#ff5a5a", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 20 }}>
                 {plan.label}
               </div>
-              <div style={{ color: "#fff1c7", fontSize: 30, fontWeight: 900, marginTop: 10 }}>
+              <div style={{ color: "#fff1c7", fontSize: 30, fontWeight: 900, marginTop: 10, textShadow: "0 0 14px rgba(255,214,120,.65)" }}>
                 {plan.monthlyUsd === null ? "Custom" : `$${plan.monthlyUsd.toFixed(2)}`}
                 <span style={{ color: "#ffb8b8", fontSize: 13, marginLeft: 8 }}>/ month</span>
               </div>
-              <div style={{ color: "#ffd0d0", fontSize: 14, marginTop: 6 }}>
+              <div style={{ color: "#fff1c7", fontSize: 16, fontWeight: 800, marginTop: 6, textShadow: "0 0 10px rgba(255,214,120,.55)" }}>
                 {plan.yearlyUsd === null ? "Custom" : `$${plan.yearlyUsd.toFixed(2)}`} / year
                 <span style={{ margin: "0 8px" }}>|</span>
                 {plan.lifetimeUsd === null ? "Custom" : `$${plan.lifetimeUsd.toFixed(2)}`} lifetime
               </div>
-              <div style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 10 }}>{plan.headline}</div>
-              <div style={{ color: "#ffbdbd", fontSize: 13, lineHeight: 1.65, marginTop: 10 }}>
+              <div style={{ color: "#fff1c7", lineHeight: 1.7, marginTop: 10, textShadow: "0 0 10px rgba(255,214,120,.45)" }}>{plan.headline}</div>
+              <div style={{ color: "#fff1c7", fontSize: 14, fontWeight: 600, lineHeight: 1.7, marginTop: 10, textShadow: "0 0 8px rgba(255,214,120,.4)" }}>
                 {plan.included.map((item) => (
                   <div key={item}>{item}</div>
                 ))}

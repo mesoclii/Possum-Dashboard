@@ -27,6 +27,7 @@ type PersonaConfig = {
   dmAuthority: string;
   guildMessageAuthority: string;
   featureRouting: Record<string, string>;
+  voiceRouting: Record<string, string>;
   dmFeatureRouting: Record<string, string>;
   showSetupSupportText: boolean;
   setupSupportText: string;
@@ -76,6 +77,7 @@ const DEFAULT_CFG: PersonaConfig = {
   dmAuthority: "custom",
   guildMessageAuthority: "custom",
   featureRouting: {},
+  voiceRouting: {},
   dmFeatureRouting: {},
   showSetupSupportText: true,
   setupSupportText: "Need help with setup? Message the developer for direct setup assistance.",
@@ -234,6 +236,7 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     dmAuthority: String(src.dmAuthority || "custom"),
     guildMessageAuthority: String(src.guildMessageAuthority || "custom"),
     featureRouting: sanitizeRouting(src.featureRouting, ["main", "webhook", "custom", "custom2"]),
+    voiceRouting: sanitizeRouting(src.voiceRouting, ["main", "custom", "custom2"]),
     dmFeatureRouting: sanitizeRouting(src.dmFeatureRouting, ["main", "custom", "custom2"]),
     showSetupSupportText: src.showSetupSupportText !== false,
     setupSupportText: String(src.setupSupportText || "Need help with setup? Message the developer for direct setup assistance."),
@@ -357,6 +360,7 @@ function buildWebhookPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     avatarLibrary: cfg.avatarLibrary,
     guildMessageAuthority: cfg.guildMessageAuthority,
     featureRouting: cfg.featureRouting,
+    voiceRouting: cfg.voiceRouting,
   };
 }
 
@@ -372,6 +376,7 @@ function buildCustomBot2Patch(cfg: PersonaConfig): Partial<PersonaConfig> {
     customBot2Token: cfg.customBot2Token,
     customBot2ClearToken: cfg.customBot2ClearToken,
     featureRouting: cfg.featureRouting,
+    voiceRouting: cfg.voiceRouting,
     dmFeatureRouting: cfg.dmFeatureRouting,
   };
 }
@@ -383,6 +388,7 @@ function buildCustomBotPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     dmAuthority: cfg.dmAuthority,
     guildMessageAuthority: cfg.guildMessageAuthority,
     featureRouting: cfg.featureRouting,
+    voiceRouting: cfg.voiceRouting,
     dmFeatureRouting: cfg.dmFeatureRouting,
     showSetupSupportText: cfg.showSetupSupportText,
     setupSupportText: cfg.setupSupportText,
@@ -802,6 +808,25 @@ export default function BotPersonalizerClient() {
                                 <option value="">Guild default</option>
                                 <option value="main">Main Possum</option>
                                 <option value="webhook">Shared Possum Webhook</option>
+                                <option value="custom">Custom Token Bot</option>
+                                <option value="custom2">Second Token Bot (Pro)</option>
+                              </select>
+                            </div>
+                          ))}
+                          {[["tts", "Voice: TTS"], ["music", "Voice: Music"]].map(([key, label]) => (
+                            <div key={`voice-${key}`}>
+                              <label>{label}</label>
+                              <select
+                                style={input}
+                                value={cfg.voiceRouting[key] || ""}
+                                onChange={(e) => {
+                                  const next = { ...cfg.voiceRouting };
+                                  if (e.target.value) next[key] = e.target.value;
+                                  else delete next[key];
+                                  updateCfg({ voiceRouting: next });
+                                }}
+                              >
+                                <option value="">Main Possum</option>
                                 <option value="custom">Custom Token Bot</option>
                                 <option value="custom2">Second Token Bot (Pro)</option>
                               </select>

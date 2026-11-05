@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import LanguageProvider from "@/components/possum/LanguageProvider";
 
 export const metadata = {
   title: "Possum Control Room",
@@ -17,6 +18,7 @@ export default function RootLayout({
         <div className="min-h-screen bg-black">
           {children}
         </div>
+        <LanguageProvider />
       </body>
     </html>
   );

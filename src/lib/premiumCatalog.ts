@@ -1,4 +1,4 @@
-﻿import { ENGINE_REGISTRY } from "@/lib/dashboard/engineRegistry";
+import { ENGINE_REGISTRY } from "@/lib/dashboard/engineRegistry";
 
 export type FeatureCatalogEntry = {
   id: string;
@@ -99,9 +99,9 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
     label: "Possum Pro",
-    monthlyUsd: 25.0,
-    yearlyUsd: 45.0,
-    lifetimeUsd: 85.0,
+    monthlyUsd: 35.0,
+    yearlyUsd: 70.0,
+    lifetimeUsd: 100.0,
     headline: "Every premium feature for one server, with a limited monthly AI allowance. Need more AI? Buy optional AI usage add-ons.",
     included: [
       "TTS Engine",

@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import type { CSSProperties, ChangeEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 import { buildDashboardHref } from "@/lib/dashboardContext";
@@ -414,6 +414,24 @@ function buildCustomBotPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
   };
 }
 
+const MAIN_IDENTITY_KEYS = ["enabled", "guildNickname", "botName", "botAvatarUrl", "guildAvatarUrl", "profileBannerUrl", "activityType", "activityText", "status"] as const;
+const WEBHOOK_IDENTITY_KEYS = ["useWebhookPersona", "webhookName", "webhookAvatarUrl", "avatarLibrary"] as const;
+const CUSTOM_BOT_IDENTITY_KEYS = [
+  "customBotEnabled", "showSetupSupportText", "setupSupportText", "customBotNickname", "customBotAvatarUrl", "customBotStatus",
+  "customBotActivityType", "customBotActivityText", "customBotClientId", "customBotRedirectUri", "customBotToken",
+  "customBotClientSecret", "customBotClearToken", "customBotClearClientSecret", "customBotIntentsConfirmed",
+  "customBotOauthGrantDisabledConfirmed", "customBotRedirectConfiguredConfirmed",
+] as const;
+const CUSTOM_BOT2_IDENTITY_KEYS = [
+  "customBot2Enabled", "customBot2Nickname", "customBot2AvatarUrl", "customBot2Status", "customBot2ActivityType",
+  "customBot2ActivityText", "customBot2ClientId", "customBot2Token", "customBot2ClearToken",
+] as const;
+
+function laneChanged(keys: readonly string[], current: PersonaConfig, baseline: PersonaConfig | null) {
+  if (!baseline) return true;
+  return keys.some((key) => JSON.stringify((current as any)[key] ?? null) !== JSON.stringify((baseline as any)[key] ?? null));
+}
+
 export default function BotPersonalizerClient() {
   const {
     guildId,
@@ -431,6 +449,10 @@ export default function BotPersonalizerClient() {
   } = useGuildEngineEditor<PersonaConfig>("botPersonalizer", DEFAULT_CFG);
 
   const cfg = useMemo(() => sanitizeConfig(rawCfg), [rawCfg]);
+  const syncedCfgRef = useRef<PersonaConfig | null>(null);
+  useEffect(() => {
+    if (!loading && !syncedCfgRef.current) syncedCfgRef.current = sanitizeConfig(rawCfg);
+  }, [loading, rawCfg]);
   const possumAiHref = buildDashboardHref("/dashboard/ai/learning");
   const customBotRuntimeRows = Array.isArray((details as any)?.customBotRuntime) ? ((details as any).customBotRuntime as Array<{ title?: string; value?: string }>) : [];
   const standardPreviewName = String(cfg.guildNickname || botUser?.globalName || botUser?.username || "Possum").trim();
@@ -532,27 +554,34 @@ export default function BotPersonalizerClient() {
   }
 
   async function saveGuildPersonalizer() {
-    // Lanes are saved one at a time; routing is saved last so the chosen authority wins.
-    const mainResult = await runAction("applyProfile", { scope: "main", patch: buildMainBotPatch(cfg) });
-    if (!mainResult) return;
-    setMainAvatarPreviewFailedFor("");
-    setAvatarPreviewFailedFor("");
+    // Only lanes whose identity fields changed since the last sync are re-applied (avoids Discord avatar rate limits).
+    // Routing-only edits are persisted by the final config save.
+    const baseline = syncedCfgRef.current;
+    if (laneChanged(MAIN_IDENTITY_KEYS, cfg, baseline)) {
+      const mainResult = await runAction("applyProfile", { scope: "main", patch: buildMainBotPatch(cfg) });
+      if (!mainResult) return;
+      setMainAvatarPreviewFailedFor("");
+      setAvatarPreviewFailedFor("");
+    }
 
-    const webhookResult = await runAction("applyProfile", { scope: "webhook", patch: buildWebhookPatch(cfg) });
-    if (!webhookResult) return;
+    if (laneChanged(WEBHOOK_IDENTITY_KEYS, cfg, baseline)) {
+      const webhookResult = await runAction("applyProfile", { scope: "webhook", patch: buildWebhookPatch(cfg) });
+      if (!webhookResult) return;
+    }
 
-    if (cfg.customBotEnabled) {
+    if (cfg.customBotEnabled && laneChanged(CUSTOM_BOT_IDENTITY_KEYS, cfg, baseline)) {
       const customResult = await runAction("refreshCustomBot", { patch: buildCustomBotPatch(cfg) });
       if (!customResult) return;
     }
 
-    if (cfg.customBot2Enabled) {
+    if (cfg.customBot2Enabled && laneChanged(CUSTOM_BOT2_IDENTITY_KEYS, cfg, baseline)) {
       const custom2Result = await runAction("refreshCustomBot2", { patch: buildCustomBot2Patch(cfg) });
       if (!custom2Result) return;
       updateCfg({ customBot2Token: "" });
     }
 
     await save(cfg);
+    syncedCfgRef.current = sanitizeConfig({ ...cfg, customBot2Token: "" });
   }
 
   async function saveAndApplyMainBotIdentity() {
@@ -561,6 +590,7 @@ export default function BotPersonalizerClient() {
       patch: buildMainBotPatch(cfg),
     });
     if (!result) return;
+    syncedCfgRef.current = cfg;
     setMainAvatarPreviewFailedFor("");
     setAvatarPreviewFailedFor("");
   }
@@ -576,6 +606,7 @@ export default function BotPersonalizerClient() {
       patch: buildWebhookPatch(webhookPatch),
     });
     if (!result) return;
+    syncedCfgRef.current = cfg;
     updateCfg({ useWebhookPersona: true, guildMessageAuthority: "webhook" });
     setAvatarPreviewFailedFor("");
   }
@@ -584,6 +615,7 @@ export default function BotPersonalizerClient() {
     const patch = buildCustomBot2Patch(sanitizeConfig({ ...cfg, customBot2Enabled: true }));
     const result = await runAction("refreshCustomBot2", { patch });
     if (!result) return;
+    syncedCfgRef.current = cfg;
     updateCfg({ customBot2Enabled: true, customBot2Token: "" });
   }
 
@@ -596,6 +628,7 @@ export default function BotPersonalizerClient() {
       patch: buildCustomBotPatch(customPatch),
     });
     if (!result) return;
+    syncedCfgRef.current = cfg;
     updateCfg({ customBotEnabled: true });
   }
 

@@ -46,6 +46,16 @@ type PersonaConfig = {
   customBotIntentsConfirmed: boolean;
   customBotOauthGrantDisabledConfirmed: boolean;
   customBotRedirectConfiguredConfirmed: boolean;
+  customBot2Enabled: boolean;
+  customBot2Nickname: string;
+  customBot2AvatarUrl: string;
+  customBot2Status: string;
+  customBot2ActivityType: string;
+  customBot2ActivityText: string;
+  customBot2ClientId: string;
+  customBot2Token: string;
+  customBot2HasToken: boolean;
+  customBot2ClearToken: boolean;
   profileBannerUrl: string;
   activityType: string;
   activityText: string;
@@ -85,6 +95,16 @@ const DEFAULT_CFG: PersonaConfig = {
   customBotIntentsConfirmed: false,
   customBotOauthGrantDisabledConfirmed: false,
   customBotRedirectConfiguredConfirmed: false,
+  customBot2Enabled: false,
+  customBot2Nickname: "",
+  customBot2AvatarUrl: "",
+  customBot2Status: "",
+  customBot2ActivityType: "LISTENING",
+  customBot2ActivityText: "",
+  customBot2ClientId: "",
+  customBot2Token: "",
+  customBot2HasToken: false,
+  customBot2ClearToken: false,
   profileBannerUrl: "",
   activityType: "LISTENING",
   activityText: "/help",
@@ -213,8 +233,8 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBotEnabled: Boolean(src.customBotEnabled),
     dmAuthority: String(src.dmAuthority || "custom"),
     guildMessageAuthority: String(src.guildMessageAuthority || "custom"),
-    featureRouting: sanitizeRouting(src.featureRouting, ["main", "webhook", "custom"]),
-    dmFeatureRouting: sanitizeRouting(src.dmFeatureRouting, ["main", "custom"]),
+    featureRouting: sanitizeRouting(src.featureRouting, ["main", "webhook", "custom", "custom2"]),
+    dmFeatureRouting: sanitizeRouting(src.dmFeatureRouting, ["main", "custom", "custom2"]),
     showSetupSupportText: src.showSetupSupportText !== false,
     setupSupportText: String(src.setupSupportText || "Need help with setup? Message the developer for direct setup assistance."),
     customBotNickname: String(src.customBotNickname || ""),
@@ -233,6 +253,16 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBotIntentsConfirmed: Boolean(src.customBotIntentsConfirmed),
     customBotOauthGrantDisabledConfirmed: Boolean(src.customBotOauthGrantDisabledConfirmed),
     customBotRedirectConfiguredConfirmed: Boolean(src.customBotRedirectConfiguredConfirmed),
+    customBot2Enabled: Boolean(src.customBot2Enabled),
+    customBot2Nickname: String(src.customBot2Nickname || ""),
+    customBot2AvatarUrl: String(src.customBot2AvatarUrl || ""),
+    customBot2Status: String(src.customBot2Status || ""),
+    customBot2ActivityType: String(src.customBot2ActivityType || "LISTENING"),
+    customBot2ActivityText: String(src.customBot2ActivityText || ""),
+    customBot2ClientId: String(src.customBot2ClientId || ""),
+    customBot2Token: String(src.customBot2Token || ""),
+    customBot2HasToken: Boolean(src.customBot2HasToken),
+    customBot2ClearToken: Boolean(src.customBot2ClearToken),
     profileBannerUrl: String(src.profileBannerUrl || ""),
     activityType: String(src.activityType || "LISTENING"),
     activityText: String(src.activityText || "/help"),
@@ -327,6 +357,22 @@ function buildWebhookPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     avatarLibrary: cfg.avatarLibrary,
     guildMessageAuthority: cfg.guildMessageAuthority,
     featureRouting: cfg.featureRouting,
+  };
+}
+
+function buildCustomBot2Patch(cfg: PersonaConfig): Partial<PersonaConfig> {
+  return {
+    customBot2Enabled: cfg.customBot2Enabled,
+    customBot2Nickname: cfg.customBot2Nickname,
+    customBot2AvatarUrl: cfg.customBot2AvatarUrl,
+    customBot2Status: cfg.customBot2Status,
+    customBot2ActivityType: cfg.customBot2ActivityType,
+    customBot2ActivityText: cfg.customBot2ActivityText,
+    customBot2ClientId: cfg.customBot2ClientId,
+    customBot2Token: cfg.customBot2Token,
+    customBot2ClearToken: cfg.customBot2ClearToken,
+    featureRouting: cfg.featureRouting,
+    dmFeatureRouting: cfg.dmFeatureRouting,
   };
 }
 
@@ -501,6 +547,13 @@ export default function BotPersonalizerClient() {
     if (!result) return;
     updateCfg({ useWebhookPersona: true, guildMessageAuthority: "webhook" });
     setAvatarPreviewFailedFor("");
+  }
+
+  async function saveAndDeployCustomBot2() {
+    const patch = buildCustomBot2Patch(sanitizeConfig({ ...cfg, customBot2Enabled: true }));
+    const result = await runAction("refreshCustomBot2", { patch });
+    if (!result) return;
+    updateCfg({ customBot2Enabled: true, customBot2Token: "" });
   }
 
   async function saveAndDeployCustomBot() {
@@ -682,6 +735,7 @@ export default function BotPersonalizerClient() {
                           onChange={(e) => updateCfg({ dmAuthority: e.target.value })}
                         >
                           <option value="custom">Custom Token Bot</option>
+                          <option value="custom2">Second Token Bot (Pro)</option>
                           <option value="main">Main Possum</option>
                         </select>
                         <div style={{ ...hint, marginTop: 6 }}>
@@ -696,6 +750,7 @@ export default function BotPersonalizerClient() {
                           onChange={(e) => updateCfg({ guildMessageAuthority: e.target.value })}
                         >
                           <option value="custom">Custom Token Bot</option>
+                          <option value="custom2">Second Token Bot (Pro)</option>
                           <option value="webhook">Shared Possum Webhook</option>
                           <option value="main">Main Possum</option>
                         </select>
@@ -748,6 +803,7 @@ export default function BotPersonalizerClient() {
                                 <option value="main">Main Possum</option>
                                 <option value="webhook">Shared Possum Webhook</option>
                                 <option value="custom">Custom Token Bot</option>
+                                <option value="custom2">Second Token Bot (Pro)</option>
                               </select>
                             </div>
                           ))}
@@ -767,6 +823,7 @@ export default function BotPersonalizerClient() {
                                 <option value="">DM default</option>
                                 <option value="main">Main Possum</option>
                                 <option value="custom">Custom Token Bot</option>
+                                <option value="custom2">Second Token Bot (Pro)</option>
                               </select>
                             </div>
                           ))}
@@ -978,6 +1035,78 @@ export default function BotPersonalizerClient() {
                     Stored credentials are kept out of the normal guild config payload and are not sent back to the dashboard after save. Blank fields do not
                     erase existing stored secrets unless you use the clear buttons above.
                   </div>
+                </div>
+              </div>
+
+              <div style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
+                <div style={{ fontWeight: 900, color: "#ff8b8b", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  Second Token Bot (Pro)
+                </div>
+                <div style={hint}>
+                  A fully separate second Discord-portal bot with its own token, name, avatar and presence. It never shares state with the Custom Token Bot,
+                  and does nothing until you route a feature to it above. Requires an active Pro plan on this server. Invite it to the server like any bot.
+                </div>
+                <label style={{ display: "block", marginTop: 10, fontWeight: 800 }}>
+                  <input type="checkbox" checked={cfg.customBot2Enabled} onChange={(e) => updateCfg({ customBot2Enabled: e.target.checked })} /> Enable second token bot
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 12 }}>
+                  <div>
+                    <label>Client ID</label>
+                    <input style={input} value={cfg.customBot2ClientId} onChange={(e) => updateCfg({ customBot2ClientId: e.target.value })} placeholder="Discord application client ID" />
+                  </div>
+                  <div>
+                    <label>Bot token</label>
+                    <input
+                      style={input}
+                      type="password"
+                      value={cfg.customBot2Token}
+                      onChange={(e) => updateCfg({ customBot2Token: e.target.value, customBot2ClearToken: false })}
+                      placeholder={cfg.customBot2HasToken ? "Stored securely. Enter a new token to rotate it." : "Enter second bot token"}
+                    />
+                    <div style={{ ...hint, marginTop: 6 }}>{cfg.customBot2HasToken ? "A token is stored securely." : "No token stored yet."}</div>
+                  </div>
+                  <div>
+                    <label>Nickname (this guild)</label>
+                    <input style={input} value={cfg.customBot2Nickname} onChange={(e) => updateCfg({ customBot2Nickname: e.target.value })} placeholder="Leave blank for app default" />
+                  </div>
+                  <div>
+                    <label>Avatar URL (this guild only)</label>
+                    <input style={input} value={cfg.customBot2AvatarUrl} onChange={(e) => updateCfg({ customBot2AvatarUrl: e.target.value })} placeholder="https://..." />
+                  </div>
+                  <div>
+                    <label>Status</label>
+                    <select style={input} value={cfg.customBot2Status} onChange={(e) => updateCfg({ customBot2Status: e.target.value })}>
+                      <option value="">Use app default</option>
+                      <option value="online">online</option>
+                      <option value="idle">idle</option>
+                      <option value="dnd">dnd</option>
+                      <option value="invisible">invisible</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Activity type</label>
+                    <select style={input} value={cfg.customBot2ActivityType} onChange={(e) => updateCfg({ customBot2ActivityType: e.target.value })}>
+                      <option value="PLAYING">PLAYING</option>
+                      <option value="LISTENING">LISTENING</option>
+                      <option value="WATCHING">WATCHING</option>
+                      <option value="COMPETING">COMPETING</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Activity text</label>
+                    <input style={input} value={cfg.customBot2ActivityText} onChange={(e) => updateCfg({ customBot2ActivityText: e.target.value })} placeholder="Leave blank for app default" />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void saveAndDeployCustomBot2()}>
+                    Save + Deploy Second Bot
+                  </button>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("stopCustomBot2")}>
+                    Stop Runtime
+                  </button>
+                  <button type="button" style={subAction} onClick={() => updateCfg({ customBot2ClearToken: !cfg.customBot2ClearToken, customBot2Token: "" })}>
+                    {cfg.customBot2ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
+                  </button>
                 </div>
               </div>
 

@@ -24,6 +24,11 @@ const DEFAULT_CONTRACTS: ContractsCfg = {
   messageCooldownSeconds: 30,
 };
 
+function clampNum(raw: string, min: number, max: number) {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+}
+
 const shell: React.CSSProperties = { color: "#ffd0d0", padding: 18, maxWidth: 1280 };
 const card: React.CSSProperties = { border: "1px solid #6a0000", borderRadius: 12, background: "rgba(120,0,0,0.10)", padding: 14, marginBottom: 12 };
 const input: React.CSSProperties = { width: "100%", padding: "10px 12px", background: "#0b0b0b", color: "#ffd8d8", border: "1px solid #7a0000", borderRadius: 8 };
@@ -91,12 +96,12 @@ export default function ContractsEnginePage() {
 
           <section style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-              <div><div style={{ marginBottom: 6 }}>Daily Contract Count</div><input style={input} type="number" min={0} value={cfg.dailyCount} onChange={(e) => setCfg((p) => ({ ...p, dailyCount: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Weekly Contract Count</div><input style={input} type="number" min={0} value={cfg.weeklyCount} onChange={(e) => setCfg((p) => ({ ...p, weeklyCount: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Daily Bonus Coins</div><input style={input} type="number" min={0} value={cfg.dailyBonusCoins} onChange={(e) => setCfg((p) => ({ ...p, dailyBonusCoins: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Weekly Bonus Coins</div><input style={input} type="number" min={0} value={cfg.weeklyBonusCoins} onChange={(e) => setCfg((p) => ({ ...p, weeklyBonusCoins: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Reroll Cost</div><input style={input} type="number" min={0} value={cfg.rerollCostCoins} onChange={(e) => setCfg((p) => ({ ...p, rerollCostCoins: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Message Cooldown (seconds)</div><input style={input} type="number" min={0} value={cfg.messageCooldownSeconds} onChange={(e) => setCfg((p) => ({ ...p, messageCooldownSeconds: Number(e.target.value || 0) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Daily Contract Count</div><input style={input} type="number" min={0} max={4} value={cfg.dailyCount} onChange={(e) => setCfg((p) => ({ ...p, dailyCount: clampNum(e.target.value, 0, 4) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Weekly Contract Count</div><input style={input} type="number" min={0} max={4} value={cfg.weeklyCount} onChange={(e) => setCfg((p) => ({ ...p, weeklyCount: clampNum(e.target.value, 0, 4) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Daily Bonus Coins</div><input style={input} type="number" min={0} max={1000000} value={cfg.dailyBonusCoins} onChange={(e) => setCfg((p) => ({ ...p, dailyBonusCoins: clampNum(e.target.value, 0, 1000000) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Weekly Bonus Coins</div><input style={input} type="number" min={0} max={1000000} value={cfg.weeklyBonusCoins} onChange={(e) => setCfg((p) => ({ ...p, weeklyBonusCoins: clampNum(e.target.value, 0, 1000000) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Reroll Cost</div><input style={input} type="number" min={0} max={1000000} value={cfg.rerollCostCoins} onChange={(e) => setCfg((p) => ({ ...p, rerollCostCoins: clampNum(e.target.value, 0, 1000000) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Message Cooldown (seconds)</div><input style={input} type="number" min={0} max={3600} value={cfg.messageCooldownSeconds} onChange={(e) => setCfg((p) => ({ ...p, messageCooldownSeconds: clampNum(e.target.value, 0, 3600) }))} /></div>
             </div>
           </section>
 

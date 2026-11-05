@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs";
 import path from "path";
+import { BOT_API, buildBotApiHeaders, fetchBotApi, readActorUserId, readJsonSafe } from "@/lib/botApi";
+import { isDashboardControlOwner } from "@/lib/dashboardOwner";
+import { requirePremiumAccess } from "@/lib/premiumGuard";
 
 type PersonaStore = {
   settings: {
@@ -65,16 +68,35 @@ function summarizePersonas(personas: Record<string, any>) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (req.method !== "GET") {
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
 
     const guildId = String(req.query.guildId || "").trim();
-    if (!guildId) {
-      return res.status(400).json({ success: false, error: "guildId is required" });
+    if (!/^\d{16,20}$/.test(guildId)) {
+      return res.status(400).json({ success: false, error: "A valid guildId is required" });
     }
+
+    const actorUserId = await readActorUserId(req);
+    if (!actorUserId) {
+      return res.status(401).json({ success: false, error: "A valid dashboard session is required." });
+    }
+
+    if (!isDashboardControlOwner(actorUserId)) {
+      const access = await fetchBotApi(
+        `${BOT_API}/guild-access?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(actorUserId)}&routePath=${encodeURIComponent("/dashboard/ai/persona")}`,
+        { headers: await buildBotApiHeaders(req), cache: "no-store" }
+      );
+      const accessJson = await readJsonSafe(access);
+      if (!access.ok || accessJson?.success === false || accessJson?.access !== true) {
+        return res.status(403).json({ success: false, error: "Insufficient permissions for this guild." });
+      }
+    }
+
+    const allowed = await requirePremiumAccess(req, res, guildId, "persona");
+    if (allowed !== true) return allowed;
 
     const store = readStore();
     const personas = summarizePersonas(store.personas);

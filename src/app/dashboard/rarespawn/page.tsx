@@ -1,5 +1,7 @@
 "use client";
 
+import { clampNumber } from "@/lib/dashboard/numberInput";
+
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 
@@ -90,13 +92,13 @@ export default function RareSpawnEnginePage() {
 
           <section style={box}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-              <div><div>Minimum Minutes</div><input style={input} type="number" value={cfg.minMinutes} onChange={(e) => setCfg((p) => ({ ...p, minMinutes: Number(e.target.value || 0) }))} /></div>
-              <div><div>Maximum Minutes</div><input style={input} type="number" value={cfg.maxMinutes} onChange={(e) => setCfg((p) => ({ ...p, maxMinutes: Number(e.target.value || 0) }))} /></div>
-              <div><div>Despawn Minutes</div><input style={input} type="number" min={1} value={cfg.despawnMinutes} onChange={(e) => setCfg((p) => ({ ...p, despawnMinutes: Number(e.target.value || 0) }))} /></div>
-              <div><div>Cooldown Minutes</div><input style={input} type="number" min={0} value={cfg.cooldownMinutes} onChange={(e) => setCfg((p) => ({ ...p, cooldownMinutes: Number(e.target.value || 0) }))} /></div>
-              <div><div>Rotation Offset Minutes</div><input style={input} type="number" min={0} value={cfg.rotationOffsetMinutes} onChange={(e) => setCfg((p) => ({ ...p, rotationOffsetMinutes: Number(e.target.value || 0) }))} /></div>
-              <div><div>Reward Coins Min</div><input style={input} type="number" value={cfg.rewardCoinsMin} onChange={(e) => setCfg((p) => ({ ...p, rewardCoinsMin: Number(e.target.value || 0) }))} /></div>
-              <div><div>Reward Coins Max</div><input style={input} type="number" value={cfg.rewardCoinsMax} onChange={(e) => setCfg((p) => ({ ...p, rewardCoinsMax: Number(e.target.value || 0) }))} /></div>
+              <div><div>Minimum Minutes</div><input style={input} type="number" min={1} max={10080} value={cfg.minMinutes} onChange={(e) => setCfg((p) => ({ ...p, minMinutes: clampNumber(e.target.value, 1, 10080), maxMinutes: Math.max(p.maxMinutes, clampNumber(e.target.value, 1, 10080)) }))} /></div>
+              <div><div>Maximum Minutes</div><input style={input} type="number" min={1} max={10080} value={cfg.maxMinutes} onChange={(e) => setCfg((p) => ({ ...p, maxMinutes: clampNumber(e.target.value, 1, 10080) }))} /></div>
+              <div><div>Despawn Minutes</div><input style={input} type="number" min={1} max={10080} value={cfg.despawnMinutes} onChange={(e) => setCfg((p) => ({ ...p, despawnMinutes: clampNumber(e.target.value, 1, 10080) }))} /></div>
+              <div><div>Cooldown Minutes</div><input style={input} type="number" min={0} max={10080} value={cfg.cooldownMinutes} onChange={(e) => setCfg((p) => ({ ...p, cooldownMinutes: clampNumber(e.target.value, 0, 10080) }))} /></div>
+              <div><div>Rotation Offset Minutes</div><input style={input} type="number" min={0} max={10080} value={cfg.rotationOffsetMinutes} onChange={(e) => setCfg((p) => ({ ...p, rotationOffsetMinutes: clampNumber(e.target.value, 0, 10080) }))} /></div>
+              <div><div>Reward Coins Min</div><input style={input} type="number" min={0} max={1000000} value={cfg.rewardCoinsMin} onChange={(e) => setCfg((p) => ({ ...p, rewardCoinsMin: clampNumber(e.target.value, 0, 1000000), rewardCoinsMax: Math.max(p.rewardCoinsMax, clampNumber(e.target.value, 0, 1000000)) }))} /></div>
+              <div><div>Reward Coins Max</div><input style={input} type="number" min={0} max={1000000} value={cfg.rewardCoinsMax} onChange={(e) => setCfg((p) => ({ ...p, rewardCoinsMax: clampNumber(e.target.value, 0, 1000000) }))} /></div>
             </div>
           </section>
 

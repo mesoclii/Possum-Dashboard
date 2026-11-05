@@ -202,7 +202,7 @@ export default function OpenAiPlatformClient() {
               <label>
                 <input
                   type="checkbox"
-                  checked={provider?.runtime?.personaAiEnabled !== false}
+                  checked={Boolean(provider?.runtime?.personaAiEnabled)}
                   onChange={(event) => void saveRuntimePatch({ personaAiEnabled: event.target.checked }, `Persona runtime ${event.target.checked ? "enabled" : "disabled"}.`)}
                 />{" "}
                 Persona runtime enabled
@@ -210,7 +210,7 @@ export default function OpenAiPlatformClient() {
               <label>
                 <input
                   type="checkbox"
-                  checked={provider?.runtime?.adaptiveAiEnabled !== false}
+                  checked={Boolean(provider?.runtime?.adaptiveAiEnabled)}
                   onChange={(event) => void saveRuntimePatch({ adaptiveAiEnabled: event.target.checked }, `Adaptive runtime ${event.target.checked ? "enabled" : "disabled"}.`)}
                 />{" "}
                 Adaptive runtime enabled

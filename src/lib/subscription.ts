@@ -129,16 +129,18 @@ export async function getGuildSubscriptionStatus(guildId: string, actorUserId?: 
     }).catch(() => null),
   ]);
 
-  const manualGuildRecord = existing && isManualSource(existing.source) && !isExpiredRecord(existing) ? existing : null;
+  const manualGuildRecord =
+    existing && isManualSource(existing.source) && existing.active && !isExpiredRecord(existing) ? existing : null;
   if (manualGuildRecord) {
     const status = toStatus(id, manualGuildRecord, developerBypass, "guild");
     await writeGuildDiscoveryCache("subscription_status", id, status, 45).catch(() => null);
     return status;
   }
 
+  // Disabled or expired manual grants must not block a later paid (bot-synced) plan.
   const shouldSync =
     !existing ||
-    (!isManualSource(existing.source) && Date.now() - existing.syncedAt.getTime() > SYNC_TTL_MS);
+    Date.now() - existing.syncedAt.getTime() > SYNC_TTL_MS;
 
   let syncedRecord = existing;
   if (shouldSync) {

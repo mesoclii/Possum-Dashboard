@@ -103,6 +103,11 @@ const input: React.CSSProperties = {
   color: "#ffd7d7",
 };
 
+function clampWhole(raw: string, min: number, max: number) {
+  const n = Math.trunc(Number(raw));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+}
+
 function toggle(list: string[], id: string) {
   const set = new Set(list || []);
   if (set.has(id)) set.delete(id);
@@ -313,10 +318,10 @@ export default function HeistPage() {
               1 host + 3 signup slots + pending members
             </div>
           </div>
-          <div><label>Weekly limit</label><input style={input} type="number" value={cfg.weeklyLimit} onChange={(e) => setCfg({ ...cfg, weeklyLimit: Number(e.target.value || 0) })} /></div>
-          <div><label>Auto-bump (minutes)</label><input style={input} type="number" value={cfg.autoBumpMinutes} onChange={(e) => setCfg({ ...cfg, autoBumpMinutes: Number(e.target.value || 0) })} /></div>
-          <div><label>Cooldown (minutes)</label><input style={input} type="number" value={cfg.cooldownMinutes} onChange={(e) => setCfg({ ...cfg, cooldownMinutes: Number(e.target.value || 0) })} /></div>
-          <div><label>Min account age (days)</label><input style={input} type="number" value={cfg.minAccountAgeDays} onChange={(e) => setCfg({ ...cfg, minAccountAgeDays: Number(e.target.value || 0) })} /></div>
+          <div><label>Weekly limit</label><input style={input} type="number" min={1} max={1000} value={cfg.weeklyLimit} onChange={(e) => setCfg({ ...cfg, weeklyLimit: clampWhole(e.target.value, 1, 1000) })} /></div>
+          <div><label>Auto-bump (minutes)</label><input style={input} type="number" min={0} max={1440} value={cfg.autoBumpMinutes} onChange={(e) => setCfg({ ...cfg, autoBumpMinutes: clampWhole(e.target.value, 0, 1440) })} /></div>
+          <div><label>Cooldown (minutes)</label><input style={input} type="number" min={0} max={10080} value={cfg.cooldownMinutes} onChange={(e) => setCfg({ ...cfg, cooldownMinutes: clampWhole(e.target.value, 0, 10080) })} /></div>
+          <div><label>Min account age (days)</label><input style={input} type="number" min={0} max={3650} value={cfg.minAccountAgeDays} onChange={(e) => setCfg({ ...cfg, minAccountAgeDays: clampWhole(e.target.value, 0, 3650) })} /></div>
         </div>
         <div style={{ marginTop: 8 }}>
           <label><input type="checkbox" checked={cfg.mustBeVerified} onChange={(e) => setCfg({ ...cfg, mustBeVerified: e.target.checked })} /> Must be verified to join</label>
@@ -328,8 +333,7 @@ export default function HeistPage() {
         <label><input type="checkbox" checked={cfg.payoutEnabled} onChange={(e) => setCfg({ ...cfg, payoutEnabled: e.target.checked })} /> Payouts enabled</label><br />
         <label><input type="checkbox" checked={cfg.streakBonusEnabled} onChange={(e) => setCfg({ ...cfg, streakBonusEnabled: e.target.checked })} /> Streak bonus enabled</label>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-          <div><label>Win payout coins</label><input style={input} type="number" value={cfg.payoutCoinsWin} onChange={(e) => setCfg({ ...cfg, payoutCoinsWin: Number(e.target.value || 0) })} /></div>
-          <div><label>Loss payout coins</label><input style={input} type="number" value={cfg.payoutCoinsLose} onChange={(e) => setCfg({ ...cfg, payoutCoinsLose: Number(e.target.value || 0) })} /></div>
+          <div><label>Win payout coins</label><input style={input} type="number" min={0} max={10000000} value={cfg.payoutCoinsWin} onChange={(e) => setCfg({ ...cfg, payoutCoinsWin: clampWhole(e.target.value, 0, 10000000) })} /></div>
         </div>
       </div>
 

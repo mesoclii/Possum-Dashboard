@@ -85,6 +85,11 @@ function normalizeConfig(raw: Partial<CatDropCfg> | CatDropCfg): CatDropCfg {
   };
 }
 
+function clampNum(raw: string, min: number, max: number, whole = true) {
+  const n = whole ? Math.floor(Number(raw)) : Number(raw);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+}
+
 function titleizeTier(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
@@ -170,23 +175,23 @@ export default function CatDropEnginePage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
               <div>
                 <div style={{ marginBottom: 6 }}>Max Active Spawns</div>
-                <input style={input} type="number" min={1} value={cfg.maxActiveSpawns} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), maxActiveSpawns: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} value={cfg.maxActiveSpawns} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), maxActiveSpawns: clampNum(e.target.value, 1, 25) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Spawn Interval (minutes)</div>
-                <input style={input} type="number" min={1} value={cfg.spawnIntervalMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), spawnIntervalMinutes: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={1440} value={cfg.spawnIntervalMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), spawnIntervalMinutes: clampNum(e.target.value, 1, 1440) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Spawn Chance</div>
-                <input style={input} type="number" min={0} max={1} step={0.01} value={cfg.spawnChance} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), spawnChance: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={1} step={0.01} value={cfg.spawnChance} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), spawnChance: clampNum(e.target.value, 0, 1, false) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Despawn Window (minutes)</div>
-                <input style={input} type="number" min={1} value={cfg.despawnMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), despawnMinutes: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={1440} value={cfg.despawnMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), despawnMinutes: clampNum(e.target.value, 1, 1440) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Minimum Catch Age (ms)</div>
-                <input style={input} type="number" min={0} value={cfg.minCatchAgeMs} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), minCatchAgeMs: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={60000} value={cfg.minCatchAgeMs} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), minCatchAgeMs: clampNum(e.target.value, 0, 60000) }))} />
               </div>
             </div>
           </section>
@@ -237,28 +242,16 @@ export default function CatDropEnginePage() {
                     <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
                       <div>
                         <div style={{ marginBottom: 4 }}>Spawn Chance</div>
-                        <input style={input} type="number" min={0} max={1} step={0.0001} value={tier.chance} onChange={(e) => updateTier(key, { chance: Number(e.target.value || 0) })} />
+                        <input style={input} type="number" min={0} max={1} step={0.0001} value={tier.chance} onChange={(e) => updateTier(key, { chance: clampNum(e.target.value, 0, 1, false) })} />
                       </div>
                       <div>
                         <div style={{ marginBottom: 4 }}>Catch Rate</div>
-                        <input style={input} type="number" min={0} max={1} step={0.01} value={tier.catchRate} onChange={(e) => updateTier(key, { catchRate: Number(e.target.value || 0) })} />
+                        <input style={input} type="number" min={0} max={1} step={0.01} value={tier.catchRate} onChange={(e) => updateTier(key, { catchRate: clampNum(e.target.value, 0, 1, false) })} />
                       </div>
                       <div>
                         <div style={{ marginBottom: 4 }}>Coin Reward</div>
-                        <input style={input} type="number" min={0} value={tier.coins} onChange={(e) => updateTier(key, { coins: Number(e.target.value || 0) })} />
+                        <input style={input} type="number" min={0} max={1000000} value={tier.coins} onChange={(e) => updateTier(key, { coins: clampNum(e.target.value, 0, 1000000) })} />
                       </div>
-                      {"days" in tier ? (
-                        <div>
-                          <div style={{ marginBottom: 4 }}>Role Duration (days)</div>
-                          <input style={input} type="number" min={0} value={tier.days || 0} onChange={(e) => updateTier(key, { days: Number(e.target.value || 0) })} />
-                        </div>
-                      ) : null}
-                      {"hours" in tier ? (
-                        <div>
-                          <div style={{ marginBottom: 4 }}>Role Duration (hours)</div>
-                          <input style={input} type="number" min={0} value={tier.hours || 0} onChange={(e) => updateTier(key, { hours: Number(e.target.value || 0) })} />
-                        </div>
-                      ) : null}
                     </div>
                   </div>
                 );

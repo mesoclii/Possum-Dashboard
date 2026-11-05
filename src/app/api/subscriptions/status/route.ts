@@ -27,6 +27,24 @@ export async function GET(request: NextRequest) {
   }
   const isMasterOwner = isDashboardControlOwner(actorUserId);
 
+  if (!isMasterOwner) {
+    if (!/^\d{16,20}$/.test(guildId)) {
+      return NextResponse.json({ success: false, error: "A valid guildId is required" }, { status: 400 });
+    }
+    try {
+      const access = await fetchServerBotApi(
+        `${SERVER_BOT_API}/guild-access?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(actorUserId)}`,
+        { headers: buildServerBotApiHeaders(actorUserId, { allowFallback: false }), cache: "no-store" }
+      );
+      const accessJson = await readServerBotApiJson(access);
+      if (!access.ok || accessJson?.success === false || accessJson?.access !== true) {
+        return NextResponse.json({ success: false, error: "Insufficient permissions for this guild." }, { status: 403 });
+      }
+    } catch {
+      return NextResponse.json({ success: false, error: "Could not verify guild access." }, { status: 502 });
+    }
+  }
+
   try {
     const status = await getGuildSubscriptionStatus(guildId, actorUserId);
     return NextResponse.json({ success: true, status, canManagePremium: isMasterOwner });
@@ -78,15 +96,22 @@ export async function POST(request: NextRequest) {
 
   try {
     const scope = String(body?.scope || "guild").trim().toLowerCase() === "global" ? "global" : "guild";
-    const trialDays = Math.max(0, Math.trunc(Number(body?.trialDays || 0)));
+    const active = body?.active === true;
+    const trialDaysRaw = Math.trunc(Number(body?.trialDays || 0));
+    const trialDays = Number.isFinite(trialDaysRaw) ? Math.max(0, Math.min(365, trialDaysRaw)) : 0;
+    const requestedPlan = String(body?.plan || (active ? "PRO" : "FREE")).trim().toUpperCase();
+    const allowedPlans = active ? ["PRO", "BUSINESS", "ELITE", "ENTERPRISE"] : ["FREE"];
+    if (!allowedPlans.includes(requestedPlan)) {
+      return NextResponse.json({ success: false, error: "Unknown premium plan." }, { status: 400 });
+    }
     const premiumExpiresAt =
-      Boolean(body?.active) && trialDays > 0
+      active && trialDays > 0
         ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000)
         : null;
     const status = await setGuildSubscriptionStatus(guildId, {
-      active: Boolean(body?.active),
-      plan: String(body?.plan || (body?.active ? "PRO" : "FREE")).trim() || (body?.active ? "PRO" : "FREE"),
-      premiumTier: body?.premiumTier ? String(body.premiumTier) : null,
+      active,
+      plan: requestedPlan,
+      premiumTier: active ? requestedPlan : null,
       premiumExpiresAt,
       source: scope === "global" ? (trialDays > 0 ? "global_trial" : "global_override") : (trialDays > 0 ? "owner_trial" : "owner_override"),
     }, actorUserId, { scope });

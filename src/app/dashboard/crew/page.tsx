@@ -8,15 +8,12 @@ import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 type CrewCfg = {
   enabled: boolean;
   maxCrews: number;
-  creationCost: number;
   maxCrewSize: number;
   allowPublicRecruitment: boolean;
   recruitChannelId: string;
   inviteExpiryHours: number;
-  crewRolePrefix: string;
   signupPanelEnabled: boolean;
   signupPanelChannelId: string;
-  signupPanelCategoryId: string;
   signupPanelMessageId: string;
   signupPanelTitle: string;
   signupPanelDescription: string;
@@ -35,15 +32,12 @@ type CrewCfg = {
 const DEFAULT_CREW: CrewCfg = {
   enabled: true,
   maxCrews: 25,
-  creationCost: 10000,
   maxCrewSize: 25,
   allowPublicRecruitment: true,
   recruitChannelId: "",
   inviteExpiryHours: 72,
-  crewRolePrefix: "Crew",
   signupPanelEnabled: false,
   signupPanelChannelId: "",
-  signupPanelCategoryId: "",
   signupPanelMessageId: "",
   signupPanelTitle: "Join a Crew",
   signupPanelDescription:
@@ -95,10 +89,6 @@ export default function CrewEnginePage() {
 
   const textChannels = useMemo(
     () => channels.filter((c) => Number(c?.type) === 0 || Number(c?.type) === 5 || String(c?.type || "").toLowerCase().includes("text")),
-    [channels]
-  );
-  const categoryChannels = useMemo(
-    () => channels.filter((c) => Number(c?.type) === 4 || String(c?.type || "").toLowerCase().includes("category")),
     [channels]
   );
 
@@ -210,7 +200,7 @@ export default function CrewEnginePage() {
         <>
           <EngineContractPanel
             engineKey="crew"
-            intro="Crew is the identity and treasury layer for the GTA side of the bot. This surface controls how expensive it is to found a crew, how large crews can grow, whether public recruiting stays open, and how crew identity gets surfaced back to the guild."
+            intro="Crew is the identity and treasury layer for the GTA side of the bot. This surface controls how many crews and members a server can hold, whether public recruiting stays open, and how crew identity gets surfaced back to the guild. Only founders can create crews."
             related={[
               { label: "Dominion", route: "/dashboard/dominion", reason: "dominion raids, wars, and territory ownership resolve by crew identity" },
               { label: "Contracts", route: "/dashboard/contracts", reason: "crew-facing objectives should stay economically aligned with contract payouts" },
@@ -233,23 +223,15 @@ export default function CrewEnginePage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
               <div>
                 <div style={{ marginBottom: 6 }}>Max Crews</div>
-                <input style={input} type="number" min={1} value={cfg.maxCrews} onChange={(e) => setCfg((p) => ({ ...p, maxCrews: Number(e.target.value || 0) }))} />
-              </div>
-              <div>
-                <div style={{ marginBottom: 6 }}>Creation Cost (coins)</div>
-                <input style={input} type="number" min={0} value={cfg.creationCost} onChange={(e) => setCfg((p) => ({ ...p, creationCost: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={1000} value={cfg.maxCrews} onChange={(e) => setCfg((p) => ({ ...p, maxCrews: Math.min(1000, Math.max(1, Math.floor(Number(e.target.value) || 1))) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Max Crew Size</div>
-                <input style={input} type="number" min={1} value={cfg.maxCrewSize} onChange={(e) => setCfg((p) => ({ ...p, maxCrewSize: Number(e.target.value || 0) }))} />
-              </div>
-              <div>
-                <div style={{ marginBottom: 6 }}>Crew Role Prefix</div>
-                <input style={input} value={cfg.crewRolePrefix} onChange={(e) => setCfg((p) => ({ ...p, crewRolePrefix: e.target.value }))} />
+                <input style={input} type="number" min={1} max={500} value={cfg.maxCrewSize} onChange={(e) => setCfg((p) => ({ ...p, maxCrewSize: Math.min(500, Math.max(1, Math.floor(Number(e.target.value) || 1))) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Invite Expiry (hours)</div>
-                <input style={input} type="number" min={1} value={cfg.inviteExpiryHours} onChange={(e) => setCfg((p) => ({ ...p, inviteExpiryHours: Number(e.target.value || 1) }))} />
+                <input style={input} type="number" min={1} max={8760} value={cfg.inviteExpiryHours} onChange={(e) => setCfg((p) => ({ ...p, inviteExpiryHours: Math.min(8760, Math.max(1, Math.floor(Number(e.target.value) || 1))) }))} />
               </div>
             </div>
           </section>
@@ -264,7 +246,7 @@ export default function CrewEnginePage() {
                 </select>
               </div>
               <div style={micro}>
-                Used as the public recruiting lane when public joins stay open. If public recruitment is off, staff can still push members in through the invite lane below.
+                Where staff invite announcements are posted (the invitee is pinged here and also gets a DM with Accept/Decline). Public joins use /crew join or the signup panel.
               </div>
             </div>
           </section>
@@ -272,13 +254,6 @@ export default function CrewEnginePage() {
           <section style={card}>
             <div style={{ marginBottom: 10, color: "#ff9c9c", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 12 }}>Crew Signup Panel</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, alignItems: "end" }}>
-              <div>
-                <div style={{ marginBottom: 6 }}>Panel Category</div>
-                <select style={input} value={cfg.signupPanelCategoryId || ""} onChange={(e) => setCfg((p) => ({ ...p, signupPanelCategoryId: e.target.value }))}>
-                  <option value="">Select category</option>
-                  {categoryChannels.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Panel Channel</div>
                 <select style={input} value={cfg.signupPanelChannelId || ""} onChange={(e) => setCfg((p) => ({ ...p, signupPanelChannelId: e.target.value }))}>
@@ -288,7 +263,7 @@ export default function CrewEnginePage() {
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Panel Accent Color</div>
-                <input style={input} value={cfg.signupPanelAccentColor} onChange={(e) => setCfg((p) => ({ ...p, signupPanelAccentColor: normalizeHex(e.target.value) }))} />
+                <input style={input} value={cfg.signupPanelAccentColor} onChange={(e) => setCfg((p) => ({ ...p, signupPanelAccentColor: e.target.value }))} onBlur={(e) => setCfg((p) => ({ ...p, signupPanelAccentColor: normalizeHex(e.target.value) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Select Placeholder</div>
@@ -345,8 +320,9 @@ export default function CrewEnginePage() {
                   style={input}
                   type="number"
                   min={0}
+                  max={86400}
                   value={cfg.identityBadgeCooldownSeconds}
-                  onChange={(e) => setCfg((p) => ({ ...p, identityBadgeCooldownSeconds: Number(e.target.value || 0) }))}
+                  onChange={(e) => setCfg((p) => ({ ...p, identityBadgeCooldownSeconds: Math.min(86400, Math.max(0, Math.floor(Number(e.target.value) || 0))) }))}
                 />
                 <label style={{ display: "block", marginTop: 12 }}>
                   <input

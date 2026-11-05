@@ -1,5 +1,7 @@
 "use client";
 
+import { clampNumber } from "@/lib/dashboard/numberInput";
+
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 
@@ -85,11 +87,11 @@ export default function TruthDareEnginePage() {
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Minimum Bet</div>
-                <input style={input} type="number" min={0} value={cfg.minBet} onChange={(e) => setCfg((p) => ({ ...p, minBet: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={1000000000} value={cfg.minBet} onChange={(e) => setCfg((p) => ({ ...p, minBet: clampNumber(e.target.value, 0, 1000000000) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Maximum Bet</div>
-                <input style={input} type="number" min={0} value={cfg.maxBet} onChange={(e) => setCfg((p) => ({ ...p, maxBet: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={1000000000} value={cfg.maxBet} onChange={(e) => setCfg((p) => ({ ...p, maxBet: clampNumber(e.target.value, 0, 1000000000) }))} />
               </div>
             </div>
           </section>

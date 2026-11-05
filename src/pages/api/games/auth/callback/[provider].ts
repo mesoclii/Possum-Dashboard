@@ -6,17 +6,14 @@ import {
   readServerBotApiJson,
 } from "@/lib/botApiServer";
 import { readActorUserId } from "@/lib/botApi";
+import { getConfiguredGameAuthOrigin } from "@/lib/gameAuthOrigin";
 
 function readFirst(value: string | string[] | undefined): string {
   return String(Array.isArray(value) ? value[0] : value || "").trim();
 }
 
 function getRequestOrigin(req: NextApiRequest): string {
-  const protocol = readFirst(req.headers["x-forwarded-proto"] as string | string[] | undefined) || "http";
-  const host =
-    readFirst(req.headers["x-forwarded-host"] as string | string[] | undefined) ||
-    readFirst(req.headers.host as string | string[] | undefined);
-  return host ? `${protocol}://${host}` : "";
+  return getConfiguredGameAuthOrigin(req);
 }
 
 function fallbackPath(req: NextApiRequest, userId: string) {

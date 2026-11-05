@@ -1,5 +1,7 @@
 "use client";
 
+import { clampNumber } from "@/lib/dashboard/numberInput";
+
 import Link from "next/link";
 import { useMemo } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
@@ -163,7 +165,7 @@ export default function PokemonCatchingPage() {
                     </div>
                     <div>
                       <div style={{ marginBottom: 6 }}>Weight</div>
-                      <input style={input} type="number" min={1} value={row.weight} onChange={(e) => updateChannel(index, { weight: Math.max(1, Number(e.target.value || 1)) })} />
+                      <input style={input} type="number" min={1} max={1000} value={row.weight} onChange={(e) => updateChannel(index, { weight: clampNumber(e.target.value, 1, 1000) })} />
                     </div>
                     <button onClick={() => removeChannel(index)} style={{ ...input, cursor: "pointer", borderColor: "#a00000", color: "#ffb6b6" }}>
                       Remove
@@ -188,27 +190,27 @@ export default function PokemonCatchingPage() {
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Spawn Interval (minutes)</div>
-                <input style={input} type="number" min={1} value={cfg.spawnIntervalMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), spawnIntervalMinutes: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={10080} value={cfg.spawnIntervalMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), spawnIntervalMinutes: clampNumber(e.target.value, 1, 10080) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Minimum Minutes</div>
-                <input style={input} type="number" min={1} value={cfg.minMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), minMinutes: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={10080} value={cfg.minMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), minMinutes: clampNumber(e.target.value, 1, 10080) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Maximum Minutes</div>
-                <input style={input} type="number" min={1} value={cfg.maxMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), maxMinutes: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={10080} value={cfg.maxMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), maxMinutes: clampNumber(e.target.value, 1, 10080) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Max Active Wild Spawns</div>
-                <input style={input} type="number" min={1} value={cfg.maxActiveSpawns} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), maxActiveSpawns: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={25} value={cfg.maxActiveSpawns} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), maxActiveSpawns: clampNumber(e.target.value, 1, 25) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Despawn Window (minutes)</div>
-                <input style={input} type="number" min={1} value={cfg.despawnMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), despawnMinutes: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={10080} value={cfg.despawnMinutes} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), despawnMinutes: clampNumber(e.target.value, 1, 10080) }))} />
               </div>
               <div>
                 <div style={{ marginBottom: 6 }}>Minimum Catch Delay (ms)</div>
-                <input style={input} type="number" min={0} value={cfg.minCatchAgeMs} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), minCatchAgeMs: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={600000} value={cfg.minCatchAgeMs} onChange={(e) => setCfg((prev) => ({ ...normalizePokemonConfig(prev), minCatchAgeMs: clampNumber(e.target.value, 0, 600000) }))} />
               </div>
             </div>
           </section>
@@ -222,15 +224,15 @@ export default function PokemonCatchingPage() {
                   <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
                     <div>
                       <div style={{ marginBottom: 4 }}>Tier Weight</div>
-                      <input style={input} type="number" min={0} value={cfg.tierWeights[key]} onChange={(e) => updateTierMetric("tierWeights", key, Number(e.target.value || 0))} />
+                      <input style={input} type="number" min={0} max={10000} value={cfg.tierWeights[key]} onChange={(e) => updateTierMetric("tierWeights", key, clampNumber(e.target.value, 0, 10000))} />
                     </div>
                     <div>
                       <div style={{ marginBottom: 4 }}>Catch Rate</div>
-                      <input style={input} type="number" min={0} max={1} step={0.01} value={cfg.catchRates[key]} onChange={(e) => updateTierMetric("catchRates", key, Number(e.target.value || 0))} />
+                      <input style={input} type="number" min={0} max={1} step={0.01} value={cfg.catchRates[key]} onChange={(e) => updateTierMetric("catchRates", key, clampNumber(e.target.value, 0, 1, false))} />
                     </div>
                     <div>
                       <div style={{ marginBottom: 4 }}>Reward Coins</div>
-                      <input style={input} type="number" min={0} value={cfg.rewards[key]} onChange={(e) => updateTierMetric("rewards", key, Number(e.target.value || 0))} />
+                      <input style={input} type="number" min={0} max={1000000} value={cfg.rewards[key]} onChange={(e) => updateTierMetric("rewards", key, clampNumber(e.target.value, 0, 1000000))} />
                     </div>
                   </div>
                 </div>

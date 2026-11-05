@@ -1,6 +1,8 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { clampNumber } from "@/lib/dashboard/numberInput";
+
 import { useMemo } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -199,11 +201,11 @@ export default function RangeEnginePage() {
               </div>
               <div>
                 <div style={label}>Winning Points</div>
-                <input style={input} type="number" min={1} value={cfg.winningPoints} onChange={(e) => setCfg((p) => ({ ...p, winningPoints: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={1} max={100000} value={cfg.winningPoints} onChange={(e) => setCfg((p) => ({ ...p, winningPoints: clampNumber(e.target.value, 1, 100000) }))} />
               </div>
               <div>
                 <div style={label}>Shoot Cooldown (ms)</div>
-                <input style={input} type="number" min={0} value={cfg.shootCooldownMs} onChange={(e) => setCfg((p) => ({ ...p, shootCooldownMs: Number(e.target.value || 0) }))} />
+                <input style={input} type="number" min={0} max={600000} value={cfg.shootCooldownMs} onChange={(e) => setCfg((p) => ({ ...p, shootCooldownMs: clampNumber(e.target.value, 0, 600000) }))} />
               </div>
               <div>
                 <div style={label}>Default Weapon</div>
@@ -225,27 +227,27 @@ export default function RangeEnginePage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14 }}>
               <div>
                 <div style={label}>Critical Hit Points</div>
-                <input style={input} type="number" min={0} value={cfg.rewardTuning.critPoints} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, critPoints: Number(e.target.value || 0) } }))} />
+                <input style={input} type="number" min={0} max={10000} value={cfg.rewardTuning.critPoints} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, critPoints: clampNumber(e.target.value, 0, 10000) } }))} />
               </div>
               <div>
                 <div style={label}>Standard Hit Points</div>
-                <input style={input} type="number" min={0} value={cfg.rewardTuning.hitPoints} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, hitPoints: Number(e.target.value || 0) } }))} />
+                <input style={input} type="number" min={0} max={10000} value={cfg.rewardTuning.hitPoints} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, hitPoints: clampNumber(e.target.value, 0, 10000) } }))} />
               </div>
               <div>
                 <div style={label}>Graze Points</div>
-                <input style={input} type="number" min={0} value={cfg.rewardTuning.grazePoints} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, grazePoints: Number(e.target.value || 0) } }))} />
+                <input style={input} type="number" min={0} max={10000} value={cfg.rewardTuning.grazePoints} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, grazePoints: clampNumber(e.target.value, 0, 10000) } }))} />
               </div>
               <div>
                 <div style={label}>Hit XP</div>
-                <input style={input} type="number" min={0} value={cfg.rewardTuning.hitXp} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, hitXp: Number(e.target.value || 0) } }))} />
+                <input style={input} type="number" min={0} max={10000} value={cfg.rewardTuning.hitXp} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, hitXp: clampNumber(e.target.value, 0, 10000) } }))} />
               </div>
               <div>
                 <div style={label}>Win Coins</div>
-                <input style={input} type="number" min={0} value={cfg.rewardTuning.winCoins} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, winCoins: Number(e.target.value || 0) } }))} />
+                <input style={input} type="number" min={0} max={1000000} value={cfg.rewardTuning.winCoins} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, winCoins: clampNumber(e.target.value, 0, 1000000) } }))} />
               </div>
               <div>
                 <div style={label}>Win XP</div>
-                <input style={input} type="number" min={0} value={cfg.rewardTuning.winXp} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, winXp: Number(e.target.value || 0) } }))} />
+                <input style={input} type="number" min={0} max={100000} value={cfg.rewardTuning.winXp} onChange={(e) => setCfg((p) => ({ ...p, rewardTuning: { ...p.rewardTuning, winXp: clampNumber(e.target.value, 0, 100000) } }))} />
               </div>
             </div>
             <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
@@ -282,7 +284,7 @@ export default function RangeEnginePage() {
                 <div style={label}>Setup Image URL</div>
                 <input style={input} value={cfg.presentation.setupImageUrl} onChange={(e) => setCfg((p) => ({ ...p, presentation: { ...p.presentation, setupImageUrl: e.target.value } }))} placeholder="https://..." />
                 <div style={{ marginTop: 8 }}>
-                  <input type="file" accept="image/*" onChange={(e) => void uploadImage(e, "setup")} />
+                  <span style={{ color: "#ffb8b8", fontSize: 12 }}>Use a public https image link (Discord cannot render uploaded data).</span>
                 </div>
                 {cfg.presentation.setupImageUrl ? (
                   <div style={{ marginTop: 10, border: "1px solid #460000", borderRadius: 12, overflow: "hidden" }}>
@@ -294,7 +296,7 @@ export default function RangeEnginePage() {
                 <div style={label}>Live Image URL</div>
                 <input style={input} value={cfg.presentation.liveImageUrl} onChange={(e) => setCfg((p) => ({ ...p, presentation: { ...p.presentation, liveImageUrl: e.target.value } }))} placeholder="https://..." />
                 <div style={{ marginTop: 8 }}>
-                  <input type="file" accept="image/*" onChange={(e) => void uploadImage(e, "live")} />
+                  <span style={{ color: "#ffb8b8", fontSize: 12 }}>Use a public https image link (Discord cannot render uploaded data).</span>
                 </div>
                 {cfg.presentation.liveImageUrl ? (
                   <div style={{ marginTop: 10, border: "1px solid #460000", borderRadius: 12, overflow: "hidden" }}>
@@ -343,7 +345,7 @@ export default function RangeEnginePage() {
                     <div style={{ ...label, marginTop: 12 }}>Weapon Art URL</div>
                     <input style={input} value={weapon.imageUrl} onChange={(e) => updateWeapon(key, { imageUrl: e.target.value })} placeholder="https://..." />
                     <div style={{ marginTop: 8 }}>
-                      <input type="file" accept="image/*" onChange={(e) => void uploadImage(e, key)} />
+                      <span style={{ color: "#ffb8b8", fontSize: 12 }}>Use a public https image link (Discord cannot render uploaded data).</span>
                     </div>
                     {weapon.imageUrl ? (
                       <div style={{ marginTop: 10, border: "1px solid #460000", borderRadius: 12, overflow: "hidden" }}>
@@ -365,7 +367,7 @@ export default function RangeEnginePage() {
 
           <section style={{ ...box, display: "flex", justifyContent: "space-between", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ color: "#ffb8b8", lineHeight: 1.6, maxWidth: 820 }}>
-              This editor is now range-specific. The next step is applying the same depth standard to the other shallow engine tabs instead of keeping any of them on the generic runtime shell.
+              Range settings apply to new sessions. Cooldown 0 means no shot delay; image links must be public https URLs. Hit and win coins are always paid: through Progression when it is active, otherwise credited directly.
             </div>
             <button onClick={() => save()} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
               {saving ? "Saving..." : "Save Range"}

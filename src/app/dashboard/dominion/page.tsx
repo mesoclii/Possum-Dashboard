@@ -31,6 +31,11 @@ const DEFAULT_DOMINION: DominionCfg = {
   defaultRaidMaxTheft: 5000,
 };
 
+function clampNum(raw: string, min: number, max: number) {
+  const n = Math.floor(Number(raw));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
+}
+
 const shell: React.CSSProperties = { color: "#ffd0d0", padding: 18, maxWidth: 1280 };
 const card: React.CSSProperties = { border: "1px solid #6a0000", borderRadius: 12, background: "rgba(120,0,0,0.10)", padding: 14, marginBottom: 12 };
 const input: React.CSSProperties = { width: "100%", padding: "10px 12px", background: "#0b0b0b", color: "#ffd8d8", border: "1px solid #7a0000", borderRadius: 8 };
@@ -97,7 +102,7 @@ export default function DominionEnginePage() {
               <div>
                 <div style={{ marginBottom: 6, color: "#ff9c9c", textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 12 }}>Season Cadence</div>
                 <div style={{ color: "#ffd0d0", lineHeight: 1.7 }}>
-                  Season length and decay windows define how fast the dominion map churns. Short seasons keep pressure high; longer seasons make territory income and raid defense matter more.
+                  Season length decides when the season auto-rolls over (when Seasons Enabled) and resets ratings. Short seasons keep pressure high; longer seasons make territory income and raid defense matter more.
                 </div>
               </div>
               <div>
@@ -111,9 +116,8 @@ export default function DominionEnginePage() {
 
           <section style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
-              <div><div style={{ marginBottom: 6 }}>Season Length (days)</div><input style={input} type="number" min={1} value={cfg.seasonLengthDays} onChange={(e) => setCfg((p) => ({ ...p, seasonLengthDays: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Base Payout (coins)</div><input style={input} type="number" min={0} value={cfg.basePayout} onChange={(e) => setCfg((p) => ({ ...p, basePayout: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Territory Decay (hours)</div><input style={input} type="number" min={1} value={cfg.territoryDecayHours} onChange={(e) => setCfg((p) => ({ ...p, territoryDecayHours: Number(e.target.value || 0) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Season Length (days, 1-365)</div><input style={input} type="number" min={1} max={365} value={cfg.seasonLengthDays} onChange={(e) => setCfg((p) => ({ ...p, seasonLengthDays: clampNum(e.target.value, 1, 365) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Base Payout (coins/hour per new territory)</div><input style={input} type="number" min={0} max={1000000} value={cfg.basePayout} onChange={(e) => setCfg((p) => ({ ...p, basePayout: clampNum(e.target.value, 0, 1000000) }))} /></div>
               <div>
                 <div style={{ marginBottom: 6 }}>Announce Channel</div>
                 <select style={input} value={cfg.announceChannelId || ""} onChange={(e) => setCfg((p) => ({ ...p, announceChannelId: e.target.value }))}>
@@ -126,19 +130,10 @@ export default function DominionEnginePage() {
 
           <section style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
-              <div><div style={{ marginBottom: 6 }}>Default Raid Minutes</div><input style={input} type="number" min={1} value={cfg.defaultRaidDurationMinutes} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidDurationMinutes: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Default Raid Health</div><input style={input} type="number" min={1} value={cfg.defaultRaidHealthPool} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidHealthPool: Number(e.target.value || 0) }))} /></div>
-              <div><div style={{ marginBottom: 6 }}>Default Max Theft</div><input style={input} type="number" min={1} value={cfg.defaultRaidMaxTheft} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidMaxTheft: Number(e.target.value || 0) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Default Raid Minutes (1-10080)</div><input style={input} type="number" min={1} max={10080} value={cfg.defaultRaidDurationMinutes} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidDurationMinutes: clampNum(e.target.value, 1, 10080) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Default Raid Health</div><input style={input} type="number" min={1} max={10000000} value={cfg.defaultRaidHealthPool} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidHealthPool: clampNum(e.target.value, 1, 10000000) }))} /></div>
+              <div><div style={{ marginBottom: 6 }}>Default Max Theft</div><input style={input} type="number" min={1} max={10000000} value={cfg.defaultRaidMaxTheft} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidMaxTheft: clampNum(e.target.value, 1, 10000000) }))} /></div>
             </div>
-          </section>
-
-          <section style={card}>
-            <div style={{ marginBottom: 6 }}>Raid Windows (one per line)</div>
-            <textarea
-              style={{ ...input, minHeight: 140, fontFamily: "monospace" }}
-              value={(cfg.raidWindows || []).join("\n")}
-              onChange={(e) => setCfg((p) => ({ ...p, raidWindows: e.target.value.split(/\n+/).map((s) => s.trim()).filter(Boolean) }))}
-            />
           </section>
 
           <div style={{ ...card, display: "flex", justifyContent: "flex-end" }}>

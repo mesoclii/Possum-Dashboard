@@ -49,7 +49,8 @@ export async function requirePremiumAccess(
   rawFeature: string
 ) {
   const featureKey = mapPremiumFeatureKey(rawFeature);
-  if (!featureRequiresPremium(featureKey)) {
+  // Creator-only features are gated by identity, never by the billing-enforcement flag.
+  if (featureKey !== "openai-platform" && !featureRequiresPremium(featureKey)) {
     return true;
   }
 

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { BOT_API, buildBotApiHeaders, readJsonSafe } from "@/lib/botApi";
+import { BOT_API, buildBotApiHeaders, fetchBotApi, readJsonSafe, readActorUserId } from "@/lib/botApi";
+import { requirePremiumAccess } from "@/lib/premiumGuard";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -7,9 +8,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ success: false, error: "Method not allowed" });
     }
 
+    if (!(await readActorUserId(req))) {
+      return res.status(401).json({ success: false, error: "A valid dashboard session is required." });
+    }
+    const allowed = await requirePremiumAccess(req, res, "", "openai-platform");
+    if (allowed !== true) return allowed;
+
     const guildId = String(req.query.guildId || "").trim();
     const query = guildId ? `?guildId=${encodeURIComponent(guildId)}` : "";
-    const upstream = await fetch(`${BOT_API}/openai-runtime${query}`, {
+    const upstream = await fetchBotApi(`${BOT_API}/openai-runtime${query}`, {
       headers: await buildBotApiHeaders(req),
       cache: "no-store",
     });

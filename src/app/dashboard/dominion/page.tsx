@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import EngineContractPanel from "@/components/possum/EngineContractPanel";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -10,6 +10,7 @@ type DominionCfg = {
   seasonsEnabled: boolean;
   seasonLengthDays: number;
   raidWindows: string[];
+  timezone: string;
   basePayout: number;
   territoryDecayHours: number;
   announceChannelId: string;
@@ -22,9 +23,10 @@ const DEFAULT_DOMINION: DominionCfg = {
   enabled: true,
   seasonsEnabled: false,
   seasonLengthDays: 30,
-  raidWindows: ["Fri 20:00-22:00", "Sat 20:00-22:00"],
+  raidWindows: [],
+  timezone: "",
   basePayout: 500,
-  territoryDecayHours: 48,
+  territoryDecayHours: 0,
   announceChannelId: "",
   defaultRaidDurationMinutes: 30,
   defaultRaidHealthPool: 5000,
@@ -55,6 +57,13 @@ export default function DominionEnginePage() {
     save,
     runAction,
   } = useGuildEngineEditor<DominionCfg>("dominion", DEFAULT_DOMINION);
+
+  const [windowsText, setWindowsText] = useState("");
+  useEffect(() => {
+    if (!loading) setWindowsText((cfg.raidWindows || []).join("\n"));
+    // Only resync when the config finishes loading; typing keeps its own draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   const textChannels = useMemo(
     () => channels.filter((c) => Number(c?.type) === 0 || String(c?.type || "").toLowerCase().includes("text")),
@@ -133,6 +142,39 @@ export default function DominionEnginePage() {
               <div><div style={{ marginBottom: 6 }}>Default Raid Minutes (1-10080)</div><input style={input} type="number" min={1} max={10080} value={cfg.defaultRaidDurationMinutes} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidDurationMinutes: clampNum(e.target.value, 1, 10080) }))} /></div>
               <div><div style={{ marginBottom: 6 }}>Default Raid Health</div><input style={input} type="number" min={1} max={10000000} value={cfg.defaultRaidHealthPool} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidHealthPool: clampNum(e.target.value, 1, 10000000) }))} /></div>
               <div><div style={{ marginBottom: 6 }}>Default Max Theft</div><input style={input} type="number" min={1} max={10000000} value={cfg.defaultRaidMaxTheft} onChange={(e) => setCfg((p) => ({ ...p, defaultRaidMaxTheft: clampNum(e.target.value, 1, 10000000) }))} /></div>
+            </div>
+          </section>
+
+          <section style={card}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12 }}>
+              <div>
+                <div style={{ marginBottom: 6 }}>Raid Windows (optional, one per line)</div>
+                <textarea
+                  style={{ ...input, minHeight: 84, fontFamily: "monospace" }}
+                  placeholder={"Fri 20:00-22:00\nSat 22:00-02:00"}
+                  value={windowsText}
+                  onChange={(e) => {
+                    setWindowsText(e.target.value);
+                    const list = e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 14);
+                    setCfg((p) => ({ ...p, raidWindows: list }));
+                  }}
+                />
+                <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
+                  Leave empty to allow raids at any time. Format: Day(s) HH:MM-HH:MM, e.g. &quot;Fri,Sat 20:00-22:00&quot;. Windows may cross midnight (&quot;Fri 22:00-02:00&quot;). Invalid entries are rejected on save.
+                </div>
+              </div>
+              <div>
+                <div style={{ marginBottom: 6 }}>Raid Window Timezone (IANA)</div>
+                <input style={input} placeholder="UTC" value={cfg.timezone || ""} onChange={(e) => setCfg((p) => ({ ...p, timezone: e.target.value.trim() }))} />
+                <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>e.g. America/New_York. Blank uses UTC. Only used when raid windows are set.</div>
+              </div>
+              <div>
+                <div style={{ marginBottom: 6 }}>Territory Decay (hours idle, 0-8760)</div>
+                <input style={input} type="number" min={0} max={8760} value={cfg.territoryDecayHours} onChange={(e) => setCfg((p) => ({ ...p, territoryDecayHours: clampNum(e.target.value, 0, 8760) }))} />
+                <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
+                  0 = off. A territory not claimed, defended, or raided for this long loses 25% of its income each period and becomes unowned at zero. Activity restores its income.
+                </div>
+              </div>
             </div>
           </section>
 

@@ -335,7 +335,11 @@ export default function LearningClient() {
       const guildJson = await readJsonOrThrow(guildRes);
 
       setGuildName(targetGuildName);
-      setAdaptiveEnabled(runtimeJson?.config?.adaptiveAiEnabled !== false);
+      const gateSummary = Array.isArray(runtimeJson?.summary)
+        ? runtimeJson.summary.find((item: any) => item?.label === "Guild Feature Gate")
+        : null;
+      const gateOpen = gateSummary ? String(gateSummary.value).toLowerCase() === "enabled" : true;
+      setAdaptiveEnabled(runtimeJson?.config?.adaptiveAiEnabled !== false && gateOpen);
       setPersonaEnabled(Boolean(runtimeJson?.config?.personaAiEnabled));
       setSummary(Array.isArray(runtimeJson?.summary) ? runtimeJson.summary : []);
       setDetails((runtimeJson?.details && typeof runtimeJson.details === "object") ? runtimeJson.details : {});

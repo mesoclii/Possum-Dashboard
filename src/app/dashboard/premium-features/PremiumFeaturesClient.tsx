@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import PlanTierPicker from "@/components/possum/PlanTierPicker";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { buildDashboardHref, readDashboardGuildId } from "@/lib/dashboardContext";
 import { fetchGuildData } from "@/lib/liveRuntime";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
-import { PRICING_FOOTNOTE, PREMIUM_FEATURES, PREMIUM_PLANS } from "@/lib/premiumCatalog";
+import { PRICING_FOOTNOTE, PREMIUM_FEATURES } from "@/lib/premiumCatalog";
 
 type SubscriptionStatus = {
   active: boolean;
@@ -456,47 +457,19 @@ export default function PremiumFeaturesClient() {
         >
           Plan Pricing
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
-          {PREMIUM_PLANS.map((plan) => (
-            <div key={plan.id} style={{ ...card, margin: 0 }}>
-              <div style={{ color: "#ff5a5a", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", fontSize: 20 }}>
-                {plan.label}
-              </div>
-              <div style={{ color: "#fff1c7", fontSize: 30, fontWeight: 900, marginTop: 10, textShadow: "0 0 14px rgba(255,214,120,.65)" }}>
-                {plan.monthlyUsd === null ? "Custom" : `$${plan.monthlyUsd.toFixed(2)}`}
-                <span style={{ color: "#ffb8b8", fontSize: 13, marginLeft: 8 }}>/ month</span>
-              </div>
-              <div style={{ color: "#fff1c7", fontSize: 16, fontWeight: 800, marginTop: 6, textShadow: "0 0 10px rgba(255,214,120,.55)" }}>
-                {plan.yearlyUsd === null ? "Custom" : `$${plan.yearlyUsd.toFixed(2)}`} / year
-                <span style={{ margin: "0 8px" }}>|</span>
-                {plan.lifetimeUsd === null ? "Custom" : `$${plan.lifetimeUsd.toFixed(2)}`} lifetime
-              </div>
-              <div style={{ color: "#fff1c7", lineHeight: 1.7, marginTop: 10, textShadow: "0 0 10px rgba(255,214,120,.45)" }}>{plan.headline}</div>
-              <div style={{ color: "#fff1c7", fontSize: 14, fontWeight: 600, lineHeight: 1.7, marginTop: 10, textShadow: "0 0 8px rgba(255,214,120,.4)" }}>
-                {plan.included.map((item) => (
-                  <div key={item}>{item}</div>
-                ))}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-                {([
-                  ["monthly", "Monthly"],
-                  ["yearly", "Yearly"],
-                  ["lifetime", "Lifetime"],
-                  ["ai_addon", "AI Add-on"],
-                ] as const).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    disabled={saving}
-                    onClick={() => void startCheckout(key)}
-                    style={{ ...action, border: "1px solid rgba(255,0,0,.5)", background: "rgba(120,0,0,.35)", color: "#fff1c7", cursor: "pointer", fontSize: 12 }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <PlanTierPicker onBuy={(key) => void startCheckout(key)} disabled={saving} />
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(255,0,0,.25)" }}>
+          <div style={{ color: "#fff1c7", fontSize: 14, marginBottom: 8 }}>
+            Need more AI than the monthly allowance? Add extra usage to any plan.
+          </div>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void startCheckout("ai_addon")}
+            style={{ ...action, border: "1px solid rgba(255,0,0,.5)", background: "rgba(120,0,0,.35)", color: "#fff1c7", cursor: "pointer", fontSize: 12 }}
+          >
+            AI Add-on
+          </button>
         </div>
         <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 14 }}>{PRICING_FOOTNOTE}</div>
       </section>

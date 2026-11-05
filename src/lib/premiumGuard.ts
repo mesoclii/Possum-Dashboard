@@ -14,6 +14,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "search-anything": "Search Anything",
   "config-backup": "Config Backup + Restore",
   analytics: "Analytics",
+  secondbot: "Second Token Bot",
 };
 
 async function readActorUserId(req: NextApiRequest) {
@@ -38,9 +39,9 @@ export function mapPremiumFeatureKey(rawFeature: string) {
   return feature;
 }
 
-function requiredPlanRank(_featureKey: string) {
-  // One public plan now covers every premium feature.
-  return 1;
+function requiredPlanRank(featureKey: string) {
+  // Every premium feature is in all plans except the Second Token Bot (Yearly and up).
+  return featureKey === "secondbot" ? 2 : 1;
 }
 
 function planRank(plan: unknown) {
@@ -91,7 +92,7 @@ export async function requirePremiumAccess(
     return true;
   }
 
-  const minimumPlan = requiredPlanRank(featureKey) >= 2 ? "Business" : "Pro";
+  const minimumPlan = requiredPlanRank(featureKey) >= 2 ? "Yearly or Lifetime" : "Pro";
   return res.status(402).json({
     success: false,
     premiumRequired: true,

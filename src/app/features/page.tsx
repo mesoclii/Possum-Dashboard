@@ -3,8 +3,9 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
+import PlanTierPicker from "@/components/possum/PlanTierPicker";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
-import { PRICING_FOOTNOTE, PREMIUM_FEATURES, PREMIUM_PLANS, STANDARD_FEATURES } from "@/lib/premiumCatalog";
+import { PRICING_FOOTNOTE, PREMIUM_FEATURES, STANDARD_FEATURES } from "@/lib/premiumCatalog";
 
 type SessionState = {
   loggedIn: boolean;
@@ -178,30 +179,10 @@ export default function FeaturesPage() {
           <div style={{ color: "#ff9a9a", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
             Premium Plans
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 14 }}>
-            {PREMIUM_PLANS.map((plan) => (
-              <div key={plan.id} style={{ ...card, margin: 0 }}>
-                <div style={{ color: "#ff5a5a", fontSize: 22, fontWeight: 900, textTransform: "uppercase" }}>
-                  {plan.label}
-                </div>
-                <div style={{ color: "#ffd7d7", fontSize: 18, fontWeight: 900, marginTop: 10 }}>
-                  {plan.monthlyUsd === null ? "Custom" : `$${plan.monthlyUsd.toFixed(2)}`} / month
-                </div>
-                <div style={{ color: "#ffbdbd", fontSize: 13, marginTop: 6 }}>
-                  {plan.yearlyUsd === null ? "Custom" : `$${plan.yearlyUsd.toFixed(2)}`} / year
-                  <span style={{ margin: "0 8px" }}>•</span>
-                  {plan.lifetimeUsd === null ? "Custom" : `$${plan.lifetimeUsd.toFixed(2)}`} lifetime
-                </div>
-                <div style={{ color: "#ffd4d4", lineHeight: 1.7, marginTop: 12 }}>{plan.headline}</div>
-                <div style={{ color: "#ffbdbd", fontSize: 13, lineHeight: 1.7, marginTop: 12 }}>
-                  {plan.included.map((item) => (
-                    <div key={item}>{item}</div>
-                  ))}
-                </div>
-                <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 12 }}>{PRICING_FOOTNOTE}</div>
-              </div>
-            ))}
+          <div style={{ marginBottom: 6 }}>
+            <PlanTierPicker buyHref={primaryActionHref} buyLabel={primaryActionLabel} />
           </div>
+          <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 14 }}>{PRICING_FOOTNOTE}</div>
         </section>
 
         <section style={card}>

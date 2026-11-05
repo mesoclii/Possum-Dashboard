@@ -62,8 +62,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     route: "/dashboard/bot-personalizer",
     summary: "A second dedicated Discord bot with its own token, name, avatar and routing, so heavy features can run on a separate bot.",
     premiumLabel: "Premium Feature",
-    includedIn: ["Pro"],
-    pricingNote: "Separate from the Custom Token Bot and the shared webhook identity."
+    includedIn: ["Yearly", "Lifetime"],
+    pricingNote: "Yearly and Lifetime plans. Separate from the free Custom Token Bot and the shared webhook identity."
   },
   {
     id: "advanced-security",
@@ -131,6 +131,79 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
   }
 ];
 
+export type PlanTierKey = "monthly" | "yearly" | "lifetime";
+
+export type PlanTier = {
+  key: PlanTierKey;
+  label: string;
+  priceUsd: number;
+  cadence: string;
+  tagline: string;
+  badge?: string;
+  extras: string[];
+};
+
+// Every paid tier includes these. Tier extras below are what makes the longer plans worth it.
+export const PLAN_COMMON_FEATURES: string[] = [
+  "TTS Engine",
+  "Persona AI",
+  "Heist Engine",
+  "Advanced Security + Governance Suite",
+  "Automation + Custom Commands Suite",
+  "Social Alerts + Signal Relay (Twitch, YouTube, feeds)",
+  "Search Anything",
+  "Analytics (growth, activity, retention, mod actions)",
+  "Config Backup + Restore",
+  "Limited monthly AI usage included (add-ons available)",
+];
+
+export const PLAN_TIERS: PlanTier[] = [
+  {
+    key: "monthly",
+    label: "Monthly",
+    priceUsd: 35,
+    cadence: "/ month",
+    tagline: "Try every premium feature. Cancel any time.",
+    extras: [
+      "100 custom commands, 50 automations",
+      "500 log entries kept",
+      "1 custom token bot (free for everyone)",
+    ],
+  },
+  {
+    key: "yearly",
+    label: "Yearly",
+    priceUsd: 70,
+    cadence: "/ year",
+    tagline: "Best value subscription. Unlocks a second bot.",
+    badge: "Save $350 vs monthly",
+    extras: [
+      "Everything in Monthly",
+      "Second Token Bot: run heavy features on their own bot",
+      "250 custom commands, 100 automations",
+      "1,000 log entries kept",
+      "Higher automation rate limits",
+      "Priority setup help from the developer",
+    ],
+  },
+  {
+    key: "lifetime",
+    label: "Lifetime",
+    priceUsd: 100,
+    cadence: "one time",
+    tagline: "Pay once. Never renew. Our biggest limits.",
+    badge: "Best deal",
+    extras: [
+      "Everything in Yearly",
+      "Third Token Bot (coming soon)",
+      "500 custom commands, 200 automations",
+      "2,000 log entries kept",
+      "Highest automation rate limits",
+      "Never expires, never billed again",
+    ],
+  },
+];
+
 export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
@@ -138,26 +211,8 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
     monthlyUsd: 35.0,
     yearlyUsd: 70.0,
     lifetimeUsd: 100.0,
-    headline: "Every premium feature for one server, with a limited monthly AI allowance. Need more AI? Buy optional AI usage add-ons.",
-    included: [
-      "TTS Engine",
-      "Persona AI",
-      "Heist Engine",
-      "Second Token Bot",
-      "Advanced Security + Governance Suite",
-      "Automation + Custom Commands Suite",
-      "Social Alerts + Signal Relay (Twitch, YouTube, feeds)",
-      "Search Anything",
-      "Analytics (growth, activity, retention, mod actions)",
-      "Higher log retention",
-      "Config Backup + Restore",
-      "Priority setup help from the developer",
-      "Monthly: 100 custom commands, 50 automations",
-      "Yearly: 250 custom commands, 100 automations",
-      "Lifetime: 500 custom commands, 200 automations",
-      "Limited monthly AI usage included",
-      "Optional AI usage increases available as add-ons",
-    ],
+    headline: "Every premium feature for one server, with a limited monthly AI allowance. Longer plans unlock more bots and bigger limits. Need more AI? Buy optional AI usage add-ons.",
+    included: PLAN_COMMON_FEATURES,
     note: PRICING_FOOTNOTE,
   },
 ];

@@ -26,6 +26,8 @@ type PersonaConfig = {
   customBotEnabled: boolean;
   dmAuthority: string;
   guildMessageAuthority: string;
+  featureRouting: Record<string, string>;
+  dmFeatureRouting: Record<string, string>;
   showSetupSupportText: boolean;
   setupSupportText: string;
   customBotNickname: string;
@@ -62,6 +64,8 @@ const DEFAULT_CFG: PersonaConfig = {
   customBotEnabled: false,
   dmAuthority: "custom",
   guildMessageAuthority: "custom",
+  featureRouting: {},
+  dmFeatureRouting: {},
   showSetupSupportText: true,
   setupSupportText: "Need help with setup? Message the developer for direct setup assistance.",
   customBotNickname: "",
@@ -86,6 +90,26 @@ const DEFAULT_CFG: PersonaConfig = {
 };
 
 const MAX_AVATAR_UPLOAD_BYTES = 2_000_000;
+
+const GUILD_ROUTE_FEATURES: Array<{ key: string; label: string }> = [
+  { key: "chat", label: "Chat replies (people talking to the bot)" },
+  { key: "crew", label: "Crew posts and cards" },
+];
+
+const DM_ROUTE_FEATURES: Array<{ key: string; label: string }> = [
+  { key: "giveaways", label: "Giveaway DMs" },
+  { key: "moderation", label: "Moderation notice DMs" },
+];
+
+function sanitizeRouting(raw: unknown, allowed: string[]): Record<string, string> {
+  const output: Record<string, string> = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return output;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const lane = String(value || "").trim().toLowerCase();
+    if (allowed.includes(lane)) output[key] = lane;
+  }
+  return output;
+}
 
 function isImageSource(value: unknown) {
   const text = String(value || "").trim();
@@ -133,6 +157,8 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBotEnabled: Boolean(src.customBotEnabled),
     dmAuthority: String(src.dmAuthority || "custom"),
     guildMessageAuthority: String(src.guildMessageAuthority || "custom"),
+    featureRouting: sanitizeRouting(src.featureRouting, ["main", "webhook", "custom"]),
+    dmFeatureRouting: sanitizeRouting(src.dmFeatureRouting, ["main", "custom"]),
     showSetupSupportText: src.showSetupSupportText !== false,
     setupSupportText: String(src.setupSupportText || "Need help with setup? Message the developer for direct setup assistance."),
     customBotNickname: String(src.customBotNickname || ""),
@@ -251,6 +277,8 @@ function buildCustomBotPatch(cfg: PersonaConfig): Partial<PersonaConfig> {
     customBotEnabled: cfg.customBotEnabled,
     dmAuthority: cfg.dmAuthority,
     guildMessageAuthority: cfg.guildMessageAuthority,
+    featureRouting: cfg.featureRouting,
+    dmFeatureRouting: cfg.dmFeatureRouting,
     showSetupSupportText: cfg.showSetupSupportText,
     setupSupportText: cfg.setupSupportText,
     customBotNickname: cfg.customBotNickname,
@@ -632,6 +660,56 @@ export default function BotPersonalizerClient() {
                         />
                         <div style={{ ...hint, marginTop: 6 }}>
                           Guardrail: do not overlap onboarding, verification, security, economy, progression, moderation, or logging ownership across both bots. Pick one authority per protected system.
+                        </div>
+                      </div>
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <div style={{ fontWeight: 900, color: "#ff8b8b", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                          Per-feature routing
+                        </div>
+                        <div style={hint}>
+                          Send individual parts of Possum through a different identity. Each feature uses exactly one lane, and anything left on
+                          &quot;Guild default&quot; follows the dropdowns above. If a lane is not set up, that feature falls back to Main Possum.
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 10 }}>
+                          {GUILD_ROUTE_FEATURES.map((feature) => (
+                            <div key={`guild-${feature.key}`}>
+                              <label>{feature.label}</label>
+                              <select
+                                style={input}
+                                value={cfg.featureRouting[feature.key] || ""}
+                                onChange={(e) => {
+                                  const next = { ...cfg.featureRouting };
+                                  if (e.target.value) next[feature.key] = e.target.value;
+                                  else delete next[feature.key];
+                                  updateCfg({ featureRouting: next });
+                                }}
+                              >
+                                <option value="">Guild default</option>
+                                <option value="main">Main Possum</option>
+                                <option value="webhook">Shared Possum Webhook</option>
+                                <option value="custom">Custom Token Bot</option>
+                              </select>
+                            </div>
+                          ))}
+                          {DM_ROUTE_FEATURES.map((feature) => (
+                            <div key={`dm-${feature.key}`}>
+                              <label>{feature.label}</label>
+                              <select
+                                style={input}
+                                value={cfg.dmFeatureRouting[feature.key] || ""}
+                                onChange={(e) => {
+                                  const next = { ...cfg.dmFeatureRouting };
+                                  if (e.target.value) next[feature.key] = e.target.value;
+                                  else delete next[feature.key];
+                                  updateCfg({ dmFeatureRouting: next });
+                                }}
+                              >
+                                <option value="">DM default</option>
+                                <option value="main">Main Possum</option>
+                                <option value="custom">Custom Token Bot</option>
+                              </select>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>

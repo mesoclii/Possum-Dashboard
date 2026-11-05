@@ -49,20 +49,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: "OAuth state mismatch." }, { status: 400 });
   }
 
-  const token = await exchangeDiscordCode(code);
-  const user = await fetchDiscordUser(token.access_token);
-
-  const sessionValue = await createDashboardSessionValue({
-    user: {
-      id: String(user.id),
-      username: String(user.username || "Discord User"),
-      globalName: user.global_name ?? null,
-      avatar: user.avatar ?? null,
-    },
-    accessToken: token.access_token,
-    refreshToken: token.refresh_token ?? null,
-    expiresAt: Date.now() + Number(token.expires_in || 604800) * 1000,
-  });
+  let token: Awaited<ReturnType<typeof exchangeDiscordCode>>;
+  let user: Awaited<ReturnType<typeof fetchDiscordUser>>;
+  let sessionValue: string;
+  try {
+    token = await exchangeDiscordCode(code);
+    user = await fetchDiscordUser(token.access_token);
+    sessionValue = await createDashboardSessionValue({
+      user: {
+        id: String(user.id),
+        username: String(user.username || "Discord User"),
+        globalName: user.global_name ?? null,
+        avatar: user.avatar ?? null,
+      },
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token ?? null,
+      expiresAt: Date.now() + Number(token.expires_in || 604800) * 1000,
+    });
+  } catch (error: any) {
+    const message = String(error?.message || error || "Unknown login error");
+    console.error("[discord-callback] login failed:", message);
+    return NextResponse.json({ success: false, error: `Discord login failed: ${message}` }, { status: 502 });
+  }
 
   const redirectUrl = buildDashboardUrl(returnTo, request);
   if (!redirectUrl.searchParams.get("userId")) {

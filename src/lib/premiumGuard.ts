@@ -13,6 +13,7 @@ const FEATURE_LABELS: Record<string, string> = {
   "signal-relay": "Social Alerts + Signal Relay",
   "search-anything": "Search Anything",
   "config-backup": "Config Backup + Restore",
+  analytics: "Analytics",
 };
 
 async function readActorUserId(req: NextApiRequest) {
@@ -33,6 +34,7 @@ export function mapPremiumFeatureKey(rawFeature: string) {
   if (["signalrelay", "signal-relay", "social-alerts"].includes(feature)) return "signal-relay";
   if (["searchanything", "search-anything"].includes(feature)) return "search-anything";
   if (["config-backup"].includes(feature)) return "config-backup";
+  if (feature === "analytics") return "analytics";
   return feature;
 }
 

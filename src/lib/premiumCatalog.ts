@@ -102,6 +102,15 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Included with Pro."
   },
   {
+    id: "analytics",
+    label: "Analytics",
+    route: "/dashboard/analytics",
+    summary: "Growth, activity, retention and moderation-action reports for your server.",
+    premiumLabel: "Pro Insights",
+    includedIn: ["Pro"],
+    pricingNote: "Included with Pro."
+  },
+  {
     id: "config-backup",
     label: "Config Backup + Restore",
     route: "/dashboard/system-health/backups",
@@ -139,6 +148,8 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
       "Automation + Custom Commands Suite",
       "Social Alerts + Signal Relay (Twitch, YouTube, feeds)",
       "Search Anything",
+      "Analytics (growth, activity, retention, mod actions)",
+      "Higher log retention",
       "Config Backup + Restore",
       "Priority setup help from the developer",
       "Monthly: 100 custom commands, 50 automations",

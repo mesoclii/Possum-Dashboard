@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { buildServerBotApiHeaders, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { isPremiumEnforcementEnabled } from "@/lib/premiumMode";
 
-const PREMIUM_FEATURES = new Set(["tts", "heist", "persona", "secondbot", "openai-platform", "advanced-security", "automation-suite", "signal-relay", "search-anything", "config-backup"]);
+const PREMIUM_FEATURES = new Set(["tts", "heist", "persona", "secondbot", "openai-platform", "advanced-security", "automation-suite", "signal-relay", "search-anything", "config-backup", "analytics"]);
 const SYNC_TTL_MS = 60_000;
 
 function normalizeActorUserId(actorUserId?: string) {

@@ -84,6 +84,33 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Free tier keeps a smaller cap. Premium expands rule depth and scale."
   },
   {
+    id: "signal-relay",
+    label: "Social Alerts + Signal Relay",
+    route: "/dashboard/social-alerts",
+    summary: "Twitch, YouTube and other feed alerts posted automatically to your channels.",
+    premiumLabel: "Pro Alerts",
+    includedIn: ["Pro"],
+    pricingNote: "Feed polling uses server resources, so it is a Pro feature."
+  },
+  {
+    id: "search-anything",
+    label: "Search Anything",
+    route: "/dashboard/search-anything",
+    summary: "Search across your server's content and tools from one command and dashboard.",
+    premiumLabel: "Pro Search",
+    includedIn: ["Pro"],
+    pricingNote: "Included with Pro."
+  },
+  {
+    id: "config-backup",
+    label: "Config Backup + Restore",
+    route: "/dashboard/system-health/backups",
+    summary: "Export your full server configuration and restore it any time.",
+    premiumLabel: "Pro Safety",
+    includedIn: ["Pro"],
+    pricingNote: "Protects your setup work."
+  },
+  {
     id: "openai-platform",
     label: "Creator AI Platform",
     route: "/dashboard/ai/openai-platform",
@@ -110,6 +137,10 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
       "Second Token Bot",
       "Advanced Security + Governance Suite",
       "Automation + Custom Commands Suite",
+      "Social Alerts + Signal Relay (Twitch, YouTube, feeds)",
+      "Search Anything",
+      "Config Backup + Restore",
+      "Priority setup help from the developer",
       "Monthly: 100 custom commands, 50 automations",
       "Yearly: 250 custom commands, 100 automations",
       "Lifetime: 500 custom commands, 200 automations",

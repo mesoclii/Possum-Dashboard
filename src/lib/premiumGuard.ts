@@ -10,6 +10,9 @@ const FEATURE_LABELS: Record<string, string> = {
   "openai-platform": "OpenAI Persona Platform",
   "advanced-security": "Advanced Security + Governance Suite",
   "automation-suite": "Automation + Custom Commands Suite",
+  "signal-relay": "Social Alerts + Signal Relay",
+  "search-anything": "Search Anything",
+  "config-backup": "Config Backup + Restore",
 };
 
 async function readActorUserId(req: NextApiRequest) {
@@ -27,6 +30,9 @@ export function mapPremiumFeatureKey(rawFeature: string) {
   if (["openai-platform"].includes(feature)) return "openai-platform";
   if (["advanced-security"].includes(feature)) return "advanced-security";
   if (["automation-suite"].includes(feature)) return "automation-suite";
+  if (["signalrelay", "signal-relay", "social-alerts"].includes(feature)) return "signal-relay";
+  if (["searchanything", "search-anything"].includes(feature)) return "search-anything";
+  if (["config-backup"].includes(feature)) return "config-backup";
   return feature;
 }
 

@@ -115,7 +115,7 @@ export default function PremiumGate({ featureKey, featureLabel, children }: Prem
       <p style={{ color: "#ffb5b5", lineHeight: 1.6 }}>
         {featureKey === "openai-platform"
           ? "This creator-only page is available only to bot owners."
-          : `${featureLabel} requires an active ${["advanced-security", "automation-suite"].includes(featureKey) ? "Business or Enterprise" : "Pro, Business, or Enterprise"} plan before it can be configured live.`}
+          : `${featureLabel} requires an active Possum Pro plan before it can be configured live.`}
       </p>
       <div style={{ color: "#ffd7a6", fontSize: 13, marginBottom: 12 }}>
         Guild: {guildName || guildId || "Not selected"} | Current Plan: {plan}

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import fs from "fs";
 import path from "path";
 import { appendAudit, deepMerge } from "@/lib/setupStore";
+import { requirePremiumAccess } from "@/lib/premiumGuard";
 
 const SETUP_DIR = path.join(process.cwd(), "data", "setup");
 
@@ -28,9 +29,12 @@ function validFile(name: string) {
   return /^[a-zA-Z0-9._-]+\.json$/.test(name);
 }
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const guildId = gid(req);
   if (!guildId) return res.status(400).json({ success: false, error: "guildId required" });
+
+  const allowed = await requirePremiumAccess(req, res, guildId, "config-backup");
+  if (allowed !== true) return allowed;
 
   if (req.method === "GET") {
     const files: Record<string, any> = {};

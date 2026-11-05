@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { buildDashboardHref, readDashboardGuildId } from "@/lib/dashboardContext";
-import { buildPublicInviteUrl } from "@/lib/publicLinks";
+import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 import { PRICING_FOOTNOTE, PREMIUM_FEATURES, PREMIUM_PLANS } from "@/lib/premiumCatalog";
 
 type SubscriptionStatus = {
@@ -136,7 +136,11 @@ export default function PremiumFeaturesClient() {
               platform controls stay off the public catalog and only appear for bot creators.
             </p>
             <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 10 }}>
-              Feature requests and fixes can be suggested in Possum Bot Support: 1480942991328809223.
+              Feature requests and fixes can be suggested in{" "}
+              <a href={buildSupportServerUrl()} target="_blank" rel="noopener noreferrer" style={{ color: "#ff9f9f", fontWeight: 700 }}>
+                Join Possum Bot Support
+              </a>
+              .
             </div>
           </div>
 

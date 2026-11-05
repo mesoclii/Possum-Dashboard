@@ -181,6 +181,15 @@ export async function fetchGuildData(guildId: string, explicitUserId = "") {
   return request;
 }
 
+export function invalidateRuntimeEngines(guildId: string, engines: string[]) {
+  for (const engine of engines) {
+    const cachePrefix = `${String(guildId || "").trim()}:${String(engine || "").trim()}:`;
+    for (const key of runtimeEngineCache.keys()) {
+      if (key.startsWith(cachePrefix)) runtimeEngineCache.delete(key);
+    }
+  }
+}
+
 export async function fetchRuntimeEngine(guildId: string, engine: string, userId = "") {
   const actorUserId = resolveViewerUserId(userId);
   const routePath = resolveRoutePath();

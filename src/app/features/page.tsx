@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { buildPublicInviteUrl } from "@/lib/publicLinks";
+import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 import { PRICING_FOOTNOTE, PREMIUM_FEATURES, PREMIUM_PLANS, STANDARD_FEATURES } from "@/lib/premiumCatalog";
 
 type SessionState = {
@@ -90,7 +90,11 @@ export default function FeaturesPage() {
                 server you own or staff in, and Possum Bot stays one of the most actively updated bots in active development.
               </p>
               <div style={{ color: "#ffb0b0", fontSize: 13, marginTop: 10 }}>
-                Feature requests and fixes can be suggested in Possum Bot Support: 1480942991328809223.
+                Feature requests and fixes can be suggested in{" "}
+                <a href={buildSupportServerUrl()} target="_blank" rel="noopener noreferrer" style={{ color: "#ff9f9f", fontWeight: 700 }}>
+                  Join Possum Bot Support
+                </a>
+                .
               </div>
             </div>
 

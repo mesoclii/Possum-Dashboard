@@ -15,6 +15,10 @@ type EntityConfig = {
   primaryChannelId: string;
   logChannelId: string;
   messageTemplate: string;
+  starsEnabled: boolean;
+  starEmoji: string;
+  starThreshold: number;
+  allowSelfStar: boolean;
   notes: string;
 };
 
@@ -23,6 +27,10 @@ const EMPTY_CONFIG: EntityConfig = {
   primaryChannelId: "",
   logChannelId: "",
   messageTemplate: "Hall of Fame refresh posted for {{guildName}}.",
+  starsEnabled: false,
+  starEmoji: "\u2B50",
+  starThreshold: 5,
+  allowSelfStar: false,
   notes: "",
 };
 
@@ -121,7 +129,12 @@ export default function HallOfFameClient() {
         body: JSON.stringify({
           guildId,
           engine: "hallOfFame",
-          patch: { ...config, messageTemplate: String(config.messageTemplate || "").slice(0, 2000) },
+          patch: {
+            ...config,
+            messageTemplate: String(config.messageTemplate || "").slice(0, 2000),
+            starEmoji: String(config.starEmoji || "\u2B50").trim().slice(0, 100) || "\u2B50",
+            starThreshold: Math.max(1, Math.min(1000, Math.floor(Number(config.starThreshold) || 5))),
+          },
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -242,6 +255,47 @@ export default function HallOfFameClient() {
                 </select>
               </div>
             </div>
+          </section>
+
+          <section style={card}>
+            <label>
+              <input
+                type="checkbox"
+                checked={config.starsEnabled}
+                onChange={(e) => setConfig((prev) => ({ ...prev, starsEnabled: e.target.checked }))}
+              />{" "}
+              Enable star-based Hall of Fame posts
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, marginTop: 12 }}>
+              <label>
+                <div style={{ marginBottom: 6 }}>Star Emoji (name or custom emoji ID)</div>
+                <input
+                  style={input}
+                  maxLength={100}
+                  value={config.starEmoji}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, starEmoji: e.target.value.slice(0, 100) }))}
+                />
+              </label>
+              <label>
+                <div style={{ marginBottom: 6 }}>Star Threshold</div>
+                <input
+                  style={input}
+                  type="number"
+                  min={1}
+                  max={1000}
+                  value={config.starThreshold}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, starThreshold: Math.max(1, Math.min(1000, Math.floor(Number(e.target.value) || 1))) }))}
+                />
+              </label>
+            </div>
+            <label style={{ display: "block", marginTop: 12 }}>
+              <input
+                type="checkbox"
+                checked={config.allowSelfStar}
+                onChange={(e) => setConfig((prev) => ({ ...prev, allowSelfStar: e.target.checked }))}
+              />{" "}
+              Count the message author's own star
+            </label>
           </section>
 
           <section style={card}>

@@ -21,6 +21,7 @@ type StoreItem = {
   priceCurrencyType: "coins" | "eventPoints";
   stock: number;
   oneTime: boolean;
+  durationDays: number;
   enabled: boolean;
   imageUrl: string;
 };
@@ -41,6 +42,7 @@ type StoreConfig = {
     maxItemsPerPurchase: number;
     allowRoleStacking: boolean;
     requireStaffApproval: boolean;
+    approvalChannelId: string;
     logChannelId: string;
   };
   items: StoreItem[];
@@ -62,6 +64,7 @@ const DEFAULT_CONFIG: StoreConfig = {
     maxItemsPerPurchase: 1,
     allowRoleStacking: false,
     requireStaffApproval: false,
+    approvalChannelId: "",
     logChannelId: "",
   },
   items: [
@@ -75,6 +78,7 @@ const DEFAULT_CONFIG: StoreConfig = {
       priceCurrencyType: "coins",
       stock: -1,
       oneTime: true,
+      durationDays: 0,
       enabled: true,
       imageUrl: "",
     },
@@ -92,6 +96,7 @@ function createDraftItem(id = `item-${Date.now()}`): StoreItem {
     priceCurrencyType: "coins",
     stock: -1,
     oneTime: false,
+    durationDays: 0,
     enabled: true,
     imageUrl: "",
   };
@@ -118,6 +123,7 @@ function normalizeItems(raw: unknown): StoreItem[] {
       priceCurrencyType,
       stock: Number.isFinite(rawStock) ? Math.min(1_000_000, Math.max(-1, Math.floor(rawStock))) : -1,
       oneTime: Boolean(item.oneTime ?? meta.oneTime),
+      durationDays: Math.min(3650, Math.max(0, Math.floor(Number(item.durationDays ?? meta.durationDays ?? 0)) || 0)),
       enabled: item.enabled !== false,
       imageUrl: String(item.imageUrl || meta.imageUrl || "").trim(),
     };
@@ -502,8 +508,21 @@ export default function StorePage() {
                   onChange={(e) => setCfg((prev) => ({ ...prev, policies: { ...prev.policies, requireStaffApproval: e.target.checked } }))}
                 />
                 <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
-                  Role purchases are charged and logged to the log channel; staff then grant the role manually.
+                  Role purchases are held (charged) and posted to the approval channel with Approve / Deny buttons. Approve grants the role; deny or no review within 72 hours refunds the buyer automatically.
                 </div>
+                <label style={{ display: "block", marginTop: 8 }}>Staff approval channel</label>
+                <select
+                  style={input}
+                  value={cfg.policies.approvalChannelId}
+                  onChange={(e) => setCfg((prev) => ({ ...prev, policies: { ...prev.policies, approvalChannelId: e.target.value } }))}
+                >
+                  <option value="">Use log channel (then panel channel)</option>
+                  {textChannels.map((channel) => (
+                    <option key={channel.id} value={channel.id}>
+                      #{channel.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div style={{ marginTop: 8 }}>
@@ -569,8 +588,7 @@ export default function StorePage() {
                           {item.name || "Untitled Item"}
                         </div>
                         <div style={{ marginTop: 4, color: "#ffb3b3", fontSize: 12 }}>
-                          {formatPrice(item)} | {item.type}
-                        </div>
+                          {formatPrice(item)} | {item.type}{item.type === "role" ? (item.durationDays > 0 ? ` | ${item.durationDays}d timed` : " | permanent") : ""}                        </div>
                         <div style={{ marginTop: 4, color: item.enabled ? "#9cffb0" : "#ff9d9d", fontSize: 12 }}>
                           {item.enabled ? "Live" : "Disabled"}{item.oneTime ? " | one-time" : ""}
                         </div>
@@ -691,6 +709,25 @@ export default function StorePage() {
                                 </option>
                               ))}
                             </select>
+                          </div>
+                          <div>
+                            <label>Role duration (days, 0 = permanent)</label>
+                            <input
+                              style={input}
+                              type="number"
+                              min={0}
+                              max={3650}
+                              value={activeItem.durationDays}
+                              disabled={activeItem.type !== "role"}
+                              onChange={(e) => updateItem(activeItemIndex, { durationDays: Math.min(3650, Math.max(0, Math.floor(Number(e.target.value || 0)) || 0)) })}
+                            />
+                            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
+                              {activeItem.type !== "role"
+                                ? "Only role items can be timed."
+                                : activeItem.durationDays > 0
+                                  ? `Role lasts ${activeItem.durationDays} day${activeItem.durationDays === 1 ? "" : "s"}, then is removed automatically. Buying again adds ${activeItem.durationDays} more. Buyers get DMs with the exact expiry.`
+                                  : "Permanent: the role is never removed automatically."}
+                            </div>
                           </div>
                           <div>
                             <label>Image source</label>

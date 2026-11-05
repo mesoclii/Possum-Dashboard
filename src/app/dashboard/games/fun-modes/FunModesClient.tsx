@@ -121,8 +121,8 @@ export default function FunModesClient() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(180px,1fr))", gap: 10 }}>
               <label><input type="checkbox" checked={Boolean(range.config?.enabled)} onChange={(event) => void saveEngine("range", { enabled: event.target.checked }, `Range ${event.target.checked ? "enabled" : "disabled"}.`)} /> Enabled</label>
-              <div><label>Winning points</label><input style={input} type="number" value={Number(range.config?.winningPoints || 150)} onChange={(event) => setRange((prev) => ({ ...prev, config: { ...(prev.config || {}), winningPoints: Number(event.target.value || 0) } }))} /></div>
-              <div><label>Shoot cooldown ms</label><input style={input} type="number" value={Number(range.config?.shootCooldownMs || 2000)} onChange={(event) => setRange((prev) => ({ ...prev, config: { ...(prev.config || {}), shootCooldownMs: Number(event.target.value || 0) } }))} /></div>
+              <div><label>Winning points</label><input style={input} type="number" value={range.config?.winningPoints ?? 150} onChange={(event) => setRange((prev) => ({ ...prev, config: { ...(prev.config || {}), winningPoints: Number(event.target.value || 0) } }))} /></div>
+              <div><label>Shoot cooldown ms</label><input style={input} type="number" value={range.config?.shootCooldownMs ?? 2000} onChange={(event) => setRange((prev) => ({ ...prev, config: { ...(prev.config || {}), shootCooldownMs: Number(event.target.value || 0) } }))} /></div>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Default weapon</label>
@@ -145,8 +145,8 @@ export default function FunModesClient() {
               <label><input type="checkbox" checked={truthDare.config?.builtInDareEnabled !== false} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), builtInDareEnabled: event.target.checked } }))} /> Built-in dares</label>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(180px,1fr))", gap: 10, marginTop: 10 }}>
-              <div><label>Min bet</label><input style={input} type="number" value={Number(truthDare.config?.minBet || 0)} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), minBet: Number(event.target.value || 0) } }))} /></div>
-              <div><label>Max bet</label><input style={input} type="number" value={Number(truthDare.config?.maxBet || 50000)} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), maxBet: Number(event.target.value || 0) } }))} /></div>
+              <div><label>Min bet</label><input style={input} type="number" value={truthDare.config?.minBet ?? 0} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), minBet: Number(event.target.value || 0) } }))} /></div>
+              <div><label>Max bet</label><input style={input} type="number" value={truthDare.config?.maxBet ?? 50000} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), maxBet: Number(event.target.value || 0) } }))} /></div>
               <label><input type="checkbox" checked={Boolean(truthDare.config?.generatedEnabled ?? true)} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), generatedEnabled: event.target.checked } }))} /> Generated prompts</label>
             </div>
             <div style={{ marginTop: 10 }}>

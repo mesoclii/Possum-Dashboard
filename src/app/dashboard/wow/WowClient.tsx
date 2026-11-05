@@ -334,6 +334,7 @@ export default function WowClient() {
           <div><label>Close announcement</label><input style={input} value={cfg.closeAnnouncementTemplate} onChange={(e) => setCfg({ ...cfg, closeAnnouncementTemplate: e.target.value })} /></div>
           <div><label>Completion announcement</label><input style={input} value={cfg.completionAnnouncementTemplate} onChange={(e) => setCfg({ ...cfg, completionAnnouncementTemplate: e.target.value })} /></div>
           <div><label>Cancellation announcement</label><input style={input} value={cfg.cancellationAnnouncementTemplate} onChange={(e) => setCfg({ ...cfg, cancellationAnnouncementTemplate: e.target.value })} /></div>
+          <div><label>Embed color (hex)</label><input style={input} value={cfg.embedColorHex} placeholder="#c79c6e" onChange={(e) => setCfg({ ...cfg, embedColorHex: e.target.value })} /></div>
           <div><label>Signup image URL</label><input style={input} value={cfg.signupImageUrl} onChange={(e) => setCfg({ ...cfg, signupImageUrl: e.target.value })} /></div>
           <div><label>Signup thumbnail URL</label><input style={input} value={cfg.signupThumbnailUrl} onChange={(e) => setCfg({ ...cfg, signupThumbnailUrl: e.target.value })} /></div>
         </div>
@@ -387,8 +388,8 @@ export default function WowClient() {
                   <button style={{ ...input, width: "auto", cursor: "pointer" }} onClick={() => runAction("closeSession", { sessionId: row.sessionId || row.id })}>Close</button>
                   <button style={{ ...input, width: "auto", cursor: "pointer" }} onClick={() => runAction("reopenSession", { sessionId: row.sessionId || row.id })}>Reopen</button>
                   <button style={{ ...input, width: "auto", cursor: "pointer" }} onClick={() => runAction("completeSession", { sessionId: row.sessionId || row.id })}>Complete</button>
-                  <button style={{ ...input, width: "auto", cursor: "pointer" }} onClick={() => runAction("cancelSession", { sessionId: row.sessionId || row.id })}>Cancel</button>
-                  <button style={{ ...input, width: "auto", cursor: "pointer" }} onClick={() => runAction("deleteSession", { sessionId: row.sessionId || row.id })}>Delete</button>
+                  <button style={{ ...input, width: "auto", cursor: "pointer" }} disabled={saving} onClick={() => { if (window.confirm("Cancel this session?")) void runAction("cancelSession", { sessionId: row.sessionId || row.id }); }}>Cancel</button>
+                  <button style={{ ...input, width: "auto", cursor: "pointer" }} disabled={saving} onClick={() => { if (window.confirm("Delete this session permanently?")) void runAction("deleteSession", { sessionId: row.sessionId || row.id }); }}>Delete</button>
                 </div>
               </div>
             )) : <div style={{ color: "#ffb3b3" }}>No active sessions.</div>}
@@ -417,6 +418,8 @@ export default function WowClient() {
           <div><label>Footer text</label><input style={input} value={cfg.motd.footerTemplate} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, footerTemplate: e.target.value } })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(260px, 1fr))", gap: 10, marginTop: 10 }}>
+          <div><label>MOTD image URL</label><input style={input} value={cfg.motd.imageUrl} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, imageUrl: e.target.value } })} /></div>
+          <div><label>MOTD thumbnail URL</label><input style={input} value={cfg.motd.thumbnailUrl} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, thumbnailUrl: e.target.value } })} /></div>
           <div><label>Title template</label><input style={input} value={cfg.motd.titleTemplate} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, titleTemplate: e.target.value } })} /></div>
           <div><label>Body template</label><input style={input} value={cfg.motd.bodyTemplate} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, bodyTemplate: e.target.value } })} /></div>
           <div><label>Panel title</label><input style={input} value={cfg.motd.panelTitle} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, panelTitle: e.target.value } })} /></div>

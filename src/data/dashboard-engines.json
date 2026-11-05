@@ -19,7 +19,6 @@
       "key": "runtimeRouter",
       "name": "Adaptive AI Runtime Router",
       "category": "ai-adaptive",
-      "featureFlag": "aiEnabled",
       "configKey": "aiRuntime",
       "premiumRequired": false,
       "privateOnly": false,

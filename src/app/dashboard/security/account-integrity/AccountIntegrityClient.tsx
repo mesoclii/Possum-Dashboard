@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -143,6 +143,8 @@ export default function AccountIntegrityClient() {
     runAction,
   } = useGuildEngineEditor<AccountIntegrityConfig>("security.accountIntegrity", DEFAULTS);
 
+  const actionLock = useRef(false);
+  const [actionRunning, setActionRunning] = useState(false);
   const cfg = useMemo(() => ({ ...DEFAULTS, ...(config || {}) }), [config]);
   const textChannels = useMemo(
     () => channels.filter((c) => Number(c?.type) === 0 || Number(c?.type) === 5 || String(c?.type || "").toLowerCase().includes("text")),
@@ -158,9 +160,17 @@ export default function AccountIntegrityClient() {
   }
 
   async function runConfiguredAction(action: "scanGuild" | "clearDetections") {
-    const saved = await save();
-    if (!saved) return;
-    await runAction(action);
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setActionRunning(true);
+    try {
+      const saved = await save();
+      if (!saved) return;
+      await runAction(action);
+    } finally {
+      actionLock.current = false;
+      setActionRunning(false);
+    }
   }
 
   if (!guildId) {
@@ -276,8 +286,8 @@ export default function AccountIntegrityClient() {
           <section style={card}>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void save()} disabled={saving}>{saving ? "Saving..." : "Save Engine"}</button>
-              <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runConfiguredAction("scanGuild")} disabled={saving}>Full Guild Scan</button>
-              <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runConfiguredAction("clearDetections")} disabled={saving}>Clear Detection Feed</button>
+              <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runConfiguredAction("scanGuild")} disabled={saving || actionRunning}>{actionRunning ? "Working..." : "Full Guild Scan"}</button>
+              <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runConfiguredAction("clearDetections")} disabled={saving || actionRunning}>Clear Detection Feed</button>
             </div>
           </section>
 

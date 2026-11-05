@@ -57,6 +57,15 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Guild signup engine only."
   },
   {
+    id: "second-token-bot",
+    label: "Second Token Bot",
+    route: "/dashboard/bot-personalizer",
+    summary: "A second dedicated Discord bot with its own token, name, avatar and routing, so heavy features can run on a separate bot.",
+    premiumLabel: "Premium Feature",
+    includedIn: ["Pro", "Business", "Enterprise"],
+    pricingNote: "Separate from the Custom Token Bot and the shared webhook identity."
+  },
+  {
     id: "advanced-security",
     label: "Advanced Security + Governance Suite",
     route: "/dashboard/premium-features#advanced-security",
@@ -90,14 +99,15 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
     label: "Pro",
-    monthlyUsd: 9.99,
-    yearlyUsd: 99.0,
-    lifetimeUsd: 299.0,
+    monthlyUsd: 4.99,
+    yearlyUsd: 40.0,
+    lifetimeUsd: 75.0,
     headline: "Premium engagement and threat protection for growing communities.",
     included: [
       "TTS Engine",
       "Persona AI",
       "Heist Engine",
+      "Second Token Bot",
       "Included monthly AI usage credit",
     ],
     note: PRICING_FOOTNOTE,
@@ -105,9 +115,9 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "business",
     label: "Business",
-    monthlyUsd: 19.99,
-    yearlyUsd: 199.0,
-    lifetimeUsd: 499.0,
+    monthlyUsd: 9.99,
+    yearlyUsd: 80.0,
+    lifetimeUsd: 150.0,
     headline: "Adds governance automation and higher included usage for active servers.",
     included: [
       "Everything in Pro",
@@ -121,9 +131,9 @@ export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "enterprise",
     label: "Enterprise",
-    monthlyUsd: 39.99,
-    yearlyUsd: 399.0,
-    lifetimeUsd: 999.0,
+    monthlyUsd: 19.99,
+    yearlyUsd: 160.0,
+    lifetimeUsd: 300.0,
     headline: "Priority control for serious communities with custom support and pooled usage.",
     included: [
       "Everything in Business",

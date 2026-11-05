@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { buildDashboardHref, readDashboardGuildId } from "@/lib/dashboardContext";
+import { fetchGuildData } from "@/lib/liveRuntime";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 import { PRICING_FOOTNOTE, PREMIUM_FEATURES, PREMIUM_PLANS } from "@/lib/premiumCatalog";
 
@@ -46,6 +47,21 @@ export default function PremiumFeaturesClient() {
   const [saving, setSaving] = useState(false);
   const [grantScope, setGrantScope] = useState<"guild" | "global">("guild");
   const [trialDays, setTrialDays] = useState(0);
+  const [guildName, setGuildName] = useState("");
+
+  useEffect(() => {
+    setGuildName(localStorage.getItem("activeGuildName") || "");
+    if (!guildId) return;
+    fetchGuildData(guildId)
+      .then((json: any) => {
+        const name = String(json?.guild?.name || "").trim();
+        if (name) {
+          setGuildName(name);
+          localStorage.setItem("activeGuildName", name);
+        }
+      })
+      .catch(() => null);
+  }, [guildId]);
 
   const loadStatus = useCallback(async () => {
     if (!guildId) return;
@@ -178,7 +194,7 @@ export default function PremiumFeaturesClient() {
             <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase" }}>
               Current Guild
             </div>
-            <div style={{ color: "#fff0f0", fontSize: 28, fontWeight: 900, marginTop: 8 }}>{guildId || "No guild selected"}</div>
+            <div style={{ color: "#fff0f0", fontSize: 28, fontWeight: 900, marginTop: 8 }}>{guildName && guildName !== guildId ? guildName : guildId || "No guild selected"}</div>
             <div style={{ color: "#ffd7d7", fontSize: 14, marginTop: 10 }}>
               {stateLabel}
               {status?.premiumTier ? ` | ${status.premiumTier}` : ""}

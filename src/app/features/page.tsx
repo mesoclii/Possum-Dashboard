@@ -131,6 +131,28 @@ export default function FeaturesPage() {
         </section>
 
         <section style={{ ...card, marginBottom: 22 }}>
+          <div style={{ color: "#8dffb9", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
+            Free Features (Included Standard Stack)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
+            {STANDARD_FEATURES.map((feature) => (
+              <div key={feature.id} style={{ ...card, margin: 0, padding: 14 }}>
+                <div style={{ color: "#ff5757", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  {feature.label}
+                </div>
+                <div style={{ color: "#ffd0d0", fontSize: 13, lineHeight: 1.65, marginTop: 8 }}>{feature.summary}</div>
+              </div>
+            ))}
+          </div>
+          <a
+            href="#pro-features"
+            style={{ ...action, marginTop: 18, color: "#fff1c7", border: "1px solid rgba(255,200,120,0.55)", background: "rgba(120,0,0,0.35)" }}
+          >
+            See Pro features ↓
+          </a>
+        </section>
+
+        <section id="pro-features" style={{ ...card, marginBottom: 22 }}>
           <div style={{ color: "#ffd39a", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
             Premium Features
           </div>
@@ -177,22 +199,6 @@ export default function FeaturesPage() {
                   ))}
                 </div>
                 <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 12 }}>{PRICING_FOOTNOTE}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ ...card, marginBottom: 22 }}>
-          <div style={{ color: "#8dffb9", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
-            Included Standard Stack
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
-            {STANDARD_FEATURES.map((feature) => (
-              <div key={feature.id} style={{ ...card, margin: 0, padding: 14 }}>
-                <div style={{ color: "#ff5757", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  {feature.label}
-                </div>
-                <div style={{ color: "#ffd0d0", fontSize: 13, lineHeight: 1.65, marginTop: 8 }}>{feature.summary}</div>
               </div>
             ))}
           </div>

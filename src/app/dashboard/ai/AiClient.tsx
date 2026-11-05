@@ -47,6 +47,12 @@ const cards: Card[] = [
     creatorOnly: true,
   },
   {
+    title: "AI Billing",
+    href: "/dashboard/ai/billing",
+    description: "AI credit balance, usage per persona, buying credits, spending limits and auto-purchase.",
+    note: "Per-server wallet. Needs Manage Server.",
+  },
+  {
     title: "Memory + Context",
     href: "/dashboard/ai/memory",
     description: "Context retention, anti-repeat, and memory controls.",

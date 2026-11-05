@@ -179,6 +179,12 @@ export default function Home() {
               </a>
             </div>
 
+            <div style={{ color: "#9a7a7a", fontSize: 13, marginTop: 22 }}>
+              <a href="/terms" style={{ color: "#ff9a9a" }}>Terms of Service</a>
+              {" · "}
+              <a href="/privacy" style={{ color: "#ff9a9a" }}>Privacy Policy</a>
+            </div>
+
             <div style={{ color: "#ffbcbc", fontSize: 14, marginTop: 18, minHeight: 24 }}>
               {session.loggedIn
                 ? `Discord connected as ${session.user?.globalName || session.user?.username || "Connected"}`

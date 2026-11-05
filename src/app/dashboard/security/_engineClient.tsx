@@ -22,7 +22,7 @@ export function fromCsv(v: string): string[] {
 
 export async function loadDashboardConfig(guildId: string): Promise<any> {
   const r = await fetch(`/api/bot/dashboard-config?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" });
-  const j = await r.json();
+  const j = await r.json().catch(() => ({}));
   if (!r.ok || j?.success === false) throw new Error(j?.error || "Failed to load dashboard config");
   return j?.config || {};
 }

@@ -157,6 +157,7 @@ export default function ActivityPruneClient() {
   }
 
   async function runConfiguredAction(action: "previewSweep" | "runSweep" | "clearWarnings") {
+    if (action === "runSweep" && !window.confirm("Run a LIVE sweep now? Members past their grace window will be kicked.")) return;
     const saved = await save();
     if (!saved) return;
     if (action === "clearWarnings") {

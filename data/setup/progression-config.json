@@ -71,5 +71,78 @@
       "maxXpPerMinute": 120
     },
     "notes": ""
+  },
+  "1336178965202599936": {
+    "active": true,
+    "xp": {
+      "enabled": true,
+      "xpPerMessageMin": 5,
+      "xpPerMessageMax": 15,
+      "cooldownSeconds": 45,
+      "minMessageLength": 6,
+      "levelFormula": "classic",
+      "maxLevel": 200,
+      "ignoredChannelIds": [],
+      "ignoredRoleIds": [],
+      "excludeBots": true
+    },
+    "levelUp": {
+      "enabled": true,
+      "announceChannelId": "",
+      "announceTemplate": "🎉 <@{{userId}}> reached level {{level}} in {{guildName}}!",
+      "dmOnLevelUp": false,
+      "dmTemplate": "You reached level {{level}} in {{guildName}}."
+    },
+    "achievements": {
+      "enabled": true,
+      "autoGrant": true,
+      "announceChannelId": "",
+      "categoriesEnabled": {
+        "messages": true,
+        "invites": true,
+        "economy": true,
+        "games": true,
+        "governance": true
+      }
+    },
+    "badges": {
+      "enabled": true,
+      "panelEnabled": false,
+      "panelChannelId": "",
+      "panelTitle": "Achievements & Badges",
+      "roleSyncEnabled": true
+    },
+    "rewards": {
+      "levelRoleRewards": [
+        {
+          "level": 5,
+          "roleId": "",
+          "oneTime": false,
+          "keepOnDowngrade": true
+        }
+      ],
+      "levelCoinRewards": [
+        {
+          "level": 10,
+          "coins": 250,
+          "oneTime": true
+        }
+      ]
+    },
+    "multipliers": {
+      "weekendBoostEnabled": false,
+      "weekendMultiplier": 1.5,
+      "vipRoleIds": [],
+      "vipMultiplier": 1.25,
+      "boosterRoleIds": [],
+      "boosterMultiplier": 1.15
+    },
+    "antiAbuse": {
+      "enabled": true,
+      "antiSpamWindowSec": 30,
+      "antiSpamMaxMessages": 6,
+      "maxXpPerMinute": 120
+    },
+    "notes": ""
   }
 }

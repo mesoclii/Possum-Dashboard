@@ -1,0 +1,106 @@
+{
+  "overall": "online",
+  "headline": "Possum systems are online",
+  "message": "Public dashboard, control surfaces, and the live bot stack are healthy.",
+  "updatedAt": "2026-03-11T00:30:41.358Z",
+  "services": [
+    {
+      "id": "bot-core",
+      "label": "Bot Core",
+      "summary": "Primary bot runtime and command router.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "summary": "OAuth, guild selector, and dashboard APIs.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "possum-ai",
+      "label": "Possum AI",
+      "summary": "Homemade adaptive AI and learned routing.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "persona-ai",
+      "label": "Persona Engine AI",
+      "summary": "Hosted persona model path and prompt routing.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "tts",
+      "label": "TTS Engine",
+      "summary": "Speech routing and voice playback.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "tickets",
+      "label": "Tickets",
+      "summary": "Panel flows, claim/close/reopen/delete, transcripts.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "selfroles",
+      "label": "Selfroles",
+      "summary": "Panel deployment and role button/select logic.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "heist",
+      "label": "Heist Engine",
+      "summary": "Heist signups, rotation, and logs.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "crew",
+      "label": "Crew",
+      "summary": "Crew creation, vaults, and member logic.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "dominion",
+      "label": "Dominion",
+      "summary": "Raid/alliance/war control surface.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "summary": "Contract generation, completion, and reward flow.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "catdrop",
+      "label": "Cat Drop",
+      "summary": "Weighted cat spawns, catches, and rewards.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "rarespawn",
+      "label": "Rare Spawn",
+      "summary": "Auto/manual rare event spawns and claims.",
+      "status": "online",
+      "updatedAt": ""
+    },
+    {
+      "id": "range",
+      "label": "Range",
+      "summary": "Range rounds, cooldowns, and scoring.",
+      "status": "online",
+      "updatedAt": ""
+    }
+  ]
+}

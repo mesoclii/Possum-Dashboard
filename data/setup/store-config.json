@@ -29,5 +29,59 @@
         "enabled": true
       }
     ]
+  },
+  "1336178965202599936": {
+    "active": true,
+    "panel": {
+      "enabled": true,
+      "channelId": "1401076997500698636",
+      "title": "Possums Paradise",
+      "description": "Spend coins on roles, perks, and items.",
+      "buttonLabel": "Open Store",
+      "embedColor": "#ff3b3b",
+      "imageUrl": "https://cdn.discordapp.com/attachments/1479944571336261914/1481096928392380578/Screenshot_2026-02-21_141309.png?ex=69b21281&is=69b0c101&hm=4d1e6871992e69bd8351c944850ef7685b2dd5c8f24a9f922295cb22d3509715&",
+      "imageLibrary": []
+    },
+    "policies": {
+      "maxItemsPerPurchase": 1,
+      "allowRoleStacking": false,
+      "requireStaffApproval": false,
+      "logChannelId": "1378543930953433230"
+    },
+    "items": [
+      {
+        "id": "item-1773191445855",
+        "name": "Supporter role 1 month ",
+        "description": "1 month supporter role with all benefits",
+        "type": "role",
+        "roleId": "1375971549122789449",
+        "priceCoins": 3500,
+        "stock": 1,
+        "oneTime": true,
+        "enabled": true
+      },
+      {
+        "id": "item-1773191512575",
+        "name": "a gun ",
+        "description": "a gun to shoot fools",
+        "type": "item",
+        "roleId": "",
+        "priceCoins": 500,
+        "stock": -1,
+        "oneTime": true,
+        "enabled": true
+      },
+      {
+        "id": "item-1773191541263",
+        "name": "Ammo",
+        "description": "ammo to shoot the fucking gun ",
+        "type": "item",
+        "roleId": "",
+        "priceCoins": 150,
+        "stock": -1,
+        "oneTime": false,
+        "enabled": true
+      }
+    ]
   }
 }

@@ -1,0 +1,104 @@
+{
+  "1336178965202599936": {
+    "active": true,
+    "currency": {
+      "name": "Trash",
+      "symbol": "$$",
+      "startingBalance": 2500,
+      "notes": "Coins are earned through progression and games, then spent in Store."
+    },
+    "commands": [
+      {
+        "id": "bag",
+        "label": "bag",
+        "description": "Open your item bag",
+        "enabled": true
+      },
+      {
+        "id": "daily",
+        "label": "daily",
+        "description": "Claim daily coins",
+        "enabled": true
+      },
+      {
+        "id": "crime",
+        "label": "crime",
+        "description": "Risk coins for bigger rewards",
+        "enabled": true
+      },
+      {
+        "id": "fish",
+        "label": "fish",
+        "description": "Earn coins with fishing",
+        "enabled": true
+      },
+      {
+        "id": "scavenge",
+        "label": "scavenge",
+        "description": "Scavenge for random resources",
+        "enabled": true
+      },
+      {
+        "id": "casino",
+        "label": "casino",
+        "description": "Casino game commands",
+        "enabled": true
+      },
+      {
+        "id": "coinflip",
+        "label": "coinflip",
+        "description": "Coinflip gambling",
+        "enabled": true
+      },
+      {
+        "id": "slots",
+        "label": "slots",
+        "description": "Slot machine gambling",
+        "enabled": true
+      },
+      {
+        "id": "blackjack",
+        "label": "blackjack",
+        "description": "Blackjack game command",
+        "enabled": true
+      },
+      {
+        "id": "transfer",
+        "label": "transfer",
+        "description": "Transfer coins to members",
+        "enabled": true
+      },
+      {
+        "id": "pay",
+        "label": "pay",
+        "description": "Pay another member",
+        "enabled": true
+      },
+      {
+        "id": "leaderboard",
+        "label": "leaderboard",
+        "description": "Show economy leaderboard",
+        "enabled": true
+      },
+      {
+        "id": "inventory",
+        "label": "inventory",
+        "description": "View inventory items",
+        "enabled": true
+      },
+      {
+        "id": "buy",
+        "label": "buy",
+        "description": "Buy from store",
+        "enabled": true
+      },
+      {
+        "id": "shop",
+        "label": "shop",
+        "description": "Open store listing",
+        "enabled": true
+      }
+    ],
+    "updatedAt": "2026-03-11T01:08:25.692Z"
+  }
+}

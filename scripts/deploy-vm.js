@@ -8,7 +8,6 @@ const root = path.resolve(__dirname, "..");
 const buildDir = path.join(root, ".next");
 const rollbackDir = path.join(root, ".next.previous");
 const failedDir = path.join(root, `.next.failed.${Date.now()}`);
-const ecosystem = path.join(root, "ecosystem.config.cjs");
 
 function run(command, args, label) {
   process.stdout.write(`[possum-deploy] ${label}\n`);
@@ -59,7 +58,6 @@ function restorePreviousBuild() {
 }
 
 async function main() {
-  if (!fs.existsSync(ecosystem)) throw new Error("ecosystem.config.cjs is missing.");
   if (!fs.existsSync(path.join(root, "node_modules", "next", "dist", "bin", "next"))) {
     throw new Error("Next.js is not installed. Run npm ci before deploying.");
   }
@@ -71,7 +69,7 @@ async function main() {
   }
 
   try {
-    run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Reloading dashboard through its PM2 ecosystem config");
+    run("pm2", ["restart", "possum-dashboard", "--update-env"], "Restarting the existing PM2 dashboard process");
     if (await waitForDashboard()) {
       process.stdout.write("[possum-deploy] Dashboard build and health check succeeded.\\n");
       return;
@@ -80,7 +78,7 @@ async function main() {
   } catch (deployError) {
     if (!restorePreviousBuild()) throw deployError;
     try {
-      run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Reloading previous dashboard build");
+      run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Restarting previous dashboard build");
       if (await waitForDashboard()) {
         throw new Error(`Deployment rejected: ${deployError.message} Previous build restored and responding.`);
       }

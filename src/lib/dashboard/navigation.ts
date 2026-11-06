@@ -71,6 +71,7 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
         { href: "/dashboard/analytics", label: "Analytics" },
         { href: "/dashboard/community-studio", label: "Community Studio" },
         { href: "/dashboard/channel-flow", label: "Channel Flow" },
+        { href: "/dashboard/bump-reminder", label: "Bump Reminder" },
       ],
     },
     {
@@ -157,6 +158,9 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
         { href: "/dashboard/signal-relay", label: "Signal Relay" },
         { href: "/dashboard/search-anything", label: "Search Anything" },
         { href: "/dashboard/analytics", label: "Analytics" },
+        { href: "/dashboard/alert-inbox", label: "Alert Inbox" },
+        { href: "/dashboard/config-history", label: "Configuration History" },
+        { href: "/dashboard/scheduled-reports", label: "Scheduled Reports" },
         { href: "/dashboard/system-health/backups", label: "Config Backup" },
         { href: "/dashboard/bot-personalizer#second-token-bot", label: "Second Token Bot (Yearly)" },
         { href: "/dashboard/bot-personalizer#third-token-bot", label: "Third Token Bot (Lifetime)" },

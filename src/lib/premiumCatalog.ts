@@ -111,6 +111,33 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Included with Pro."
   },
   {
+    id: "alert-inbox",
+    label: "Pro Alert Inbox",
+    route: "/dashboard/alert-inbox",
+    summary: "One list for health findings, process health, and Event Reactor failures.",
+    premiumLabel: "Pro Operations",
+    includedIn: ["Pro"],
+    pricingNote: "Included with Pro."
+  },
+  {
+    id: "config-history",
+    label: "Configuration History",
+    route: "/dashboard/config-history",
+    summary: "A change record for engine config writes, with section restore.",
+    premiumLabel: "Pro Operations",
+    includedIn: ["Pro"],
+    pricingNote: "Included with Pro."
+  },
+  {
+    id: "scheduled-reports",
+    label: "Scheduled Reports",
+    route: "/dashboard/scheduled-reports",
+    summary: "Daily, weekly, and monthly server reports. Missing data stays missing.",
+    premiumLabel: "Pro Operations",
+    includedIn: ["Pro"],
+    pricingNote: "Included with Pro."
+  },
+  {
     id: "analytics",
     label: "Analytics",
     route: "/dashboard/analytics",

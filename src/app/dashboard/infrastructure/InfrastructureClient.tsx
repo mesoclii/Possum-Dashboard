@@ -26,6 +26,9 @@ type Finding = {
   message: string;
   recommendation?: string;
 };
+type AdaptRow = { id: string; engine: string; field: string; resourceId: string; resourceName: string };
+type AdaptPreview = { wrote?: boolean; planned?: AdaptRow[]; skipped?: { id: string; reason: string }[]; reason?: string };
+
 type Report = {
   ready?: boolean;
   reason?: string;
@@ -55,7 +58,9 @@ export default function InfrastructureClient() {
   const [message, setMessage] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
-  const [confirm, setConfirm] = useState<"setup" | "repair" | "">("");
+  const [saving, setSaving] = useState(false);
+  const [confirm, setConfirm] = useState<"setup" | "repair" | "adapt" | "">("");
+  const [preview, setPreview] = useState<AdaptPreview | null>(null);
 
   useEffect(() => {
     const nextGuild = readDashboardGuildId();
@@ -67,20 +72,39 @@ export default function InfrastructureClient() {
   }, []);
 
   async function post(body: Record<string, unknown>) {
+    if (saving) return;
+    setSaving(true);
     setMessage("");
-    const response = await fetch("/api/bot/infrastructure", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ guildId, userId, ...body }),
-    });
-    const json = await response.json();
-    if (!response.ok || json?.success === false) {
-      setMessage(json?.error || "Request failed");
-      return;
+    try {
+      const response = await fetch("/api/bot/infrastructure", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ guildId, userId, ...body }),
+      });
+      const json = await response.json();
+      if (!response.ok || json?.success === false) {
+        setMessage(json?.error || "Request failed");
+        return;
+      }
+      if (json?.result?.duplicate || json?.result?.stale) {
+        setPreview({ wrote: false, planned: json.result.planned || [], skipped: json.result.skipped || [] });
+        setConfirm("adapt");
+        setMessage(json.result.reason || "The inventory changed. Review the new preview before applying.");
+        return;
+      }
+      if (json?.preview) {
+        setPreview(json.preview);
+        setConfirm("adapt");
+        setMessage(`${json.preview.planned?.length || 0} empty mappings can be filled. Nothing was written.`);
+        return;
+      }
+      setPreview(null);
+      const refreshed = await loadReport(guildId, userId);
+      setReport(refreshed?.report || json?.report || null);
+      setMessage("Saved.");
+    } finally {
+      setSaving(false);
     }
-    const refreshed = await loadReport(guildId, userId);
-    setReport(refreshed?.report || null);
-    setMessage("Saved.");
   }
 
   async function download(format: "json" | "csv" | "txt") {
@@ -120,7 +144,7 @@ export default function InfrastructureClient() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "scan" })}>Scan</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "settings", mode: "discovery" })}>Discovery</button>
-          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "adapt" })}>Auto-Adapt</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "adapt" })}>Preview Auto-Adapt</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "settings", mode: "full-setup" })}>Full Setup</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => { setConfirm(""); post({ action: "settings", repairEnabled: !report?.settings?.repairEnabled }); }}>Repair {report?.settings?.repairEnabled ? "On" : "Off"}</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => setConfirm("setup")}>Confirm Full Setup</button>
@@ -129,6 +153,20 @@ export default function InfrastructureClient() {
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => download("csv")}>CSV</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => download("txt")}>TXT</button>
         </div>
+        {confirm === "adapt" && preview ? (
+          <div className="mt-3 max-h-80 overflow-y-auto rounded-lg border border-pink-800/50 p-3">
+            <p className="text-sm text-pink-100">{preview.planned?.length || 0} empty mappings would be filled. Populated values stay. Protected heist, onboarding, verification, and pre-onboarding fields stay out. Ambiguous matches stay unassigned. Each Discord resource is used once. Apply checks this list against the current inventory and refuses it if the inventory changed.</p>
+            <div className="mt-2 space-y-1">
+              {(preview.planned || []).map((row) => (
+                <p key={row.id} className="text-xs text-red-100">{row.engine}.{row.field} → {row.resourceName} ({row.resourceId})</p>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button type="button" className="possum-btn rounded-md px-2 py-1 text-xs font-black uppercase" disabled={saving} onClick={() => post({ action: "adapt", confirmed: true, planned: preview.planned || [] })}>Apply these mappings</button>
+              <button type="button" className="possum-btn rounded-md px-2 py-1 text-xs font-black uppercase" onClick={() => { setConfirm(""); setPreview(null); }}>Cancel</button>
+            </div>
+          </div>
+        ) : null}
         {confirm === "setup" ? (
           <div className="mt-3 rounded-lg border border-pink-800/50 p-3">
             <p className="text-sm text-pink-100">Full setup creates at most five missing categories or channels. Staff and security logs are private. Protected engines are skipped. Nothing is deleted.</p>

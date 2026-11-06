@@ -18,7 +18,7 @@ type StoreItem = {
   type: "role" | "item" | "perk";
   roleId: string;
   priceCoins: number;
-  priceCurrencyType: "coins" | "eventPoints";
+  priceCurrencyType: "coins" | "eventPoints" | "shards";
   stock: number;
   oneTime: boolean;
   durationDays: number;
@@ -111,7 +111,10 @@ function normalizeItems(raw: unknown): StoreItem[] {
     const type: StoreItem["type"] = rawType === "role" || rawType === "perk" ? rawType : "item";
     const rawPrice = Number(item.priceCoins ?? item.price ?? 0);
     const rawCurrencyType = String(item.priceCurrencyType ?? item.currencyType ?? meta.currencyType ?? "coins").trim().toLowerCase();
-    const priceCurrencyType: StoreItem["priceCurrencyType"] = rawCurrencyType === "eventpoints" || rawCurrencyType === "event_points" || rawCurrencyType === "event" ? "eventPoints" : "coins";
+    const priceCurrencyType: StoreItem["priceCurrencyType"] =
+      rawCurrencyType === "shards" || rawCurrencyType === "wilds_shards" || rawCurrencyType === "wildsshards" ? "shards"
+        : rawCurrencyType === "eventpoints" || rawCurrencyType === "event_points" || rawCurrencyType === "event" ? "eventPoints"
+          : "coins";
     const rawStock = Number(item.stock);
     return {
       id: String(item.id || `item-${index + 1}`).trim() || `item-${index + 1}`,
@@ -229,6 +232,7 @@ export default function StorePage() {
 
   function formatPrice(item: StoreItem | null | undefined) {
     if (!item) return "";
+    if (item.priceCurrencyType === "shards") return `${item.priceCoins} ${item.priceCoins === 1 ? "shard" : "shards"}`;
     return item.priceCurrencyType === "eventPoints" ? `${item.priceCoins} ${eventCurrencyLabel}` : `${item.priceCoins} coins`;
   }
 
@@ -679,6 +683,7 @@ export default function StorePage() {
                             >
                               <option value="coins">Server coins</option>
                               <option value="eventPoints">{eventCurrencyLabel}</option>
+                              <option value="shards">Wilds shards</option>
                             </select>
                           </div>
                         </div>

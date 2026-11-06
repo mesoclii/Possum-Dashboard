@@ -43,6 +43,15 @@ type Report = {
   settings?: { mode: string; repairEnabled: boolean };
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
+  watch?: {
+    ready?: boolean;
+    checkedAt?: string;
+    lastChangeAt?: string;
+    added?: number;
+    resolved?: number;
+    counts?: { critical: number; warning: number; notice: number };
+    items?: { id: string; kind: string; severity: string; engine: string; field: string; message: string; recommendation?: string; allowedAction?: string; protectedFlow?: boolean }[];
+  };
   directory?: { categories: DirectoryRow[]; channels: DirectoryRow[]; roles: DirectoryRow[] };
 };
 
@@ -558,6 +567,23 @@ export default function InfrastructureClient() {
               <ActionButton label="Copy ID" tip={`Copy Discord id ${row.id}`} busy={false} locked={locked} onClick={() => { void copyId(row.id); }} />
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Continuous watch</h2>
+        <p className="mt-2 text-sm text-red-100/80">Last check {report?.watch?.checkedAt ? new Date(report.watch.checkedAt).toLocaleString() : "—"} · Critical {report?.watch?.counts?.critical ?? 0} · Warning {report?.watch?.counts?.warning ?? 0} · Added {report?.watch?.added ?? 0} · Cleared {report?.watch?.resolved ?? 0}</p>
+        <p className="mt-1 text-xs text-pink-100/70">Read-only monitoring. Findings never change engine configuration; reroute and repair still need your approval.</p>
+        <div className="mt-3 space-y-2">
+          {(report?.watch?.items || []).slice(0, 20).map((entry) => (
+            <div key={entry.id} className="rounded-lg border border-red-900/40 px-3 py-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-pink-200">{entry.severity} · {entry.kind} · {entry.allowedAction || "review"}</p>
+              <p className="text-sm font-bold text-red-100">{entry.engine}.{entry.field}</p>
+              <p className="text-xs text-red-100/80">{entry.message}</p>
+              <p className="text-xs text-pink-100/80">{entry.recommendation}</p>
+            </div>
+          ))}
+          {!report?.watch?.ready ? <p className="text-xs text-pink-100/70">No watch pass recorded for this server yet.</p> : null}
         </div>
       </section>
 

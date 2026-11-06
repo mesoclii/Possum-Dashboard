@@ -1,39 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import AiTabs from "@/components/possum/AiTabs";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { buildDashboardHref } from "@/lib/dashboardContext";
 
-type PersonaRow = {
-  key: string;
+type Access = { allowedRoles: string[]; allowedChannels: string[]; blockedChannels: string[]; allowDMs: boolean };
+type Persona = {
+  slug: string;
   name: string;
   enabled: boolean;
   bio: string;
-  triggerCount: number;
+  style: string;
+  systemRules: string;
+  triggers: string[];
+  imageUrl: string;
   mentionRequired: boolean;
-  imageConfigured: boolean;
-  allowedRoleCount: number;
-  allowedChannelCount: number;
+  access: Access;
+  model: { temperature: number; maxTokens: number };
 };
+type Shared = { slug: string; name: string; enabled: boolean; bio: string };
+type Named = { id: string; name: string; type?: number };
 
-type PersonaRuntimeConfig = {
-  settings: {
-    autoReplyEnabled: boolean;
-    mentionOnly: boolean;
-  };
-  personaCount: number;
-  personas: PersonaRow[];
-};
-
-const EMPTY_CONFIG: PersonaRuntimeConfig = {
-  settings: {
-    autoReplyEnabled: false,
-    mentionOnly: true,
-  },
-  personaCount: 0,
-  personas: [],
+const BLANK: Persona = {
+  slug: "",
+  name: "",
+  enabled: true,
+  bio: "",
+  style: "",
+  systemRules: "",
+  triggers: [],
+  imageUrl: "",
+  mentionRequired: true,
+  access: { allowedRoles: [], allowedChannels: [], blockedChannels: [], allowDMs: false },
+  model: { temperature: 0.8, maxTokens: 280 },
 };
 
 const wrap: CSSProperties = { color: "#ffd0d0", maxWidth: 1320 };
@@ -56,6 +57,18 @@ const action: CSSProperties = {
   cursor: "pointer",
   textDecoration: "none",
 };
+const input: CSSProperties = {
+  width: "100%",
+  background: "#0b0505",
+  border: "1px solid #5a0000",
+  borderRadius: 8,
+  color: "#ffe0e0",
+  padding: "8px 10px",
+  fontSize: 13,
+  boxSizing: "border-box",
+};
+const label: CSSProperties = { color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, display: "block" };
+const hint: CSSProperties = { color: "#ffbdbd", fontSize: 11, marginTop: 3 };
 
 function resolveGuild() {
   if (typeof window === "undefined") return { guildId: "", guildName: "" };
@@ -66,6 +79,42 @@ function resolveGuild() {
   return { guildId, guildName };
 }
 
+async function api(path: string, body?: unknown) {
+  const res = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json?.success === false) throw new Error(json?.error || "Request failed.");
+  return json;
+}
+
+function MultiPick({ items, value, onChange, empty }: { items: Named[]; value: string[]; onChange: (v: string[]) => void; empty: string }) {
+  const [q, setQ] = useState("");
+  const shown = items.filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  return (
+    <div>
+      <input style={{ ...input, marginBottom: 6 }} placeholder="Search..." value={q} onChange={(e) => setQ(e.target.value)} />
+      <div style={{ maxHeight: 140, overflowY: "auto", border: "1px solid #3a0000", borderRadius: 8, padding: 6 }}>
+        {shown.length ? (
+          shown.map((i) => (
+            <label key={i.id} style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, padding: "2px 0", cursor: "pointer" }}>
+              <input type="checkbox" checked={value.includes(i.id)} onChange={() => toggle(i.id)} />
+              {i.name}
+            </label>
+          ))
+        ) : (
+          <div style={hint}>{empty}</div>
+        )}
+      </div>
+      <div style={hint}>{value.length ? `${value.length} selected` : "None selected = everyone / everywhere"}</div>
+    </div>
+  );
+}
+
 export default function PersonaClient() {
   const { isMasterOwner } = useDashboardSessionState();
   const [guildId, setGuildId] = useState("");
@@ -73,46 +122,114 @@ export default function PersonaClient() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [personaEnabled, setPersonaEnabled] = useState(false);
-  const [adaptiveEnabled, setAdaptiveEnabled] = useState(false);
-  const [config, setConfig] = useState<PersonaRuntimeConfig>(EMPTY_CONFIG);
+  const [personas, setPersonas] = useState<Persona[]>([]);
+  const [shared, setShared] = useState<Shared[]>([]);
+  const [settings, setSettings] = useState({ autoReplyEnabled: false, mentionOnly: true });
+  const [roles, setRoles] = useState<Named[]>([]);
+  const [channels, setChannels] = useState<Named[]>([]);
+  const [draft, setDraft] = useState<Persona | null>(null);
+  const [isNew, setIsNew] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testPrompt, setTestPrompt] = useState("");
+  const [testReply, setTestReply] = useState("");
+  const [testing, setTesting] = useState(false);
+
+  const textChannels = useMemo(() => channels.filter((c) => [0, 5].includes(Number(c.type || 0))), [channels]);
+
+  async function reload(gid: string) {
+    const json = await api(`/api/ai-personas/list?guildId=${encodeURIComponent(gid)}`);
+    setPersonas(json.personas || []);
+    setShared(json.sharedPersonas || []);
+    setSettings(json.settings || { autoReplyEnabled: false, mentionOnly: true });
+  }
 
   useEffect(() => {
     const resolved = resolveGuild();
     setGuildId(resolved.guildId);
     setGuildName(resolved.guildName);
-
     if (!resolved.guildId) {
       setLoading(false);
       return;
     }
-
     (async () => {
       try {
         setLoading(true);
-        setMessage("");
-
-        const [runtimeRes, dashRes] = await Promise.all([
-          fetch(`/api/ai/persona-runtime?guildId=${encodeURIComponent(resolved.guildId)}`, { cache: "no-store" }),
+        await reload(resolved.guildId);
+        const [dashRes, dataRes] = await Promise.all([
           fetch(`/api/bot/dashboard-config?guildId=${encodeURIComponent(resolved.guildId)}`, { cache: "no-store" }),
+          fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(resolved.guildId)}`, { cache: "no-store" }),
         ]);
-
-        const runtimeJson = await runtimeRes.json().catch(() => ({}));
-        const dashJson = await dashRes.json().catch(() => ({}));
-
-        if (!runtimeRes.ok || runtimeJson?.success === false) {
-          throw new Error(runtimeJson?.error || "Failed to load persona engine runtime.");
-        }
-
-        setConfig(runtimeJson.config || EMPTY_CONFIG);
-        setPersonaEnabled(Boolean(dashJson?.config?.aiRuntime?.personaAiEnabled ?? dashJson?.config?.features?.personaAiEnabled));
-        setAdaptiveEnabled(Boolean(dashJson?.config?.aiRuntime?.adaptiveAiEnabled ?? dashJson?.config?.features?.adaptiveAiEnabled));
+        const dash = await dashRes.json().catch(() => ({}));
+        const data = await dataRes.json().catch(() => ({}));
+        setPersonaEnabled(Boolean(dash?.config?.aiRuntime?.personaAiEnabled ?? dash?.config?.features?.personaAiEnabled));
+        setRoles(Array.isArray(data?.roles) ? data.roles : []);
+        setChannels(Array.isArray(data?.channels) ? data.channels : []);
       } catch (err: any) {
-        setMessage(err?.message || "Failed to load persona engine.");
+        setMessage(err?.message || "Failed to load personas.");
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  function edit(p: Persona | null) {
+    setTestReply("");
+    setTestPrompt("");
+    setMessage("");
+    if (p) {
+      setDraft(JSON.parse(JSON.stringify(p)));
+      setIsNew(false);
+    } else {
+      setDraft(JSON.parse(JSON.stringify(BLANK)));
+      setIsNew(true);
+    }
+  }
+
+  const set = (patch: Partial<Persona>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const setAccess = (patch: Partial<Access>) => setDraft((d) => (d ? { ...d, access: { ...d.access, ...patch } } : d));
+
+  async function save() {
+    if (!draft) return;
+    try {
+      setSaving(true);
+      setMessage("");
+      const json = await api("/api/ai-personas/save", { guildId, persona: draft });
+      await reload(guildId);
+      setDraft(json.persona);
+      setIsNew(false);
+      setMessage(json.created ? "Persona created." : "Persona saved.");
+    } catch (err: any) {
+      setMessage(err?.message || "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(slug: string) {
+    if (!window.confirm(`Delete persona "${slug}"? This cannot be undone.`)) return;
+    try {
+      await api("/api/ai-personas/delete", { guildId, slug });
+      await reload(guildId);
+      setDraft(null);
+      setMessage("Persona deleted.");
+    } catch (err: any) {
+      setMessage(err?.message || "Could not delete.");
+    }
+  }
+
+  async function runTest() {
+    if (!draft || isNew) return;
+    try {
+      setTesting(true);
+      setTestReply("");
+      const json = await api("/api/ai-personas/test", { guildId, slug: draft.slug, prompt: testPrompt });
+      setTestReply(json.reply);
+    } catch (err: any) {
+      setTestReply(`Error: ${err?.message || "Test failed."}`);
+    } finally {
+      setTesting(false);
+    }
+  }
 
   if (!guildId) {
     return <div style={{ color: "#ff8585", padding: 20 }}>Missing guildId. Open from /guilds first.</div>;
@@ -125,93 +242,175 @@ export default function PersonaClient() {
       <section style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div>
-            <h1 style={{ margin: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-              Persona Engine
-            </h1>
+            <h1 style={{ margin: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>Persona Engine</h1>
             <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || guildId}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8, maxWidth: 880 }}>
-              This is the local persona system backed by <code>modules/data/personas.json</code> and <code>engine/personaEngine.js</code>.
-              It is separate from Possum AI and from the provider/pricing surface. Use this page to inspect the real persona roster and runtime mode.
+              Create your own characters for this server. Each persona has its own identity, voice, triggers, access rules and model settings,
+              and only exists in this server. Replies use this server&apos;s AI credits. Persona AI is separate from Possum AI.
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Link href={buildDashboardHref("/dashboard/bot-personalizer")} style={action}>
-              Bot Personalizer
-            </Link>
-            <Link href={buildDashboardHref("/dashboard/ai/learning")} style={action}>
-              Possum AI
-            </Link>
-            {isMasterOwner ? (
-              <Link href={buildDashboardHref("/dashboard/ai/openai-platform")} style={action}>
-                Creator AI Platform
-              </Link>
-            ) : null}
+            <Link href={buildDashboardHref("/dashboard/ai/billing")} style={action}>AI Billing</Link>
+            <Link href={buildDashboardHref("/dashboard/bot-personalizer")} style={action}>Bot Personalizer</Link>
+            <Link href={buildDashboardHref("/dashboard/ai/learning")} style={action}>Possum AI</Link>
+            {isMasterOwner ? <Link href={buildDashboardHref("/dashboard/ai/openai-platform")} style={action}>Creator AI Platform</Link> : null}
           </div>
         </div>
         {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
       </section>
 
-      {loading ? <div style={card}>Loading persona engine...</div> : null}
+      {loading ? <div style={card}>Loading personas...</div> : null}
 
       {!loading ? (
         <>
           <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10, marginBottom: 12 }}>
-            <div style={card}>
-              <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Persona Runtime</div>
-              <div style={{ color: "#ffdada", fontSize: 18, fontWeight: 800, marginTop: 6 }}>{personaEnabled ? "Enabled" : "Disabled"}</div>
-            </div>
-            <div style={card}>
-              <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Auto Reply</div>
-              <div style={{ color: "#ffdada", fontSize: 18, fontWeight: 800, marginTop: 6 }}>{config.settings.autoReplyEnabled ? "On" : "Off"}</div>
-            </div>
-            <div style={card}>
-              <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Mention Mode</div>
-              <div style={{ color: "#ffdada", fontSize: 18, fontWeight: 800, marginTop: 6 }}>{config.settings.mentionOnly ? "Mention Only" : "Triggers Allowed"}</div>
-            </div>
-            <div style={card}>
-              <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Persona Count</div>
-              <div style={{ color: "#ffdada", fontSize: 18, fontWeight: 800, marginTop: 6 }}>{config.personaCount}</div>
-            </div>
-            <div style={card}>
-              <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>Possum AI</div>
-              <div style={{ color: "#ffdada", fontSize: 18, fontWeight: 800, marginTop: 6 }}>{adaptiveEnabled ? "Enabled" : "Disabled"}</div>
-            </div>
+            {[
+              ["Persona Runtime", personaEnabled ? "Enabled" : "Disabled"],
+              ["Auto Reply", settings.autoReplyEnabled ? "On" : "Off"],
+              ["Mention Mode", settings.mentionOnly ? "Mention Only" : "Triggers Allowed"],
+              ["Your Personas", String(personas.length)],
+            ].map(([k, v]) => (
+              <div key={k} style={card}>
+                <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>{k}</div>
+                <div style={{ color: "#ffdada", fontSize: 18, fontWeight: 800, marginTop: 6 }}>{v}</div>
+              </div>
+            ))}
           </section>
+          {!personaEnabled ? (
+            <div style={{ ...card, color: "#ffd27a", fontSize: 12 }}>
+              Persona AI is turned off for this server. Personas you create here will not reply until it is enabled in the AI runtime settings.
+            </div>
+          ) : null}
 
-          <section style={card}>
-            <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-              Runtime Notes
-            </div>
-            <div style={{ color: "#ffdada", fontWeight: 700 }}>Persona AI is separate from Possum AI.</div>
-            <div style={{ color: "#ffbdbd", fontSize: 12, marginTop: 4 }}>
-              The persona roster uses its own trigger rules, persona-only channels, access lists, photos, and direct OpenAI calls from the persona engine.
-              The handcrafted Possum AI runs separately on the non-persona path and stays linked to Bot Personalizer, while provider pricing,
-              public catalog, and billing belong to the OpenAI platform page instead.
-              Persona AI does not inherit Bot Personalizer webhook identity or the guild backstory.
-            </div>
-          </section>
-
-          <section style={card}>
-            <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
-              Persona Roster
-            </div>
-            {config.personas.length ? (
-              config.personas.map((persona) => (
-                <div key={persona.key} style={{ padding: "10px 0", borderTop: "1px solid #330000" }}>
-                  <div style={{ color: "#ffdcdc", fontWeight: 700 }}>
-                    {persona.name} <span style={{ color: "#ff9c9c", fontWeight: 400 }}>({persona.key})</span>
+          <section style={{ display: "grid", gridTemplateColumns: "minmax(240px,320px) 1fr", gap: 12, alignItems: "start" }}>
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={{ ...label, marginBottom: 0 }}>Your roster</span>
+                <button style={{ ...action, padding: "6px 10px", fontSize: 11 }} onClick={() => edit(null)}>+ New persona</button>
+              </div>
+              {personas.length ? (
+                personas.map((p) => (
+                  <div
+                    key={p.slug}
+                    onClick={() => edit(p)}
+                    style={{
+                      padding: "8px 10px",
+                      borderTop: "1px solid #330000",
+                      cursor: "pointer",
+                      background: draft && !isNew && draft.slug === p.slug ? "rgba(255,0,0,.12)" : "transparent",
+                    }}
+                  >
+                    <div style={{ color: "#ffdcdc", fontWeight: 700 }}>
+                      {p.name} <span style={{ color: "#ff9c9c", fontWeight: 400 }}>({p.slug})</span>
+                    </div>
+                    <div style={hint}>{p.enabled ? "Enabled" : "Disabled"} · {p.triggers.length} triggers · {p.mentionRequired ? "mention required" : "mention optional"}</div>
                   </div>
-                  <div style={{ color: "#ffbdbd", fontSize: 12, marginTop: 4 }}>
-                    {persona.bio || "No bio set."}
-                  </div>
-                  <div style={{ color: "#ff9c9c", fontSize: 11, marginTop: 6 }}>
-                    {persona.enabled ? "Enabled" : "Disabled"} | Triggers {persona.triggerCount} | Mention Required {persona.mentionRequired ? "Yes" : "No"} | Photo {persona.imageConfigured ? "Yes" : "No"} | Allowed Roles {persona.allowedRoleCount} | Allowed Channels {persona.allowedChannelCount}
-                  </div>
+                ))
+              ) : (
+                <div style={hint}>No personas yet. Click &quot;New persona&quot; to create your first character.</div>
+              )}
+              {shared.length ? (
+                <div style={{ marginTop: 12 }}>
+                  <span style={label}>Shared with all servers (read-only)</span>
+                  {shared.map((p) => (
+                    <div key={p.slug} style={{ ...hint, padding: "3px 0" }}>{p.name} ({p.slug})</div>
+                  ))}
                 </div>
-              ))
-            ) : (
-              <div style={{ color: "#ffbdbd", fontSize: 12 }}>No personas are configured yet.</div>
-            )}
+              ) : null}
+            </div>
+
+            <div style={card}>
+              {!draft ? (
+                <div style={hint}>Select a persona to edit, or create a new one.</div>
+              ) : (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <span style={label}>Key (lowercase, no spaces)</span>
+                      <input style={input} value={draft.slug} disabled={!isNew} maxLength={30} onChange={(e) => set({ slug: e.target.value })} placeholder="e.g. giveawayer" />
+                      {!isNew ? <div style={hint}>The key cannot be changed after creation.</div> : null}
+                    </div>
+                    <div>
+                      <span style={label}>Display name</span>
+                      <input style={input} value={draft.name} maxLength={60} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. The Giveawayer" />
+                    </div>
+                  </div>
+                  <div>
+                    <span style={label}>Bio (who they are)</span>
+                    <textarea style={{ ...input, minHeight: 60 }} value={draft.bio} maxLength={600} onChange={(e) => set({ bio: e.target.value })} />
+                  </div>
+                  <div>
+                    <span style={label}>Style (how they talk)</span>
+                    <textarea style={{ ...input, minHeight: 60 }} value={draft.style} maxLength={700} onChange={(e) => set({ style: e.target.value })} />
+                  </div>
+                  <div>
+                    <span style={label}>System rules (hard limits and behavior)</span>
+                    <textarea style={{ ...input, minHeight: 80 }} value={draft.systemRules} maxLength={900} onChange={(e) => set({ systemRules: e.target.value })} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <span style={label}>Trigger words (comma separated)</span>
+                      <input
+                        style={input}
+                        value={draft.triggers.join(", ")}
+                        onChange={(e) => set({ triggers: e.target.value.split(",").map((t) => t.trim()).filter(Boolean) })}
+                      />
+                    </div>
+                    <div>
+                      <span style={label}>Photo URL (https)</span>
+                      <input style={input} value={draft.imageUrl} maxLength={500} onChange={(e) => set({ imageUrl: e.target.value })} placeholder="https://..." />
+                    </div>
+                  </div>
+                  {draft.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={draft.imageUrl} alt="" style={{ width: 72, height: 72, borderRadius: 12, objectFit: "cover", border: "1px solid #5a0000" }} />
+                  ) : null}
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <span style={label}>Creativity (temperature): {draft.model.temperature.toFixed(2)}</span>
+                      <input type="range" min={0.1} max={1.5} step={0.05} value={draft.model.temperature} style={{ width: "100%" }} onChange={(e) => set({ model: { ...draft.model, temperature: Number(e.target.value) } })} />
+                      <div style={hint}>Lower is more predictable, higher is more creative.</div>
+                    </div>
+                    <div>
+                      <span style={label}>Max reply length (tokens): {draft.model.maxTokens}</span>
+                      <input type="range" min={80} max={700} step={10} value={draft.model.maxTokens} style={{ width: "100%" }} onChange={(e) => set({ model: { ...draft.model, maxTokens: Number(e.target.value) } })} />
+                      <div style={hint}>Longer replies cost more credits.</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+                    <label style={{ fontSize: 13 }}><input type="checkbox" checked={draft.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> Enabled</label>
+                    <label style={{ fontSize: 13 }}><input type="checkbox" checked={draft.mentionRequired} onChange={(e) => set({ mentionRequired: e.target.checked })} /> Require @mention</label>
+                    <label style={{ fontSize: 13 }}><input type="checkbox" checked={draft.access.allowDMs} onChange={(e) => setAccess({ allowDMs: e.target.checked })} /> Allow DMs</label>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
+                    <div><span style={label}>Allowed roles</span><MultiPick items={roles} value={draft.access.allowedRoles} onChange={(v) => setAccess({ allowedRoles: v })} empty="No roles loaded." /></div>
+                    <div><span style={label}>Allowed channels</span><MultiPick items={textChannels} value={draft.access.allowedChannels} onChange={(v) => setAccess({ allowedChannels: v })} empty="No channels loaded." /></div>
+                    <div><span style={label}>Blocked channels</span><MultiPick items={textChannels} value={draft.access.blockedChannels} onChange={(v) => setAccess({ blockedChannels: v })} empty="No channels loaded." /></div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button style={action} disabled={saving} onClick={save}>{saving ? "Saving..." : isNew ? "Create persona" : "Save changes"}</button>
+                    {!isNew ? <button style={{ ...action, borderColor: "#aa0000" }} onClick={() => remove(draft.slug)}>Delete</button> : null}
+                    <button style={action} onClick={() => setDraft(null)}>Close</button>
+                  </div>
+
+                  {!isNew ? (
+                    <div style={{ borderTop: "1px solid #330000", paddingTop: 10 }}>
+                      <span style={label}>Test prompt (uses this server&apos;s AI credits)</span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input style={input} value={testPrompt} maxLength={300} onChange={(e) => setTestPrompt(e.target.value)} placeholder="Say something to this persona..." />
+                        <button style={action} disabled={testing || !testPrompt.trim()} onClick={runTest}>{testing ? "..." : "Test"}</button>
+                      </div>
+                      <div style={hint}>Save your changes first. The test uses the last saved version.</div>
+                      {testReply ? <div style={{ marginTop: 8, padding: 10, border: "1px solid #3a0000", borderRadius: 8, fontSize: 13, whiteSpace: "pre-wrap" }}>{testReply}</div> : null}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
           </section>
         </>
       ) : null}

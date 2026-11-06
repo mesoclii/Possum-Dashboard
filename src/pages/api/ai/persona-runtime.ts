@@ -99,7 +99,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (allowed !== true) return allowed;
 
     const store = readStore();
-    const personas = summarizePersonas(store.personas);
+    const visible = Object.fromEntries(
+      Object.entries(store.personas).filter(([, p]: [string, any]) => !p?.guildId || String(p.guildId) === guildId)
+    );
+    const personas = summarizePersonas(visible);
 
     return res.status(200).json({
       success: true,

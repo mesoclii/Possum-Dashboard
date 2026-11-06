@@ -3,6 +3,39 @@
 import { useEffect, useState } from "react";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 
+const shell = { color: "#ffe9f6", padding: 18, maxWidth: 980 } as const;
+const card = {
+  border: "1px solid #ff4d6a",
+  borderRadius: 12,
+  padding: 16,
+  marginTop: 12,
+  background: "rgba(20,0,0,0.55)",
+} as const;
+const field = {
+  display: "block",
+  marginTop: 6,
+  minWidth: 180,
+  width: "100%",
+  maxWidth: 360,
+  padding: "10px 12px",
+  borderRadius: 8,
+  border: "1px solid #ff4d6a",
+  background: "#0d0d0d",
+  color: "#ffe9f6",
+} as const;
+const button = {
+  border: "1px solid #ff2bd6",
+  background: "rgba(255,43,214,0.22)",
+  color: "#ffe4f8",
+  borderRadius: 999,
+  padding: "10px 16px",
+  fontWeight: 900,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase" as const,
+  cursor: "pointer",
+  marginTop: 12,
+};
+
 export default function ScheduledReportsPage() {
   const { guildId, guildName, channels } = useGuildEngineEditor("proAlerts", { processHealth: false });
   const [cadence, setCadence] = useState("weekly");
@@ -26,25 +59,47 @@ export default function ScheduledReportsPage() {
   if (!guildId) return <div style={{ color: "#ffe9f6", padding: 18 }}>Open this page from a guild.</div>;
 
   return (
-    <div style={{ color: "#ffe9f6", padding: 18, maxWidth: 980 }}>
+    <div style={shell}>
       <h1 style={{ margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>Scheduled Reports</h1>
-      <p>{guildName || guildId}</p>
-      <p>A failed moderation lookup is shown as missing. It is not shown as zero.</p>
-      <label>Cadence <select value={cadence} onChange={(event) => setCadence(event.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
-      <label style={{ marginLeft: 12 }}>Channel <select value={channelId} onChange={(event) => setChannelId(event.target.value)}><option value="">Store only</option>{textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
-      <button type="button" style={{ marginLeft: 12 }} onClick={async () => {
-        const response = await fetch("/api/bot/pro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ feature: "scheduled-reports", action: "schedule", guildId, cadence, channelId, enabled: true }) });
-        const body = await response.json();
-        setNotice(body.success ? "Schedule saved." : body.error || "Schedule failed.");
-        await load();
-      }}>Save schedule</button>
+      <p style={{ color: "#ffe9f6" }}>{guildName || guildId}</p>
+      <section style={card}>
+        <p style={{ marginTop: 0 }}>A failed moderation lookup is shown as missing. It is not shown as zero.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(180px, 1fr))", gap: 12 }}>
+          <label>
+            Cadence
+            <select style={field} value={cadence} onChange={(event) => setCadence(event.target.value)}>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+          <label>
+            Channel
+            <select style={field} value={channelId} onChange={(event) => setChannelId(event.target.value)}>
+              <option value="">Store only</option>
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
+          </label>
+        </div>
+        <button type="button" style={button} onClick={async () => {
+          const response = await fetch("/api/bot/pro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ feature: "scheduled-reports", action: "schedule", guildId, cadence, channelId, enabled: true }) });
+          const body = await response.json();
+          setNotice(body.success ? "Schedule saved." : body.error || "Schedule failed.");
+          await load();
+        }}>Save schedule</button>
+      </section>
       {notice ? <p>{notice}</p> : null}
-      {schedules.map((row) => <p key={row.id}>{row.cadence} · next {row.nextRunAt || "now"} · channel {row.channelId || "store only"}</p>)}
+      {schedules.map((row) => (
+        <article key={row.id} style={card}>
+          <strong style={{ letterSpacing: "0.06em", textTransform: "uppercase" }}>{row.cadence}</strong>
+          <p style={{ marginBottom: 0 }}>next {row.nextRunAt || "now"} · channel {row.channelId || "store only"}</p>
+        </article>
+      ))}
       {reports.slice().reverse().map((row) => (
-        <article key={row.id} style={{ border: "1px solid #ff4d6a", marginTop: 12, padding: 12 }}>
-          <strong>{row.cadence}</strong> {row.generatedAt}
+        <article key={row.id} style={card}>
+          <strong style={{ letterSpacing: "0.06em", textTransform: "uppercase" }}>{row.cadence}</strong> {row.generatedAt}
           <p>Members {row.memberCount ?? "missing"}. Moderation {row.moderation?.missing ? "missing" : row.moderation?.audit30}. Events {(row.eventIds || []).length}.</p>
-          <p>Delivery {row.delivery?.ok ? "sent" : row.delivery?.error || "not sent"}.</p>
+          <p style={{ marginBottom: 0 }}>Delivery {row.delivery?.ok ? "sent" : row.delivery?.error || "not sent"}.</p>
         </article>
       ))}
     </div>

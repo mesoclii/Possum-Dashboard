@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
 
-type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string };
+type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string; botPermissions?: { status?: string; flags?: string[] } };
 type Proposal = {
   id: string;
   engine: string;
@@ -11,6 +11,8 @@ type Proposal = {
   status: string;
   reason: string;
   suggestedName?: string;
+  suggestedId?: string;
+  matches?: { id: string; name: string }[];
   protectedFlow?: boolean;
 };
 type Finding = {
@@ -33,6 +35,7 @@ type Report = {
   findings?: Finding[];
   proposals?: Proposal[];
   settings?: { mode: string; repairEnabled: boolean };
+  createdResources?: { id: string; engine: string; field: string }[];
   directory?: { categories: DirectoryRow[]; channels: DirectoryRow[]; roles: DirectoryRow[] };
 };
 
@@ -48,6 +51,8 @@ export default function InfrastructureClient() {
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const [confirm, setConfirm] = useState<"setup" | "repair" | "">("");
 
   useEffect(() => {
     const nextGuild = readDashboardGuildId();
@@ -75,6 +80,19 @@ export default function InfrastructureClient() {
     setMessage("Saved.");
   }
 
+  async function download(format: "json" | "csv" | "txt") {
+    const response = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}&export=1&format=${format}`, { cache: "no-store" });
+    const json = await response.json();
+    const body = json?.export?.body || "";
+    const blob = new Blob([body], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `possum-directory.${format}`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const rows = useMemo(() => {
     const directory = report?.directory;
     const all = [
@@ -96,11 +114,27 @@ export default function InfrastructureClient() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "scan" })}>Scan</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "settings", mode: "discovery" })}>Discovery</button>
-          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "settings", mode: "auto-adapt" })}>Auto-Adapt</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "adapt" })}>Auto-Adapt</button>
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "settings", mode: "full-setup" })}>Full Setup</button>
-          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "settings", repairEnabled: !report?.settings?.repairEnabled })}>Repair {report?.settings?.repairEnabled ? "On" : "Off"}</button>
-          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "provision", confirmed: true })}>Confirm Full Setup</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => { setConfirm(""); post({ action: "settings", repairEnabled: !report?.settings?.repairEnabled }); }}>Repair {report?.settings?.repairEnabled ? "On" : "Off"}</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => setConfirm("setup")}>Confirm Full Setup</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => setConfirm("repair")}>Confirm Repair</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => download("json")}>JSON</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => download("csv")}>CSV</button>
+          <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => download("txt")}>TXT</button>
         </div>
+        {confirm === "setup" ? (
+          <div className="mt-3 rounded-lg border border-pink-800/50 p-3">
+            <p className="text-sm text-pink-100">Full setup creates at most five missing categories or channels. Staff and security logs are private. Protected engines are skipped. Nothing is deleted.</p>
+            <button type="button" className="possum-btn mt-2 rounded-md px-2 py-1 text-xs font-black uppercase" onClick={() => { setConfirm(""); post({ action: "provision", confirmed: true }); }}>Create approved resources</button>
+          </div>
+        ) : null}
+        {confirm === "repair" ? (
+          <div className="mt-3 rounded-lg border border-pink-800/50 p-3">
+            <p className="text-sm text-pink-100">Repair only recreates channels Possum recorded, and only while the repair toggle is on. Other channels stay untouched.</p>
+            <button type="button" className="possum-btn mt-2 rounded-md px-2 py-1 text-xs font-black uppercase" onClick={() => { setConfirm(""); post({ action: "repair", confirmed: true }); }}>Recreate recorded resources</button>
+          </div>
+        ) : null}
         <p className="mt-2 text-xs text-red-200/70">Mode {report?.settings?.mode || "discovery"}. Protected onboarding, verification, pre-onboarding, and heist fields stay suggestion-only.</p>
         {message ? <p className="mt-2 text-sm text-pink-200">{message}</p> : null}
       </section>
@@ -108,11 +142,12 @@ export default function InfrastructureClient() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, roles, or IDs" className="w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
         <div className="mt-3 space-y-2">
-          {rows.slice(0, 80).map((row) => (
+          {rows.map((row) => (
             <div key={`${row.kind}-${row.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-pink-900/40 px-3 py-2">
               <div>
                 <p className="text-sm font-bold text-pink-100">{row.name}</p>
-                <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">{row.kind} · {row.id}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">{row.kind} · {row.id}{row.parentId ? ` · parent ${row.parentId}` : ""}</p>
+                <p className="text-xs text-red-100/70">{row.botPermissions?.flags?.length ? row.botPermissions.flags.join(", ") : row.botPermissions?.status || "role"}{report?.createdResources?.some((resource) => resource.id === row.id) ? " · Possum created" : ""}</p>
               </div>
               <button type="button" className="possum-btn rounded-md px-2 py-1 text-xs font-black uppercase" onClick={() => navigator.clipboard?.writeText(row.id)}>Copy ID</button>
             </div>
@@ -161,6 +196,15 @@ export default function InfrastructureClient() {
               <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
               {proposal.status === "ready" ? (
                 <button type="button" className="possum-btn mt-2 rounded-md px-2 py-1 text-xs font-black uppercase" onClick={() => post({ action: "approve", proposalIds: [proposal.id] })}>Approve empty field</button>
+              ) : null}
+              {proposal.status === "ambiguous" && proposal.matches?.length ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={choices[proposal.id] || ""} onChange={(event) => setChoices((current) => ({ ...current, [proposal.id]: event.target.value }))}>
+                    <option value="">Choose a match</option>
+                    {proposal.matches.map((match) => <option key={match.id} value={match.id}>{match.name}</option>)}
+                  </select>
+                  <button type="button" className="possum-btn rounded-md px-2 py-1 text-xs font-black uppercase" onClick={() => post({ action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] || "" } })}>Use this match</button>
+                </div>
               ) : null}
             </div>
           ))}

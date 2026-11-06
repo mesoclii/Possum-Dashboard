@@ -8,8 +8,8 @@ import { getDashboardNavSections, getDashboardNavTopLinks } from "@/lib/dashboar
 
 function itemClass(active: boolean): string {
   return active
-    ? "block w-full rounded-md border border-red-500/60 bg-red-900/20 px-3 py-2 text-left text-sm font-extrabold uppercase tracking-[0.05em] text-red-200 possum-glow-soft"
-    : "block w-full rounded-md border border-transparent px-3 py-2 text-left text-sm font-bold uppercase tracking-[0.04em] text-red-300/85 hover:border-red-500/40 hover:bg-red-950/40 hover:text-red-200";
+    ? "block w-full rounded-md border border-pink-500/70 bg-gradient-to-r from-pink-600/25 to-emerald-500/10 px-3 py-2 text-left text-sm font-extrabold uppercase tracking-[0.05em] text-pink-100 possum-nav-active"
+    : "block w-full rounded-md border border-transparent px-3 py-2 text-left text-sm font-bold uppercase tracking-[0.04em] text-red-300/85 hover:border-emerald-400/50 hover:bg-emerald-500/10 hover:text-emerald-200";
 }
 
 function isItemActive(pathname: string | null, href: string) {
@@ -96,7 +96,7 @@ export default function PossumSidebar() {
           const defaultOpen = Boolean(section.defaultOpen || section.items.some((item) => isItemActive(pathname, item.href)));
           const open = isSectionOpen(section.label, defaultOpen);
           return (
-            <div key={section.label} className="rounded-lg border border-red-900/40 bg-black/25">
+            <div key={section.label} className="rounded-lg border border-pink-900/50 bg-black/30 possum-nav-section">
               <button
                 type="button"
                 onClick={() => toggleSection(section.label, defaultOpen)}

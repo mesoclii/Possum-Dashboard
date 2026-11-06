@@ -6,11 +6,15 @@
   color-scheme: dark;
 }
 
-html,
-body {
+html {
   height: 100%;
-  margin: 0;
   background: #000;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: transparent;
   color: #fff;
 }
 
@@ -110,4 +114,276 @@ button {
 /* Smooth scroll (feels premium) */
 html {
   scroll-behavior: smooth;
+}
+
+/* ===== Neon gamer theme: pink / green / red ===== */
+:root {
+  --neon-red: #ff2a4d;
+  --neon-pink: #ff2bd6;
+  --neon-green: #39ff14;
+  --neon-blurple: #5865f2;
+}
+
+/* Hero art + synthwave grid behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(900px 600px at 85% 0%, rgba(255, 43, 214, 0.18), transparent 60%),
+    radial-gradient(900px 600px at 0% 100%, rgba(57, 255, 20, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.94)),
+    url("/img/possum-hero.png") center / cover no-repeat fixed;
+  pointer-events: none;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(255, 43, 214, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57, 255, 20, 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, transparent, #000 40%, transparent);
+  pointer-events: none;
+}
+
+.possum-bg {
+  background: transparent;
+}
+
+::selection {
+  background: rgba(255, 43, 214, 0.4);
+}
+
+@keyframes neon-shift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes neon-pulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 43, 214, 0.28), inset 0 0 14px rgba(255, 43, 214, 0.08); }
+  50% { box-shadow: 0 0 26px rgba(57, 255, 20, 0.30), inset 0 0 18px rgba(57, 255, 20, 0.10); }
+}
+
+/* Animated neon edge under the top bar */
+.possum-header {
+  position: sticky;
+}
+.possum-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--neon-red), var(--neon-pink), var(--neon-green), var(--neon-pink), var(--neon-red));
+  background-size: 200% 100%;
+  animation: neon-shift 6s linear infinite;
+}
+
+.possum-title {
+  background: linear-gradient(90deg, var(--neon-red), var(--neon-pink), var(--neon-green));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: neon-shift 8s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(255, 43, 214, 0.5));
+}
+
+/* Gradient page headings, even where colour is set inline */
+main h1,
+main h2 {
+  background: linear-gradient(90deg, var(--neon-red), var(--neon-pink) 55%, var(--neon-green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(0 0 10px rgba(255, 43, 214, 0.35));
+}
+
+/* Cards: alternating pink / green neon glow */
+main section {
+  border-color: rgba(255, 43, 214, 0.45) !important;
+  box-shadow: 0 0 22px rgba(255, 43, 214, 0.12), inset 0 0 22px rgba(255, 43, 214, 0.05);
+  backdrop-filter: blur(3px);
+  transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+main section:nth-of-type(even) {
+  border-color: rgba(57, 255, 20, 0.40) !important;
+  box-shadow: 0 0 22px rgba(57, 255, 20, 0.10), inset 0 0 22px rgba(57, 255, 20, 0.04);
+}
+main section:hover {
+  box-shadow: 0 0 34px rgba(255, 43, 214, 0.28), inset 0 0 26px rgba(57, 255, 20, 0.08);
+}
+
+/* Buttons and links styled as buttons */
+main button:not(:disabled),
+main a[style*="text-transform: uppercase"] {
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+main button:not(:disabled):hover,
+main a[style*="text-transform: uppercase"]:hover {
+  transform: translateY(-1px);
+  border-color: var(--neon-green) !important;
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.45), inset 0 0 12px rgba(57, 255, 20, 0.12);
+}
+main button:not(:disabled):active {
+  transform: translateY(0);
+}
+main button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.possum-btn {
+  border-color: rgba(255, 43, 214, 0.65);
+  box-shadow: 0 0 20px rgba(255, 43, 214, 0.25), inset 0 0 16px rgba(255, 43, 214, 0.14);
+}
+.possum-btn:hover {
+  box-shadow: 0 0 30px rgba(255, 43, 214, 0.45), inset 0 0 20px rgba(255, 43, 214, 0.2);
+}
+.possum-btn-green {
+  border-color: rgba(57, 255, 20, 0.6);
+  color: var(--neon-green) !important;
+  box-shadow: 0 0 20px rgba(57, 255, 20, 0.22), inset 0 0 16px rgba(57, 255, 20, 0.12);
+}
+.possum-btn-green:hover {
+  box-shadow: 0 0 30px rgba(57, 255, 20, 0.45), inset 0 0 20px rgba(57, 255, 20, 0.18);
+}
+
+.possum-pill {
+  border-color: rgba(255, 43, 214, 0.5);
+  color: #ffb3f0;
+  animation: neon-pulse 4s ease-in-out infinite;
+}
+
+.possum-nav-active {
+  box-shadow: 0 0 16px rgba(255, 43, 214, 0.35), inset 0 0 10px rgba(57, 255, 20, 0.12);
+}
+.possum-nav-section {
+  transition: border-color 140ms ease;
+}
+.possum-nav-section:hover {
+  border-color: rgba(57, 255, 20, 0.45);
+}
+
+/* Inputs */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--neon-green) !important;
+  box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.25), 0 0 16px rgba(57, 255, 20, 0.25);
+}
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--neon-pink);
+}
+
+/* Neon scrollbars */
+.possum-scroll,
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--neon-pink) rgba(0, 0, 0, 0.5);
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.5);
+}
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--neon-pink), var(--neon-green));
+  border-radius: 8px;
+}
+
+/* Dashboard home banner */
+.possum-banner {
+  position: relative;
+  min-height: clamp(150px, 22vw, 280px);
+  margin: 12px clamp(12px, 2vw, 32px) 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 43, 214, 0.55);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.35) 55%, rgba(0, 0, 0, 0.1) 100%),
+    url("/img/possum-hero.png") center 35% / cover no-repeat;
+  box-shadow: 0 0 36px rgba(255, 43, 214, 0.3), 0 0 60px rgba(57, 255, 20, 0.12);
+  display: flex;
+  align-items: center;
+}
+.possum-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: clamp(14px, 3vw, 36px);
+}
+.possum-banner-kicker {
+  color: var(--neon-green);
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  font-weight: 800;
+  font-size: 12px;
+  text-shadow: 0 0 12px rgba(57, 255, 20, 0.8);
+}
+.possum-banner-title {
+  font-size: clamp(26px, 5vw, 54px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, var(--neon-red), var(--neon-pink), var(--neon-green));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: neon-shift 7s linear infinite;
+  filter: drop-shadow(0 0 14px rgba(255, 43, 214, 0.55));
+}
+.possum-banner-sub {
+  color: #ffd1f5;
+  font-size: clamp(12px, 1.6vw, 16px);
+  letter-spacing: 0.06em;
+}
+
+/* Small screens, Discord's in-app browser and narrow windows */
+@media (max-width: 700px) {
+  main [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  main button,
+  main a[style*="text-transform: uppercase"] {
+    min-height: 44px;
+  }
+  .possum-banner {
+    border-radius: 12px;
+  }
+}
+
+@media (min-width: 1800px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .possum-header::after,
+  .possum-title,
+  .possum-banner-title,
+  .possum-pill {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }

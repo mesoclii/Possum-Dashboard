@@ -15,8 +15,7 @@ type LandingSession = {
   } | null;
 };
 
-const HERO_IMAGE =
-  "https://cdn.discordapp.com/attachments/1479944571336261914/1480026031883554856/possum_dashbaord.jg.png?ex=69ae2d27&is=69acdba7&hm=723340d4be8013cc1764d2d337f660fd840aaeaceebc0240f0ff99d96359dcdc&";
+const HERO_IMAGE = "/img/possum-hero.png";
 
 const buttonBase: CSSProperties = {
   display: "inline-flex",
@@ -35,15 +34,16 @@ const buttonBase: CSSProperties = {
 const primaryButton: CSSProperties = {
   ...buttonBase,
   color: "#190000",
-  background: "linear-gradient(90deg, #ff3636 0%, #ff8340 100%)",
-  boxShadow: "0 18px 40px rgba(255,0,0,0.26)",
+  background: "linear-gradient(90deg, #ff2bd6 0%, #39ff14 100%)",
+  boxShadow: "0 0 30px rgba(255,43,214,0.45), 0 0 50px rgba(57,255,20,0.25)",
 };
 
 const secondaryButton: CSSProperties = {
   ...buttonBase,
   color: "#ffe0e0",
-  border: "1px solid rgba(255,0,0,0.42)",
-  background: "rgba(18,0,0,0.72)",
+  border: "1px solid rgba(255,43,214,0.6)",
+  background: "rgba(18,0,16,0.72)",
+  boxShadow: "0 0 18px rgba(255,43,214,0.25)",
 };
 
 export default function Home() {
@@ -133,26 +133,26 @@ export default function Home() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top, rgba(120,0,0,0.22) 0%, rgba(18,0,0,0.94) 34%, rgba(0,0,0,1) 100%)",
+          "radial-gradient(circle at 80% 0%, rgba(255,43,214,0.20) 0%, transparent 45%), radial-gradient(circle at 10% 100%, rgba(57,255,20,0.14) 0%, transparent 45%), transparent",
         color: "#ffe2e2",
       }}
     >
       <div style={{ maxWidth: 1520, margin: "0 auto", padding: "22px 26px 56px" }}>
         <section
           style={{
-            border: "1px solid rgba(255,0,0,0.32)",
+            border: "1px solid rgba(255,43,214,0.5)",
             borderRadius: 28,
-            background: "linear-gradient(180deg, rgba(85,0,0,0.18), rgba(0,0,0,0.74))",
+            background: "linear-gradient(180deg, rgba(60,0,50,0.28), rgba(0,0,0,0.72))",
             padding: "42px 34px 34px",
-            boxShadow: "0 24px 60px rgba(0,0,0,0.34)",
+            boxShadow: "0 0 40px rgba(255,43,214,0.25), 0 0 80px rgba(57,255,20,0.10)",
             overflow: "hidden",
           }}
         >
           <div style={{ textAlign: "center" }}>
             <div
-              className="possum-red possum-glow"
+              className="possum-title"
               style={{
-                fontSize: "clamp(4.8rem, 11vw, 8.8rem)",
+                fontSize: "clamp(3rem, 11vw, 8.8rem)",
                 fontWeight: 950,
                 letterSpacing: "0.22em",
                 textTransform: "uppercase",
@@ -230,11 +230,11 @@ export default function Home() {
           <div
             style={{
               marginTop: 34,
-              minHeight: 340,
+              minHeight: "clamp(260px, 42vw, 560px)",
               borderRadius: 24,
-              border: "1px solid rgba(255,0,0,0.22)",
-              background: `linear-gradient(180deg, rgba(15,0,0,0.12), rgba(0,0,0,0.42)), center / contain no-repeat url(${HERO_IMAGE})`,
-              boxShadow: "inset 0 0 80px rgba(0,0,0,0.30)",
+              border: "1px solid rgba(57,255,20,0.45)",
+              background: `linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.35)), center / cover no-repeat url(${HERO_IMAGE})`,
+              boxShadow: "0 0 36px rgba(57,255,20,0.2), inset 0 0 80px rgba(0,0,0,0.30)",
             }}
           />
         </section>

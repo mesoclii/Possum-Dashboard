@@ -184,7 +184,7 @@ export default function EventReactorPage() {
       <div style={{ ...box, marginBottom: 12, lineHeight: 1.7, color: "#ffbdbd" }}>
         This page controls what Discord activity the bot watches here, where failed jobs get sent, and any extra alert posts you want it to make.
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div>Loading...</div>

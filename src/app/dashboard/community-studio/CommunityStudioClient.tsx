@@ -503,7 +503,7 @@ export default function CommunityStudioClient() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Build distinct server bulletins, pulse polls, lookup cards, and reminder loops without copying another dashboard&apos;s flow.
       </div>
-      {visibleMessage ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{visibleMessage}</div> : null}
+      {visibleMessage ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{visibleMessage}</div> : null}
 
       {loading ? (
         <div style={card}>Loading Community Studio...</div>

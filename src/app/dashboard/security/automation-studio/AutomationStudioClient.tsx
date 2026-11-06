@@ -281,7 +281,7 @@ export default function AutomationStudioClient() {
             <Link href={`/dashboard/security?guildId=${encodeURIComponent(guildId)}`} style={{ ...action, textDecoration: "none" }}>Security Hub</Link>
           </div>
         </div>
-        {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+        {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={box}>Loading security automations...</div> : null}

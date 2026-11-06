@@ -560,7 +560,7 @@ export default function ChannelsClient() {
           {savingAll ? "Saving Everything..." : isSaviorsGuild ? "Save All Saviors Channels" : "Save All Channels"}
         </button>
       </div>
-      {msg ? <div style={{ color: "#ffd27a", marginBottom: 12 }}>{msg}</div> : null}
+      {msg ? <div style={{ color: "#ffb3f0", marginBottom: 12 }}>{msg}</div> : null}
 
       {SECTIONS.map((section) => {
         const cfg = configs[section.key] || {};

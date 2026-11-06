@@ -209,13 +209,13 @@ export default function Home() {
                 target="_blank"
                 rel="noreferrer"
                 style={{
-                  color: "#ffd6a0",
+                  color: "#ffd1f5",
                   fontWeight: 900,
                   textDecoration: "none",
-                  border: "1px solid rgba(255,140,90,0.6)",
+                  border: "1px solid rgba(255,43,214,0.7)",
                   borderRadius: 999,
                   padding: "8px 14px",
-                  background: "rgba(60,10,0,0.72)",
+                  background: "rgba(40,0,28,0.72)",
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   fontSize: 13,

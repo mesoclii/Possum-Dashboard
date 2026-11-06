@@ -860,7 +860,7 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         {card.goOnly ? (
                           <>
-                            <span className={lockedPremium ? "rounded-full border border-amber-500/40 bg-amber-950/30 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-amber-300" : "rounded-full border border-red-600/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-200/75"}>
+                            <span className={lockedPremium ? "rounded-full border border-pink-400/60 bg-pink-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-pink-200" : "rounded-full border border-red-600/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-200/75"}>
                               {lockedPremium ? "Premium" : "Editor"}
                             </span>
                             <Link
@@ -888,7 +888,7 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
                     </div>
 
                     {card.premiumRequired ? (
-                      <p className="mt-2 text-xs text-amber-300/85">
+                      <p className="mt-2 text-xs text-pink-200/85">
                         {!premiumEnforced ? "Premium enforcement is currently off, so this stays unlocked for all guilds." : premiumUnlocked ? "Premium-unlocked for this guild." : "Premium feature. Unlock required for live toggles."}
                       </p>
                     ) : null}

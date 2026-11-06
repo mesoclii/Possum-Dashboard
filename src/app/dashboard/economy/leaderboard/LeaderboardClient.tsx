@@ -149,7 +149,7 @@ export default function LeaderboardClient() {
             </button>
           </div>
         </div>
-        {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={card}>Loading invite tracker runtime...</div> : null}

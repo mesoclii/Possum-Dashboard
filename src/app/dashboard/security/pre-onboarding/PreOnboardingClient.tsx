@@ -110,7 +110,7 @@ export default function PreOnboardingClient() {
           Use this page for blacklist rejoin handling, refusal-role enforcement, and the new profile threat guard. You asked for <strong>kick or ban</strong> here, so that choice is now explicit.
         </div>
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
 
       <EngineInsights summary={summary} details={details} />
 

@@ -125,7 +125,7 @@ export default function LoyaltyEngineClient() {
       />
       <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginBottom: 12 }}>VIP is a separate engine. This page configures loyalty milestone behavior surfaced for VIP + loyalty flow.</div>
-      {msg ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{msg}</div> : null}
+      {msg ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{msg}</div> : null}
 
       {loading ? <div>Loading...</div> : (
         <div style={{ display: "grid", gap: 12 }}>

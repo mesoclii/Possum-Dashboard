@@ -242,9 +242,9 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
           {runtimeCard("Card", summaryValue(showoffSummary, "Active", "Enabled"))}
         </div>
       </div>
-      {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loadWarnings.length ? (
-        <div role="alert" style={{ ...card, borderColor: "rgba(255,210,122,.45)", color: "#ffd27a" }}>
+        <div role="alert" style={{ ...card, borderColor: "rgba(255,43,214,.55)", color: "#ffb3f0" }}>
           Some Gaming Hub data could not be loaded. Failed engines are isolated and cannot be edited or saved until reloaded.
           <ul style={{ marginBottom: 8 }}>{loadWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
           <button type="button" style={button} disabled={loading} onClick={() => void loadAll(guildId)}>Retry loading</button>

@@ -82,7 +82,7 @@ export default function ConfigJsonEditor({ title, value, onApply, disabled, hint
           </button>
         </div>
       </div>
-      {error ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{error}</div> : null}
+      {error ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{error}</div> : null}
       <textarea
         style={{ ...input, minHeight: 220, marginTop: 10 }}
         value={raw}

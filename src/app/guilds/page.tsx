@@ -30,25 +30,25 @@ type DiscordUser = {
 function badgeStyle(kind: "primary" | "ready" | "missing") {
   if (kind === "primary") {
     return {
-      border: "1px solid #0f7a0f",
-      color: "#c8ffd0",
-      background: "rgba(16,100,16,0.22)",
+      border: "1px solid #ff2bd6",
+      color: "#ffd1f5",
+      background: "rgba(255,43,214,0.22)",
     } as const;
   }
 
   if (kind === "ready") {
     return {
-      border: "1px solid #0f5f7a",
-      color: "#cff4ff",
-      background: "rgba(8,82,112,0.22)",
+      border: "1px solid #ff2a4d",
+      color: "#ffd1f5",
+      background: "rgba(255,42,77,0.2)",
     } as const;
   }
 
   if (kind === "missing") {
     return {
-      border: "1px solid #0f5f7a",
-      color: "#cff4ff",
-      background: "rgba(8,82,112,0.22)",
+      border: "1px solid #ff2a4d",
+      color: "#ffd1f5",
+      background: "rgba(255,42,77,0.2)",
     } as const;
   }
 
@@ -70,9 +70,9 @@ function actionButtonStyle(tone: "primary" | "secondary" | "oauth") {
 
   if (tone === "oauth") {
     return {
-      border: "1px solid #0f5f7a",
-      color: "#d7f7ff",
-      background: "rgba(8,82,112,0.28)",
+      border: "1px solid #ff2a4d",
+      color: "#ffd1f5",
+      background: "rgba(255,43,214,0.22)",
     } as const;
   }
 
@@ -290,8 +290,7 @@ export default function GuildsPage() {
         color: "#ff5252",
         minHeight: "100vh",
         padding: 28,
-        background:
-          "radial-gradient(circle at top, rgba(110,0,0,0.26) 0%, rgba(12,0,0,0.94) 32%, rgba(0,0,0,1) 100%)",
+        background: "transparent",
       }}
     >
       <div style={{ maxWidth: 1520, margin: "0 auto" }}>

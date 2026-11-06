@@ -179,7 +179,7 @@ export default function HeistPage() {
       <p style={{ color: "#ff9d9d", marginTop: -6, lineHeight: 1.6 }}>
         Signups stay open until staff closes, cancels, or marks them done. They should not auto-close on their own anymore.
       </p>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
 
       <EngineInsights summary={summary} details={details} />
 

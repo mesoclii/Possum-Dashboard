@@ -15,7 +15,7 @@ type SessionState = {
 const shell: CSSProperties = {
   minHeight: "100vh",
   background:
-    "radial-gradient(circle at top, rgba(110,0,0,0.32) 0%, rgba(12,0,0,0.96) 38%, rgba(0,0,0,1) 100%)",
+    "transparent",
   color: "#ffd7d7",
   padding: "32px 24px 60px",
 };
@@ -109,7 +109,7 @@ export default function FeaturesPage() {
                   style={{
                     ...action,
                     color: "#190000",
-                    background: "linear-gradient(90deg, #ff3f3f, #ff8c3f)",
+                    background: "linear-gradient(90deg, #ff2a4d, #ff2bd6)",
                   }}
                   {...primaryActionProps}
                 >

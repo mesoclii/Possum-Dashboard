@@ -68,7 +68,7 @@ export default function InviteTrackerClient() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Real invite runtime controls for invite validation, stay windows, recruiter rewards, and drop behavior.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading invite tracker...</div>

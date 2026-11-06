@@ -115,7 +115,7 @@ export default function PokemonCatchingPage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Catching is the shared Pokemon core. Wild spawns feed the same trainer inventory that battle and trade use.
       </div>
-      {message ? <div style={{ marginTop: 8, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading pokemon catching...</div>

@@ -205,7 +205,7 @@ export default function UtilitiesClient() {
             <Link href={`/dashboard/slash-commands?guildId=${encodeURIComponent(guildId)}`} style={{ ...action, textDecoration: "none" }}>Slash Commands</Link>
           </div>
         </div>
-        {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+        {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={box}>Loading utility engines...</div> : null}

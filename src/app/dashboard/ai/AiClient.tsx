@@ -258,7 +258,7 @@ export default function AiClient() {
               Persona AI owns the premium hosted persona roster. Persona-triggered messages stay on the persona path, and all
               other eligible adaptive traffic stays on the Possum AI path. Guild backstory belongs to Possum AI, not Persona AI.
             </div>
-        {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </section>
 
       <section style={{ ...card, marginBottom: 12 }}>

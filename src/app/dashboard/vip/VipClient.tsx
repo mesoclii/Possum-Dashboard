@@ -110,7 +110,7 @@ export default function VipClient() {
         VIP is now reconciled directly against the live engine runtime. Loyalty stays linked, but its controls remain on the dedicated page.
       </div>
 
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div>Loading...</div>

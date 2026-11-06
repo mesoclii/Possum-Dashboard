@@ -273,8 +273,8 @@ export default function EventPointsClient() {
         This is a separate per-guild event currency and scoring engine for {groupLabelPluralLower}. It stays separate from the main economy,
         but can mirror rewards into economy coins when you want the two systems tied together.
       </p>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
-      {!cfg.enabled ? <div style={{ ...box, color: "#ffd27a" }}>Enable Event points in Core Controls before creating events or awarding points.</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
+      {!cfg.enabled ? <div style={{ ...box, color: "#ffb3f0" }}>Enable Event points in Core Controls before creating events or awarding points.</div> : null}
 
       <EngineInsights summary={summary} details={details} showDetails />
 

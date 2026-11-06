@@ -152,7 +152,7 @@ export default function OpenAiPlatformClient() {
             <Link href={`/dashboard/ai?guildId=${encodeURIComponent(guildId)}`} style={button}>Open AI Routing</Link>
           </div>
         </div>
-        {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+        {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={card}>Loading creator AI platform...</div> : null}
@@ -190,7 +190,7 @@ export default function OpenAiPlatformClient() {
               {provider?.provider?.configured ? "OpenAI credentials are loaded in the bot runtime." : "OpenAI credentials are missing from the bot runtime."}
             </div>
             {Array.isArray(provider?.warnings) && provider.warnings.length ? (
-              <div style={{ marginTop: 10, color: "#ffd27a", fontSize: 12 }}>
+              <div style={{ marginTop: 10, color: "#ffb3f0", fontSize: 12 }}>
                 {provider.warnings.join(" | ")}
               </div>
             ) : null}

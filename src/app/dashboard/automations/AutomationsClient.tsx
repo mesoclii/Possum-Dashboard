@@ -107,7 +107,7 @@ export default function AutomationsClient() {
         </div>
       </div>
 
-      {message ? <p style={{ marginTop: 10, color: "#ffd27a" }}>{message}</p> : null}
+      {message ? <p style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</p> : null}
 
       <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
         <Link href={withGuild("/dashboard/automations/studio", guildId)} style={{ color: "#ffd0d0" }}>

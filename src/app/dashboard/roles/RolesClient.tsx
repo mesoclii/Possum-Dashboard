@@ -571,7 +571,7 @@ export default function RolesClient() {
           boxShadow: "0 0 18px rgba(255,0,0,0.25)",
         }}
       >
-        <span style={{ color: dirty ? "#ffd27a" : "#9effb8", fontSize: 12 }}>{dirty ? "DIRTY" : "READY"}</span>
+        <span style={{ color: dirty ? "#ffb3f0" : "#ffb3f0", fontSize: 12 }}>{dirty ? "DIRTY" : "READY"}</span>
         <button
           disabled={saving || !dirty}
           onClick={save}

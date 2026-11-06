@@ -185,7 +185,7 @@ export default function AccountIntegrityClient() {
         Deep account-risk and alt detection: fresh-account gates, suspicious name clustering, creation-time clusters, join-wave detection,
         avatar reuse hints, review/quarantine role automation, and a clean staff operator feed.
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loading ? <div style={card}>Loading account integrity engine...</div> : null}
 
       {!loading ? (

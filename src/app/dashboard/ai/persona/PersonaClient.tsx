@@ -291,7 +291,7 @@ export default function PersonaClient() {
             {isMasterOwner ? <Link href={buildDashboardHref("/dashboard/ai/openai-platform")} style={action}>Creator AI Platform</Link> : null}
           </div>
         </div>
-        {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </section>
 
       {loading ? <div style={card}>Loading personas...</div> : null}
@@ -314,10 +314,10 @@ export default function PersonaClient() {
           <section style={card}>
             <div style={{ color: "#ff4a4a", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Runtime controls</div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-              <button style={{ ...action, borderColor: personaEnabled ? "#00aa55" : "#aa0000" }} disabled={ctlSaving} onClick={() => saveRuntime({ personaAiEnabled: !personaEnabled }, personaEnabled ? "Persona AI turned off." : "Persona AI turned on.")}>
+              <button style={{ ...action, borderColor: personaEnabled ? "#ff2bd6" : "#aa0000" }} disabled={ctlSaving} onClick={() => saveRuntime({ personaAiEnabled: !personaEnabled }, personaEnabled ? "Persona AI turned off." : "Persona AI turned on.")}>
                 Persona AI: {personaEnabled ? "On (click to turn off)" : "Off (click to turn on)"}
               </button>
-              <button style={{ ...action, borderColor: settings.autoReplyEnabled ? "#00aa55" : "#aa0000" }} disabled={ctlSaving} onClick={() => saveSettings({ autoReplyEnabled: !settings.autoReplyEnabled }, settings.autoReplyEnabled ? "Auto reply off." : "Auto reply on.")}>
+              <button style={{ ...action, borderColor: settings.autoReplyEnabled ? "#ff2bd6" : "#aa0000" }} disabled={ctlSaving} onClick={() => saveSettings({ autoReplyEnabled: !settings.autoReplyEnabled }, settings.autoReplyEnabled ? "Auto reply off." : "Auto reply on.")}>
                 Auto reply: {settings.autoReplyEnabled ? "On" : "Off"}
               </button>
               <button style={action} disabled={ctlSaving} onClick={() => saveSettings({ mentionOnly: !settings.mentionOnly }, settings.mentionOnly ? "Triggers allowed without an @mention." : "Mention required.")}>
@@ -325,7 +325,7 @@ export default function PersonaClient() {
               </button>
             </div>
             {!personaEnabled || !settings.autoReplyEnabled ? (
-              <div style={{ color: "#ffd27a", fontSize: 12, marginBottom: 10 }}>
+              <div style={{ color: "#ffb3f0", fontSize: 12, marginBottom: 10 }}>
                 Personas only reply when both Persona AI and Auto reply are On for this server.
               </div>
             ) : null}

@@ -182,7 +182,7 @@ export default function RangeEnginePage() {
         This tab now controls the actual range engine: weapon defaults, scoring pace, live panel art, setup copy, allowed channels,
         and per-weapon branding. The bot uses these settings directly when it builds the setup and live embeds.
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={box}>Loading...</div>

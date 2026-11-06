@@ -50,7 +50,7 @@ export default function PokemonTradePage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Trading is tied to the same caught inventory as battling. Trainers exchange Pokemon already earned through catching.
       </div>
-      {message ? <div style={{ marginTop: 8, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading pokemon trade...</div>

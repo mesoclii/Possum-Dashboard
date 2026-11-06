@@ -107,7 +107,7 @@ export default function SearchAnythingClient() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         This utility gives each guild a real search surface instead of a fake placeholder card. You can tune which providers show up, what URLs they use, and what the `/search` command opens.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading Search Anything...</div>

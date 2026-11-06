@@ -22,7 +22,7 @@ export default function AnalyticsClient() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Growth, activity, retention and moderation reports for this server. Member activity is tracked from when the bot started observing the server.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
       {loading ? (
         <div style={{ marginTop: 12 }}>Loading analytics...</div>
       ) : (

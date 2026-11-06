@@ -117,7 +117,7 @@ export default function OnboardingBuilderClient() {
             <Link href={`/dashboard/security/verification?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Verification Console</Link>
           </div>
         </div>
-        {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+        {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={box}>Loading onboarding stack...</div> : null}

@@ -126,7 +126,7 @@ export default function VerificationClient() {
           Member joins - sees the welcome/rules message - presses verify - gets the verified access role - then moves on to onboarding only if your guild uses optional ID review. Verification can run by itself.
         </div>
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
 
       <EngineInsights summary={summary} details={details} />
 

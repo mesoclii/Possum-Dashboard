@@ -27,7 +27,7 @@ type SessionState = {
 const shell: CSSProperties = {
   minHeight: "100vh",
   background:
-    "radial-gradient(circle at top, rgba(120,0,0,0.32) 0%, rgba(14,0,0,0.96) 40%, rgba(0,0,0,1) 100%)",
+    "transparent",
   color: "#ffd9d9",
   padding: "32px 24px 60px",
 };
@@ -40,8 +40,8 @@ const card: CSSProperties = {
 };
 
 function colorForStatus(status: StatusState) {
-  if (status === "online") return { border: "#0f7a0f", text: "#b8ffb8", bg: "rgba(16,100,16,0.18)" };
-  if (status === "maintenance") return { border: "#a36b00", text: "#ffe2a0", bg: "rgba(120,70,0,0.18)" };
+  if (status === "online") return { border: "#ff2bd6", text: "#ffd1f5", bg: "rgba(255,43,214,0.18)" };
+  if (status === "maintenance") return { border: "#ff2a4d", text: "#ffd1f5", bg: "rgba(255,42,77,0.2)" };
   return { border: "#7a1010", text: "#ffc0c0", bg: "rgba(120,0,0,0.22)" };
 }
 

@@ -737,7 +737,7 @@ export default function BotPersonalizerClient() {
             </button>
           </div>
         </div>
-        {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={card}>Loading bot personalization...</div> : null}
@@ -1459,7 +1459,7 @@ export default function BotPersonalizerClient() {
                   />
                 </div>
 
-                {avatarLibraryMessage ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{avatarLibraryMessage}</div> : null}
+                {avatarLibraryMessage ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{avatarLibraryMessage}</div> : null}
 
                 <div style={{ marginTop: 14 }}>
                   <div style={{ fontWeight: 800, marginBottom: 8, color: "#ffb5b5" }}>

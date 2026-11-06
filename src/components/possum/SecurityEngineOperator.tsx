@@ -292,13 +292,13 @@ export default function SecurityEngineOperator({ engineKey, title, description, 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <span style={{ ...micro, border: `1px solid ${runtimeEnabled(config) ? "#1f8a3f" : "#8a2f2f"}`, borderRadius: 999, padding: "5px 10px" }}>{runtimeEnabled(config) ? "Runtime On" : "Runtime Off"}</span>
           {effectiveFeatureFlag ? <span style={{ ...micro, border: `1px solid ${featureGateValue === false ? "#8a2f2f" : "#1f8a3f"}`, borderRadius: 999, padding: "5px 10px" }}>{effectiveFeatureFlag}: {featureGateValue === false ? "Blocked" : "Open"}</span> : null}
-          {spec?.premiumRequired ? <span style={{ ...micro, border: "1px solid #a36f00", borderRadius: 999, padding: "5px 10px" }}>Premium Engine</span> : null}
-          {spec?.privateOnly ? <span style={{ ...micro, border: "1px solid #a36f00", borderRadius: 999, padding: "5px 10px" }}>Private Only</span> : null}
+          {spec?.premiumRequired ? <span style={{ ...micro, border: "1px solid #ff2bd6", borderRadius: 999, padding: "5px 10px" }}>Premium Engine</span> : null}
+          {spec?.privateOnly ? <span style={{ ...micro, border: "1px solid #ff2bd6", borderRadius: 999, padding: "5px 10px" }}>Private Only</span> : null}
         </div>
         {links.length ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>{links.map((item) => <Link key={item.href} href={buildDashboardHref(item.href)} style={{ ...button, textDecoration: "none" }}>{item.label}</Link>)}</div> : null}
       </div>
 
-      {message ? <div style={{ ...card, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ ...card, color: "#ffb3f0" }}>{message}</div> : null}
       {loading ? <div style={card}>Loading engine runtime...</div> : (
         <>
           <EngineInsights summary={summary} details={details} />

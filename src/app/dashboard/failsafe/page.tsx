@@ -91,7 +91,7 @@ export default function FailsafePage() {
         ]}
       />
 
-      {message ? <div style={{ marginTop: 12, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 12, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={box}>Loading failsafe runtime...</div>

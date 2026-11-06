@@ -216,7 +216,7 @@ export default function PremiumFeaturesClient() {
                 href={buildPublicInviteUrl()}
                 target="_blank"
                 rel="noreferrer"
-                style={{ ...action, color: "#160000", background: "linear-gradient(90deg, #ff4141, #ff8c40)" }}
+                style={{ ...action, color: "#160000", background: "linear-gradient(90deg, #ff4141, #ff2bd6)" }}
               >
                 Invite Bot
               </a>
@@ -258,7 +258,7 @@ export default function PremiumFeaturesClient() {
                 ...action,
                 cursor: saving ? "wait" : "pointer",
                 color: grantScope === "guild" ? "#190000" : "#ffd7d7",
-                background: grantScope === "guild" ? "linear-gradient(90deg, #ff4141, #ff8c40)" : "#130707",
+                background: grantScope === "guild" ? "linear-gradient(90deg, #ff4141, #ff2bd6)" : "#130707",
                 border: "1px solid rgba(255,0,0,.45)",
               }}
             >
@@ -272,7 +272,7 @@ export default function PremiumFeaturesClient() {
                 ...action,
                 cursor: saving ? "wait" : "pointer",
                 color: grantScope === "global" ? "#190000" : "#ffd7d7",
-                background: grantScope === "global" ? "linear-gradient(90deg, #ff4141, #ff8c40)" : "#130707",
+                background: grantScope === "global" ? "linear-gradient(90deg, #ff4141, #ff2bd6)" : "#130707",
                 border: "1px solid rgba(255,0,0,.45)",
               }}
             >

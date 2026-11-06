@@ -50,7 +50,7 @@ export default function PokemonBattlePage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Battle is tied to the shared trainer inventory. Trainers can only duel with Pokemon they already caught.
       </div>
-      {message ? <div style={{ marginTop: 8, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading pokemon battle...</div>

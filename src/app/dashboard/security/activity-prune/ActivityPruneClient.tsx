@@ -182,7 +182,7 @@ export default function ActivityPruneClient() {
       <div style={{ color: "#ffbdbd", marginBottom: 12, lineHeight: 1.6 }}>
         Tokens: <code>{"{user}"}</code>, <code>{"{displayName}"}</code>, <code>{"{username}"}</code>, <code>{"{guildName}"}</code>, <code>{"{inactiveDays}"}</code>, <code>{"{membershipDays}"}</code>, <code>{"{lastSeenAt}"}</code>, <code>{"{graceHours}"}</code>, <code>{"{warningExpiresAt}"}</code>, <code>{"{kickReason}"}</code>
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loading ? <div style={card}>Loading inactivity prune engine...</div> : null}
 
       {!loading ? (

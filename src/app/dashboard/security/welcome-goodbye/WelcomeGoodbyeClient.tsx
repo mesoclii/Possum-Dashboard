@@ -123,7 +123,7 @@ export default function WelcomeGoodbyeClient() {
             <Link href={`/dashboard/moderator?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Moderator</Link>
           </div>
         </div>
-        {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+        {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={panel}>Loading welcome/goodbye runtime...</div> : null}

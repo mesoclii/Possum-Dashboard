@@ -331,7 +331,7 @@ export default function UtilitiesHubClient() {
         <div style={{ ...micro, marginTop: 6 }}>
           This is the MEE6-style utility board rebuilt on top of your own engines. Jed stays separate, Community Studio owns polls and reminders, Channel Flow owns counter channels and temp rooms, and SEND_EMBED now lives in your automation/command stack.
         </div>
-        {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </section>
 
       {loading ? (

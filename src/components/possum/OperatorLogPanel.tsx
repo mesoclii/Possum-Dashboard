@@ -151,7 +151,7 @@ export default function OperatorLogPanel({
           </button>
         </div>
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
         {!loading && !logs.length ? (
           <div style={{ color: "#ffaaaa", fontSize: 13 }}>No operator logs captured yet for this view.</div>
@@ -159,7 +159,7 @@ export default function OperatorLogPanel({
         {logs.map((entry) => (
           <div key={entry.id} style={{ border: "1px solid #3f0000", borderRadius: 10, padding: 12, background: "#130505" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ color: entry.level === "error" ? "#ff8f8f" : entry.level === "warn" ? "#ffd27a" : "#ffdada", fontWeight: 800 }}>
+              <div style={{ color: entry.level === "error" ? "#ff8f8f" : entry.level === "warn" ? "#ffb3f0" : "#ffdada", fontWeight: 800 }}>
                 [{String(entry.level || "info").toUpperCase()}] {entry.message}
               </div>
               <div style={{ color: "#caa", fontSize: 12 }}>{entry.at || "Unknown time"}</div>

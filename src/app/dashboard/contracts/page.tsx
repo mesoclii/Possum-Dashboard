@@ -56,7 +56,7 @@ export default function ContractsEnginePage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Real contract payout tuning and live contract completion summaries from the bot&apos;s runtime store.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading contracts...</div>

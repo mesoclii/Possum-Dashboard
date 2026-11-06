@@ -586,7 +586,7 @@ export default function ModeratorClient() {
       </div>
 
       {message ? (
-        <div style={{ ...card, marginTop: 14, color: "#ffd27a" }}>{message}</div>
+        <div style={{ ...card, marginTop: 14, color: "#ffb3f0" }}>{message}</div>
       ) : null}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>

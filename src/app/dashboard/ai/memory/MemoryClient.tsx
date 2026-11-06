@@ -150,7 +150,7 @@ export default function MemoryClient() {
             </button>
           </div>
         </div>
-        {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+        {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       </div>
 
       {loading ? <div style={card}>Loading AI memory runtime...</div> : null}

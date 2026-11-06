@@ -194,7 +194,7 @@ export default function RadioBirthdayPage() {
             </button>
           </div>
         </div>
-        {msg ? <div style={{ marginTop: 8, color: "#ffd27a", fontSize: 12 }}>{msg}</div> : null}
+        {msg ? <div style={{ marginTop: 8, color: "#ffb3f0", fontSize: 12 }}>{msg}</div> : null}
       </div>
 
       {loading ? <div style={{ padding: 12 }}>Loading...</div> : null}

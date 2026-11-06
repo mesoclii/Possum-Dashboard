@@ -79,7 +79,7 @@ export default function EconomyRewardsClient() {
         Daily + Work Rewards
       </h1>
       <p style={{ marginTop: 0 }}>Guild: {guildName || guildId}</p>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
 
       <EngineInsights summary={summary} details={details} />
 

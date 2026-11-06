@@ -847,7 +847,7 @@ export default function CatalogEngineConsole({
         </div>
       ) : null}
 
-      {message ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading engine runtime...</div>

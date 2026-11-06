@@ -155,7 +155,7 @@ export default function CatDropEnginePage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Live cat spawn scheduler, weighted spawn lanes, rarity table, and manual spawn controls backed by the bot runtime.
       </div>
-      {message ? <div style={{ marginTop: 8, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading cat drop...</div>

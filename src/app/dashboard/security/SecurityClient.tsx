@@ -433,7 +433,7 @@ export default function SecurityPage() {
         engine card opens the dedicated engine surface for full adjustment.
       </div>
 
-      {msg ? <div style={{ ...box, color: "#ffd27a" }}>{msg}</div> : null}
+      {msg ? <div style={{ ...box, color: "#ffb3f0" }}>{msg}</div> : null}
 
       {loading ? (
         <div style={box}>Loading security runtime...</div>

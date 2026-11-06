@@ -5,7 +5,7 @@ import { buildPublicInviteUrl } from "@/lib/publicLinks";
 const shell: CSSProperties = {
   minHeight: "100vh",
   background:
-    "radial-gradient(circle at top, rgba(110,0,0,0.35) 0%, rgba(12,0,0,0.96) 38%, rgba(0,0,0,1) 100%)",
+    "transparent",
   color: "#ffd7d7",
   padding: "32px 24px 60px",
 };

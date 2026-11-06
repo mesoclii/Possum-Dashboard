@@ -365,7 +365,7 @@ export default function MusicEnginePage() {
         This page edits the live guild music runtime: route-based voice sessions, source-channel capture, DJ access, local library aliases,
         route banners, self-hosted search routing, live panel controls, and the audio profile used by every route.
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loading ? (
         <div style={box}>Loading...</div>
       ) : (
@@ -381,7 +381,7 @@ export default function MusicEnginePage() {
                   <input type="checkbox" checked={cfg.enabled} onChange={(e) => setCfg((prev) => ({ ...prev, enabled: e.target.checked }))} />
                   Enabled
                 </label>
-                <div style={{ color: featureGate === "Enabled" ? "#a8e6b0" : "#ffd27a", fontSize: 12, marginTop: 6 }}>
+                <div style={{ color: featureGate === "Enabled" ? "#ffb3f0" : "#ffb3f0", fontSize: 12, marginTop: 6 }}>
                   Guild feature access: {featureGate}
                 </div>
               </div>
@@ -426,7 +426,7 @@ export default function MusicEnginePage() {
               Source Policy + Audio Profile
             </div>
             {!textChannels.length || !voiceChannels.length ? (
-              <div style={{ marginBottom: 14, color: "#ffd27a", lineHeight: 1.7 }}>
+              <div style={{ marginBottom: 14, color: "#ffb3f0", lineHeight: 1.7 }}>
                 Guild channel data is still syncing. Text channels found: {textChannels.length}. Voice channels found: {voiceChannels.length}. If you just created or renamed channels,
                 save once and reload this page in a few seconds.
               </div>

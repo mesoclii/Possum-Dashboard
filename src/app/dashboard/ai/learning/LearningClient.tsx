@@ -558,7 +558,7 @@ export default function LearningClient() {
             </Link>
           </div>
         </div>
-        {message ? <div style={{ color: "#ffd27a", marginTop: 10 }}>{message}</div> : null}
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </section>
 
       {loading ? <div style={card}>Loading Possum AI...</div> : null}

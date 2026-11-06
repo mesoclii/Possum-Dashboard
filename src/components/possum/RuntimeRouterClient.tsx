@@ -92,7 +92,7 @@ export default function RuntimeRouterClient() {
         <br />
         <strong>Persona AI</strong> is separate and should only be turned on if you want paid persona-style channels or trigger words.
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading AI talking rules...</div>

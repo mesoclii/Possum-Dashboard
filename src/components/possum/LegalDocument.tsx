@@ -18,7 +18,7 @@ export default function LegalDocument({
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top, rgba(120,0,0,0.32) 0%, rgba(14,0,0,0.96) 40%, rgba(0,0,0,1) 100%)",
+          "transparent",
         color: "#f5f5f5",
         padding: "48px 20px 80px",
       }}

@@ -59,7 +59,7 @@ export default function TruthDareEnginePage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Built-in prompts are included by default. Add your own prompts on top, or switch the built-in truth/dare pools off if a guild wants only custom questions.
       </div>
-      {message ? <div style={{ marginTop: 8, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading truth or dare...</div>

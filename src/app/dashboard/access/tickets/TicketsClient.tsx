@@ -724,7 +724,7 @@ export default function TicketsClient() {
               Back to Dashboard
             </Link>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: dirty ? "#ffd27a" : "#9effb8", fontSize: 12 }}>{dirty ? "DIRTY" : "READY"}</span>
+              <span style={{ color: dirty ? "#ffb3f0" : "#ffb3f0", fontSize: 12 }}>{dirty ? "DIRTY" : "READY"}</span>
               <button
                 onClick={saveAll}
                 disabled={saving}

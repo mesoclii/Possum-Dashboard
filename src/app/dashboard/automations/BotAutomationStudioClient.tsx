@@ -979,7 +979,7 @@ export default function BotAutomationStudioClient() {
         </div>
       </div>
 
-      {msg ? <div style={{ marginTop: 10, color: "#ffd27a" }}>{msg}</div> : null}
+      {msg ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{msg}</div> : null}
 
       <div style={{ ...panelStyle, marginTop: 12 }}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(240px,420px) minmax(260px,1fr) auto", gap: 10, alignItems: "start" }}>

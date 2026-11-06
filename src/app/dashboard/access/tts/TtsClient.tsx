@@ -219,7 +219,7 @@ export default function TtsAccessPage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Full per-guild TTS routing. Every route can bind its own text lanes, voice destination, voice preset, volume, priority, and prefix behavior. Explicit routes speak without a prefix unless you turn one on for that route.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={{ ...card, marginTop: 12 }}>Loading TTS...</div>

@@ -246,7 +246,7 @@ export default function WowClient() {
         This engine handles 5-man, 10-man, and 25-man World of Warcraft signups with live role slots, tentative joins, multiple
         concurrent groups, and a built-in message-of-the-day surface for raid comms.
       </p>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
 
       <EngineInsights summary={summary} details={details} showDetails />
 

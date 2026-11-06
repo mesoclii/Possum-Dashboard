@@ -192,7 +192,7 @@ export default function CrewEnginePage() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Crew is the GTA-side identity spine: recruiting, vaults, dominion ownership, and crew-linked progression all land here.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading crew...</div>
@@ -298,7 +298,7 @@ export default function CrewEnginePage() {
                   {saving ? "Deploying..." : "Deploy / Refresh Panel"}
                 </button>
               </div>
-              {panelMessage ? <div style={{ gridColumn: "1 / -1", color: "#ffd27a" }}>{panelMessage}</div> : null}
+              {panelMessage ? <div style={{ gridColumn: "1 / -1", color: "#ffb3f0" }}>{panelMessage}</div> : null}
             </div>
           </section>
 
@@ -401,7 +401,7 @@ export default function CrewEnginePage() {
                   {saving ? "Sending..." : "Send Crew Invite"}
                 </button>
               </div>
-              {inviteMessage ? <div style={{ gridColumn: "1 / -1", color: "#ffd27a" }}>{inviteMessage}</div> : null}
+              {inviteMessage ? <div style={{ gridColumn: "1 / -1", color: "#ffb3f0" }}>{inviteMessage}</div> : null}
             </div>
           </section>
 

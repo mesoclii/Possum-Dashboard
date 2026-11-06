@@ -267,7 +267,7 @@ export default function AccessControlClient() {
         <div style={{ color: "#ffb5b5", fontSize: 12, lineHeight: 1.6 }}>
           This is the live dashboard access policy. It writes directly to the bot access policy path used during guild dashboard authorization.
         </div>
-        <div style={{ color: "#ffd27a", fontSize: 12, marginTop: 8 }}>
+        <div style={{ color: "#ffb3f0", fontSize: 12, marginTop: 8 }}>
           Control owner override: {CONTROL_OWNER_USER_IDS.join(", ")}
         </div>
       </div>
@@ -291,7 +291,7 @@ export default function AccessControlClient() {
                   {access?.access ? "Allowed" : "Denied"}
                 </span>
                 {session?.isMasterOwner ? (
-                  <span style={{ ...pill, border: "1px solid #a36f00", background: "rgba(120,70,0,.18)", color: "#ffd27a" }}>
+                  <span style={{ ...pill, border: "1px solid #ff2bd6", background: "rgba(255,43,214,0.18)", color: "#ffb3f0" }}>
                     Master Owner
                   </span>
                 ) : null}
@@ -547,7 +547,7 @@ export default function AccessControlClient() {
                 {saving ? "Saving..." : "Save Bot Masters"}
               </button>
             </div>
-            {msg ? <div style={{ marginTop: 8, color: "#ffd27a", fontSize: 12 }}>{msg}</div> : null}
+            {msg ? <div style={{ marginTop: 8, color: "#ffb3f0", fontSize: 12 }}>{msg}</div> : null}
           </section>
         </>
       ) : null}

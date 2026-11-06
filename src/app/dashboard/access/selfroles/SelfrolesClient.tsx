@@ -320,7 +320,7 @@ export default function SelfrolesPage() {
     <div style={{ color: "#ffb3b3", padding: 14, maxWidth: 1300 }}>
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>Selfroles Studio</h1>
       <p style={{ marginTop: 0 }}>Guild: {guildName || guildId}</p>
-      {message ? <div style={{ color: "#ffd27a", marginBottom: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
       {importMessage ? <div style={{ color: "#9ee493", marginBottom: 8 }}>{importMessage}</div> : null}
 
       <EngineInsights summary={summary} details={details} />

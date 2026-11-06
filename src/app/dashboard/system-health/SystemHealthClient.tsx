@@ -26,9 +26,9 @@ const ENGINE_ROUTE_MAP: Record<string, string> = {
 
 function severityColor(status: string) {
   if (status === "failing") return "#ff7a7a";
-  if (status === "warning") return "#ffd27a";
+  if (status === "warning") return "#ffb3f0";
   if (status === "disabled") return "#9da6b0";
-  return "#9effb8";
+  return "#ffb3f0";
 }
 
 function actionStyle(tone: string) {
@@ -41,9 +41,9 @@ function actionStyle(tone: string) {
   }
   if (tone === "primary") {
     return {
-      border: "1px solid #0f7a0f",
-      background: "rgba(16,100,16,0.22)",
-      color: "#d6ffde",
+      border: "1px solid #ff2bd6",
+      background: "rgba(255,43,214,0.22)",
+      color: "#ffd1f5",
     } as const;
   }
   return {
@@ -54,9 +54,9 @@ function actionStyle(tone: string) {
 }
 
 function validationTone(ok: boolean | null | undefined) {
-  if (ok === true) return "#9effb8";
+  if (ok === true) return "#ffb3f0";
   if (ok === false) return "#ff9b9b";
-  return "#ffd27a";
+  return "#ffb3f0";
 }
 
 function getGuildId() {
@@ -345,7 +345,7 @@ export default function SystemHealthPage() {
                     ))}
                   </div>
                 ) : (
-                  <div style={{ marginTop: 10, color: "#9effb8", fontSize: 12 }}>No cleanup actions are pending right now.</div>
+                  <div style={{ marginTop: 10, color: "#ffb3f0", fontSize: 12 }}>No cleanup actions are pending right now.</div>
                 )}
               </div>
             ) : null;
@@ -477,7 +477,7 @@ export default function SystemHealthPage() {
                       ))}
                     </div>
                   ) : (
-                    <div style={{ marginTop: 10, color: "#9effb8", fontSize: 12 }}>No current blockers detected.</div>
+                    <div style={{ marginTop: 10, color: "#ffb3f0", fontSize: 12 }}>No current blockers detected.</div>
                   )}
 
                   {Array.isArray(engine.failures) && engine.failures.length ? (

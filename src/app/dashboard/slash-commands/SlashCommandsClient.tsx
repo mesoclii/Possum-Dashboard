@@ -679,7 +679,7 @@ export default function SlashCommandsClient() {
       </div>
 
       {message ? (
-        <div style={{ ...card, marginTop: 14, color: "#ffd27a" }}>
+        <div style={{ ...card, marginTop: 14, color: "#ffb3f0" }}>
           {message}
         </div>
       ) : null}
@@ -760,7 +760,7 @@ export default function SlashCommandsClient() {
             {deployment.renameDiagnostics.length ? (
               <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
                 {deployment.renameDiagnostics.map((item) => (
-                  <div key={`${item.key}:${item.attemptedName}`} style={{ color: "#ffd27a", fontSize: 13 }}>
+                  <div key={`${item.key}:${item.attemptedName}`} style={{ color: "#ffb3f0", fontSize: 13 }}>
                     Rename blocked for `/{item.key}`: {item.message}
                   </div>
                 ))}
@@ -803,7 +803,7 @@ export default function SlashCommandsClient() {
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                         <span>{entry.title}</span>
-                        <span style={{ color: state?.deployed ? "#8cffaa" : effectiveEnabled ? "#ffd27a" : "#ff9d9d" }}>
+                        <span style={{ color: state?.deployed ? "#ffb3f0" : effectiveEnabled ? "#ffb3f0" : "#ff9d9d" }}>
                           {state?.deployed ? "Live" : effectiveEnabled ? "Ready" : "Off"}
                         </span>
                       </div>
@@ -811,12 +811,12 @@ export default function SlashCommandsClient() {
                         {kindLabel(entry.kind)} - {entry.key}
                       </div>
                       {entry.kind === "command" ? (
-                        <div style={{ marginTop: 6, fontSize: 12, color: "#ffd27a" }}>
+                        <div style={{ marginTop: 6, fontSize: 12, color: "#ffb3f0" }}>
                           Live slash: /{deployment.entryStates?.[entry.key]?.deployedName || entry.key}
                         </div>
                       ) : null}
                       {state?.overlapSize ? (
-                        <div style={{ marginTop: 6, fontSize: 12, color: "#ffd27a" }}>
+                        <div style={{ marginTop: 6, fontSize: 12, color: "#ffb3f0" }}>
                           Overlap set: {state.overlapTarget} ({state.overlapSize})
                         </div>
                       ) : null}
@@ -875,7 +875,7 @@ export default function SlashCommandsClient() {
                           Use lowercase letters, numbers, hyphens, or underscores. Example: `guild-stats`
                         </div>
                       </div>
-                      <div style={{ marginTop: 10, color: selectedRenameDiagnostic ? "#ffd27a" : "#8cffaa" }}>
+                      <div style={{ marginTop: 10, color: selectedRenameDiagnostic ? "#ffb3f0" : "#ffb3f0" }}>
                         {selectedRenameDiagnostic
                           ? selectedRenameDiagnostic.message
                           : selectedRenameValue
@@ -886,7 +886,7 @@ export default function SlashCommandsClient() {
                   ) : null}
 
                   {selectedEntry.kind === "command" ? (
-                    <div style={{ marginTop: 12, color: "#ffd27a" }}>
+                    <div style={{ marginTop: 12, color: "#ffb3f0" }}>
                       Disabling a root command here disables the full slash command family for this guild and removes it on the next sync.
                     </div>
                   ) : null}
@@ -1062,7 +1062,7 @@ export default function SlashCommandsClient() {
                             >
                               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                                 <span>{item.title}</span>
-                                <span style={{ color: state?.deployed ? "#8cffaa" : "#ff9d9d" }}>
+                                <span style={{ color: state?.deployed ? "#ffb3f0" : "#ff9d9d" }}>
                                   {state?.deployed ? "Live" : "Off"}
                                 </span>
                               </div>

@@ -246,7 +246,7 @@ export default function ModderIntelClient() {
       <div style={{ color: "#ffb6b6", marginBottom: 14, lineHeight: 1.6 }}>
         Track known menu holders, reseller/network risk, restriction surfaces, and staff-safe cleanup. This is the additive operator surface for modding-community intel without forcing it into the blacklist.
       </div>
-      {message ? <div style={{ marginBottom: 10, color: "#ffd27a" }}>{message}</div> : null}
+      {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? <div style={card}>Loading modder intel...</div> : null}
 

@@ -270,7 +270,7 @@ export default function SignalRelayClient() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Provider-aware creator and community dispatches. Signal Relay now resolves built-in provider routes for YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick so you are not forced to paste raw feed URLs for everything.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading Signal Relay...</div>

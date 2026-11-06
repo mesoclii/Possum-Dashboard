@@ -149,7 +149,7 @@ export default function ChannelFlowClient() {
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         This engine handles live counters and room-flow voice creation without changing your current command or moderation logic.
       </div>
-      {message ? <div style={{ color: "#ffd27a", marginTop: 8 }}>{message}</div> : null}
+      {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 
       {loading ? (
         <div style={card}>Loading Channel Flow...</div>

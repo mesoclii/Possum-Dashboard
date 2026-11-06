@@ -70,24 +70,25 @@ async function main() {
     throw new Error("Build command returned success but .next/BUILD_ID is missing. PM2 was not touched.");
   }
 
-  run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Reloading dashboard through its PM2 ecosystem config");
-
-  if (await waitForDashboard()) {
-    process.stdout.write("[possum-deploy] Dashboard build and health check succeeded.\n");
-    return;
-  }
-
-  if (restorePreviousBuild()) {
+  try {
+    run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Reloading dashboard through its PM2 ecosystem config");
+    if (await waitForDashboard()) {
+      process.stdout.write("[possum-deploy] Dashboard build and health check succeeded.\\n");
+      return;
+    }
+    throw new Error("New dashboard build failed its post-reload health check.");
+  } catch (deployError) {
+    if (!restorePreviousBuild()) throw deployError;
     try {
       run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Reloading previous dashboard build");
       if (await waitForDashboard()) {
-        throw new Error("New build failed health verification. Previous build restored and serving.");
+        throw new Error(`Deployment rejected: ${deployError.message} Previous build restored and responding.`);
       }
-    } catch (error) {
-      throw new Error(`New build failed health verification; rollback was attempted. ${error.message}`);
+      throw new Error("Previous build was restored but did not pass the health check.");
+    } catch (rollbackError) {
+      throw new Error(`Deployment failed: ${deployError.message} Rollback result: ${rollbackError.message}`);
     }
   }
-  throw new Error("Dashboard failed its post-reload health check.");
 }
 
 main().catch((error) => {

@@ -33,6 +33,9 @@ type Report = {
   counts?: { critical: number; warning: number; notice: number; optional?: number; healthy: number };
   issues?: Finding[];
   findings?: Finding[];
+  engines?: { engine: string; status: string; critical: number; warning: number; href: string }[];
+  events?: { at: string; type: string; message: string }[];
+  onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
   settings?: { mode: string; repairEnabled: boolean };
   createdResources?: { id: string; engine: string; field: string }[];
@@ -110,6 +113,9 @@ export default function InfrastructureClient() {
         <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
         <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
+        {report?.onboarding?.status === "needs-choice" ? (
+          <p className="mt-2 text-sm text-pink-100">This server was just discovered. Choose Auto-Adapt to use channels that already exist, or Full Setup and then confirm before Possum creates anything.</p>
+        ) : null}
         <p className="mt-2 text-sm text-pink-100/80">{report?.ready ? `Observed by ${report ? "" : ""}the saved scan.` : report?.reason || "Scan the server to build a read-only directory."}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className="possum-btn rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase" onClick={() => post({ action: "scan" })}>Scan</button>
@@ -140,7 +146,29 @@ export default function InfrastructureClient() {
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, roles, or IDs" className="w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
+        <h2 className="text-lg font-black uppercase text-red-200">Engines</h2>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {(report?.engines || []).filter((engine) => engine.status !== "ready").slice(0, 24).map((engine) => (
+            <a key={engine.engine} href={engine.href} className="rounded-lg border border-red-900/40 px-3 py-2">
+              <p className="text-sm font-bold text-red-100">{engine.engine}</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-pink-200">{engine.status} · critical {engine.critical} · warning {engine.warning}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Operations</h2>
+        <div className="mt-3 space-y-2">
+          {(report?.events || []).slice(0, 12).map((event) => (
+            <p key={`${event.at}-${event.type}-${event.message}`} className="text-xs text-red-100/80">{event.type} · {event.message}</p>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Directory</h2>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, roles, or IDs" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
         <div className="mt-3 space-y-2">
           {rows.map((row) => (
             <div key={`${row.kind}-${row.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-pink-900/40 px-3 py-2">

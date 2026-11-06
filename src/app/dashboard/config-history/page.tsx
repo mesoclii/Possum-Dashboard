@@ -5,16 +5,16 @@ import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 
 const shell = { color: "#ffe9f6", padding: 18, maxWidth: 980 } as const;
 const card = {
-  border: "1px solid #ff4d6a",
+  border: "1px solid #ff2bd6",
   borderRadius: 12,
   padding: 16,
   marginTop: 12,
-  background: "rgba(20,0,0,0.55)",
+  background: "#050005",
+  boxShadow: "0 0 14px rgba(255, 43, 214, 0.28), 0 0 22px rgba(255, 42, 77, 0.2)",
 } as const;
 const button = {
-  border: "1px solid #ff2bd6",
-  background: "rgba(255,43,214,0.22)",
-  color: "#ffe4f8",
+  background: "#070006",
+  color: "#ffd1f5",
   borderRadius: 999,
   padding: "10px 16px",
   fontWeight: 900,
@@ -59,7 +59,7 @@ export default function ConfigHistoryPage() {
           <strong style={{ letterSpacing: "0.06em", textTransform: "uppercase" }}>{row.section}</strong>
           <p>{row.status} · {row.source} · {row.actorUserId || "internal"}</p>
           <p>{row.at}</p>
-          <button type="button" style={button} disabled={row.status !== "committed"} onClick={async () => {
+          <button type="button" className="possum-btn" style={button} disabled={row.status !== "committed"} onClick={async () => {
             const response = await fetch("/api/bot/pro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ feature: "config-history", action: "restore", guildId, changeId: row.id }) });
             const body = await response.json();
             setNotice(body.success ? "Section restored through the current config writer." : body.error || body.reason || "Restore failed.");

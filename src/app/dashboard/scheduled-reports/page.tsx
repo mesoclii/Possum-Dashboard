@@ -5,11 +5,12 @@ import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 
 const shell = { color: "#ffe9f6", padding: 18, maxWidth: 980 } as const;
 const card = {
-  border: "1px solid #ff4d6a",
+  border: "1px solid #ff2bd6",
   borderRadius: 12,
   padding: 16,
   marginTop: 12,
-  background: "rgba(20,0,0,0.55)",
+  background: "#050005",
+  boxShadow: "0 0 14px rgba(255, 43, 214, 0.28), 0 0 22px rgba(255, 42, 77, 0.2)",
 } as const;
 const field = {
   display: "block",
@@ -19,14 +20,13 @@ const field = {
   maxWidth: 360,
   padding: "10px 12px",
   borderRadius: 8,
-  border: "1px solid #ff4d6a",
-  background: "#0d0d0d",
+  border: "1px solid #ff2a4d",
+  background: "#050005",
   color: "#ffe9f6",
 } as const;
 const button = {
-  border: "1px solid #ff2bd6",
-  background: "rgba(255,43,214,0.22)",
-  color: "#ffe4f8",
+  background: "#070006",
+  color: "#ffd1f5",
   borderRadius: 999,
   padding: "10px 16px",
   fontWeight: 900,
@@ -81,7 +81,7 @@ export default function ScheduledReportsPage() {
             </select>
           </label>
         </div>
-        <button type="button" style={button} onClick={async () => {
+        <button type="button" className="possum-btn" style={button} onClick={async () => {
           const response = await fetch("/api/bot/pro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ feature: "scheduled-reports", action: "schedule", guildId, cadence, channelId, enabled: true }) });
           const body = await response.json();
           setNotice(body.success ? "Schedule saved." : body.error || "Schedule failed.");

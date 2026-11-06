@@ -71,14 +71,14 @@ async function main() {
   try {
     run("pm2", ["restart", "possum-dashboard", "--update-env"], "Restarting the existing PM2 dashboard process");
     if (await waitForDashboard()) {
-      process.stdout.write("[possum-deploy] Dashboard build and health check succeeded.\\n");
+      process.stdout.write("[possum-deploy] Dashboard build and health check succeeded.\n");
       return;
     }
-    throw new Error("New dashboard build failed its post-reload health check.");
+    throw new Error("New dashboard build failed its post-restart health check.");
   } catch (deployError) {
     if (!restorePreviousBuild()) throw deployError;
     try {
-      run("pm2", ["reload", ecosystem, "--only", "possum-dashboard", "--update-env"], "Restarting previous dashboard build");
+      run("pm2", ["restart", "possum-dashboard", "--update-env"], "Restarting previous dashboard process");
       if (await waitForDashboard()) {
         throw new Error(`Deployment rejected: ${deployError.message} Previous build restored and responding.`);
       }

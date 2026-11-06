@@ -528,9 +528,9 @@ const CARDS: Card[] = [
   { href: "/dashboard/reviews", title: "Reviews", description: "Review panel deploy, star voting, and written feedback cards.", toggle: engineController("reviews", ["enabled"]) },
   { href: "/dashboard/community-studio", title: "Community Studio", description: "Bulletin drops, pulse polls, reminder loops, and lookup shelf answers.", toggle: engineController("communityStudio", ["active"]) },
   { href: "/dashboard/channel-flow", title: "Channel Flow", description: "Live counter channels and room-flow temporary voice spaces.", toggle: engineController("channelFlow", ["active"]) },
-  { href: "/dashboard/search-anything", title: "Search Anything", description: "Guild-level search routes for web, video, wiki, meme, anime, and creator lookups.", toggle: engineController("searchAnything", ["enabled"]) },
-  { href: "/dashboard/social-alerts", title: "Social Alerts", description: "Provider cards for RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick.", goOnly: true, goLabel: "Go" },
-  { href: "/dashboard/signal-relay", title: "Signal Relay", description: "Provider-aware creator and community dispatches with bridge routes, direct feeds, and live checks.", toggle: engineController("signalRelay", ["active"]) },
+  { href: "/dashboard/search-anything", title: "Search Anything", description: "Guild-level search routes for web, video, wiki, meme, anime, and creator lookups.", toggle: engineController("searchAnything", ["enabled"]), premiumRequired: true },
+  { href: "/dashboard/social-alerts", title: "Social Alerts", description: "Provider cards for RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick.", goOnly: true, goLabel: "Go", premiumRequired: true },
+  { href: "/dashboard/signal-relay", title: "Signal Relay", description: "Provider-aware creator and community dispatches with bridge routes, direct feeds, and live checks.", toggle: engineController("signalRelay", ["active"]), premiumRequired: true },
   { href: "/dashboard/moderator", title: "Moderator", description: "Separate automod, audit logging, and moderation controls.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/pre-onboarding", title: "Pre-Onboarding", description: "Blacklist rejoin, refusal-role, and pre-entry enforcement before onboarding begins.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/onboarding", title: "Onboarding", description: "Join flow, welcome routing, and onboarding channel behavior.", goOnly: true, goLabel: "Go" },
@@ -569,6 +569,10 @@ const CARDS: Card[] = [
   { href: "/dashboard/heist", title: "Heist", description: "Heist signup engine controls.", toggle: engineController("heist", ["active"]), premiumRequired: true },
   { href: "/dashboard/tts", title: "TTS", description: "Voice route and TTS runtime control.", toggle: engineController("tts", ["enabled"]), premiumRequired: true },
   { href: "/dashboard/ai/persona", title: "Persona AI", description: "Hosted persona runtime, photos, triggers, and roster controls.", goOnly: true, goLabel: "Go", premiumRequired: true },
+  { href: "/dashboard/analytics", title: "Analytics", description: "Growth, activity, retention, and moderation-action reports.", goOnly: true, goLabel: "Go", premiumRequired: true },
+  { href: "/dashboard/system-health/backups", title: "Config Backup", description: "Export the full server configuration and restore it later.", goOnly: true, goLabel: "Go", premiumRequired: true },
+  { href: "/dashboard/bot-personalizer#second-token-bot", title: "Second Token Bot", description: "Yearly subscribers. A separate bot token, name, avatar, and presence. Lifetime subscribers have this bot too.", goOnly: true, goLabel: "Go", premiumRequired: true },
+  { href: "/dashboard/bot-personalizer#third-token-bot", title: "Third Token Bot", description: "Lifetime subscribers only. A third bot token that never shares state with the other token bots.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/premium-features#advanced-security", title: "Advanced Security Suite", description: "Threat intel, drift, trust weighting, escalation, and containment premium layer.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/premium-features#automation-suite", title: "Automation + Commands Suite", description: "Advanced automation depth and elevated custom-command scale for premium guilds.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/ai/openai-platform", title: "Creator AI Platform", description: "Internal provider/model controls reserved for bot creators.", goOnly: true, goLabel: "Go", premiumRequired: true, creatorOnly: true },
@@ -738,8 +742,13 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
   const groupedCards = useMemo(() => {
     if (groupSlug) {
       if (!navGroup) return [];
-      const wanted = new Set(navGroup.items.map((item) => baseHref(item.href)));
-      const matched = cards.filter((card) => card.routeKey && wanted.has(baseHref(card.routeKey)));
+      const matched = cards.filter((card) => {
+        if (!card.routeKey) return false;
+        return navGroup.items.some((item) => {
+          if (item.href.includes("#") || card.routeKey.includes("#")) return item.href === card.routeKey;
+          return baseHref(item.href) === baseHref(card.routeKey);
+        });
+      });
       return matched.length ? [{ section: navGroup.label as DashboardSection, cards: matched }] : [];
     }
     return SECTION_ORDER.map((section) => ({
@@ -749,12 +758,15 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
   }, [cards, groupSlug, navGroup]);
   const extraGroupLinks = useMemo(() => {
     if (!navGroup) return [];
-    const withCards = new Set(cards.map((card) => baseHref(card.routeKey || "")));
     const seen = new Set<string>();
     return navGroup.items.filter((item) => {
-      const key = baseHref(item.href);
-      if (withCards.has(key) || seen.has(key)) return false;
-      seen.add(key);
+      const matched = cards.some((card) => {
+        if (!card.routeKey) return false;
+        if (item.href.includes("#") || card.routeKey.includes("#")) return item.href === card.routeKey;
+        return baseHref(item.href) === baseHref(card.routeKey);
+      });
+      if (matched || seen.has(item.href)) return false;
+      seen.add(item.href);
       return true;
     });
   }, [cards, navGroup]);

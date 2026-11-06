@@ -863,7 +863,7 @@ export default function BotPersonalizerClient() {
                           onChange={(e) => updateCfg({ dmAuthority: e.target.value })}
                         >
                           <option value="custom">Custom Token Bot</option>
-                          <option value="custom2">Second Token Bot (Yearly+)</option>
+                          <option value="custom2">Second Token Bot (Yearly)</option>
                           <option value="custom3">Third Token Bot (Lifetime)</option>
                           <option value="main">Main Possum</option>
                         </select>
@@ -879,7 +879,7 @@ export default function BotPersonalizerClient() {
                           onChange={(e) => updateCfg({ guildMessageAuthority: e.target.value })}
                         >
                           <option value="custom">Custom Token Bot</option>
-                          <option value="custom2">Second Token Bot (Yearly+)</option>
+                          <option value="custom2">Second Token Bot (Yearly)</option>
                           <option value="custom3">Third Token Bot (Lifetime)</option>
                           <option value="webhook">Shared Possum Webhook</option>
                           <option value="main">Main Possum</option>
@@ -933,7 +933,7 @@ export default function BotPersonalizerClient() {
                                 <option value="main">Main Possum</option>
                                 <option value="webhook">Shared Possum Webhook</option>
                                 <option value="custom">Custom Token Bot</option>
-                                <option value="custom2">Second Token Bot (Yearly+)</option>
+                                <option value="custom2">Second Token Bot (Yearly)</option>
                                 <option value="custom3">Third Token Bot (Lifetime)</option>
                               </select>
                             </div>
@@ -953,7 +953,7 @@ export default function BotPersonalizerClient() {
                               >
                                 <option value="">Main Possum</option>
                                 <option value="custom">Custom Token Bot</option>
-                                <option value="custom2">Second Token Bot (Yearly+)</option>
+                                <option value="custom2">Second Token Bot (Yearly)</option>
                                 <option value="custom3">Third Token Bot (Lifetime)</option>
                               </select>
                             </div>
@@ -974,7 +974,7 @@ export default function BotPersonalizerClient() {
                                 <option value="">DM default</option>
                                 <option value="main">Main Possum</option>
                                 <option value="custom">Custom Token Bot</option>
-                                <option value="custom2">Second Token Bot (Yearly+)</option>
+                                <option value="custom2">Second Token Bot (Yearly)</option>
                                 <option value="custom3">Third Token Bot (Lifetime)</option>
                               </select>
                             </div>
@@ -1190,13 +1190,13 @@ export default function BotPersonalizerClient() {
                 </div>
               </div>
 
-              <div style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
+              <div id="second-token-bot" style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
                 <div style={{ fontWeight: 900, color: "#ff8b8b", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                  Second Token Bot (Yearly+)
+                  Second Token Bot (Yearly)
                 </div>
                 <div style={hint}>
                   A fully separate second Discord-portal bot with its own token, name, avatar and presence. It never shares state with the Custom Token Bot,
-                  and does nothing until you route a feature to it above. Requires a Yearly or Lifetime plan on this server. Invite it to the server like any bot.
+                  and does nothing until you route a feature to it above. Yearly subscribers. Lifetime subscribers have this bot too. Invite it to the server like any bot.
                 </div>
                 <label style={{ display: "block", marginTop: 10, fontWeight: 800 }}>
                   <input type="checkbox" checked={cfg.customBot2Enabled} onChange={(e) => updateCfg({ customBot2Enabled: e.target.checked })} /> Enable second token bot
@@ -1262,13 +1262,13 @@ export default function BotPersonalizerClient() {
                 </div>
               </div>
 
-              <div style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
+              <div id="third-token-bot" style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
                 <div style={{ fontWeight: 900, color: "#ff8b8b", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                  Third token bot (Yearly+)
+                  Third Token Bot (Lifetime)
                 </div>
                 <div style={hint}>
                   A fully separate third Discord-portal bot with its own token, name, avatar and presence. It never shares state with the Custom Token Bot,
-                  and does nothing until you route a feature to it above. Requires a Lifetime plan on this server. Invite it to the server like any bot.
+                  and does nothing until you route a feature to it above. Lifetime subscribers only. Invite it to the server like any bot.
                 </div>
                 <label style={{ display: "block", marginTop: 10, fontWeight: 800 }}>
                   <input type="checkbox" checked={cfg.customBot3Enabled} onChange={(e) => updateCfg({ customBot3Enabled: e.target.checked })} /> Enable third token bot

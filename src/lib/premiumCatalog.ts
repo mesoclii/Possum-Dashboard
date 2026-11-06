@@ -63,7 +63,16 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     summary: "A second dedicated Discord bot with its own token, name, avatar and routing, so heavy features can run on a separate bot.",
     premiumLabel: "Premium Feature",
     includedIn: ["Yearly", "Lifetime"],
-    pricingNote: "Yearly and Lifetime plans. Separate from the free Custom Token Bot and the shared webhook identity."
+    pricingNote: "Yearly subscribers. Lifetime subscribers have this bot too. Separate from the free Custom Token Bot."
+  },
+  {
+    id: "third-token-bot",
+    label: "Third Token Bot",
+    route: "/dashboard/bot-personalizer#third-token-bot",
+    summary: "A third dedicated Discord bot with its own token, name, avatar and routing.",
+    premiumLabel: "Lifetime Feature",
+    includedIn: ["Lifetime"],
+    pricingNote: "Lifetime subscribers only."
   },
   {
     id: "advanced-security",

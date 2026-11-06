@@ -133,6 +133,9 @@ export default function PersonaClient() {
   const [testPrompt, setTestPrompt] = useState("");
   const [testReply, setTestReply] = useState("");
   const [testing, setTesting] = useState(false);
+  const [onlyChannels, setOnlyChannels] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [ctlSaving, setCtlSaving] = useState(false);
 
   const textChannels = useMemo(() => channels.filter((c) => [0, 5].includes(Number(c.type || 0))), [channels]);
 
@@ -161,7 +164,10 @@ export default function PersonaClient() {
         ]);
         const dash = await dashRes.json().catch(() => ({}));
         const data = await dataRes.json().catch(() => ({}));
-        setPersonaEnabled(Boolean(dash?.config?.aiRuntime?.personaAiEnabled ?? dash?.config?.features?.personaAiEnabled));
+        const rt = dash?.config?.aiRuntime || {};
+        setPersonaEnabled(Boolean(rt.personaAiEnabled ?? dash?.config?.features?.personaAiEnabled));
+        setOnlyChannels(Array.isArray(rt.personaOnlyChannelIds) ? rt.personaOnlyChannelIds.filter(Boolean) : []);
+        setKeywordInput(Array.isArray(rt.personaKeywordTriggers) ? rt.personaKeywordTriggers.join(", ") : "");
         setRoles(Array.isArray(data?.roles) ? data.roles : []);
         setChannels(Array.isArray(data?.channels) ? data.channels : []);
       } catch (err: any) {
@@ -171,6 +177,35 @@ export default function PersonaClient() {
       }
     })();
   }, []);
+
+  async function saveRuntime(patch: Record<string, unknown>, ok: string) {
+    try {
+      setCtlSaving(true);
+      setMessage("");
+      await api("/api/bot/engine-config", { guildId, engine: "aiRuntime", patch });
+      if (typeof patch.personaAiEnabled === "boolean") setPersonaEnabled(patch.personaAiEnabled);
+      if (Array.isArray(patch.personaOnlyChannelIds)) setOnlyChannels(patch.personaOnlyChannelIds as string[]);
+      setMessage(ok);
+    } catch (err: any) {
+      setMessage(err?.message || "Could not save.");
+    } finally {
+      setCtlSaving(false);
+    }
+  }
+
+  async function saveSettings(patch: { autoReplyEnabled?: boolean; mentionOnly?: boolean }, ok: string) {
+    try {
+      setCtlSaving(true);
+      setMessage("");
+      const json = await api("/api/ai-personas/settings", { guildId, ...patch });
+      setSettings(json.settings);
+      setMessage(ok);
+    } catch (err: any) {
+      setMessage(err?.message || "Could not save.");
+    } finally {
+      setCtlSaving(false);
+    }
+  }
 
   function edit(p: Persona | null) {
     setTestReply("");
@@ -276,11 +311,43 @@ export default function PersonaClient() {
               </div>
             ))}
           </section>
-          {!personaEnabled ? (
-            <div style={{ ...card, color: "#ffd27a", fontSize: 12 }}>
-              Persona AI is turned off for this server. Personas you create here will not reply until it is enabled in the AI runtime settings.
+          <section style={card}>
+            <div style={{ color: "#ff4a4a", fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>Runtime controls</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+              <button style={{ ...action, borderColor: personaEnabled ? "#00aa55" : "#aa0000" }} disabled={ctlSaving} onClick={() => saveRuntime({ personaAiEnabled: !personaEnabled }, personaEnabled ? "Persona AI turned off." : "Persona AI turned on.")}>
+                Persona AI: {personaEnabled ? "On (click to turn off)" : "Off (click to turn on)"}
+              </button>
+              <button style={{ ...action, borderColor: settings.autoReplyEnabled ? "#00aa55" : "#aa0000" }} disabled={ctlSaving} onClick={() => saveSettings({ autoReplyEnabled: !settings.autoReplyEnabled }, settings.autoReplyEnabled ? "Auto reply off." : "Auto reply on.")}>
+                Auto reply: {settings.autoReplyEnabled ? "On" : "Off"}
+              </button>
+              <button style={action} disabled={ctlSaving} onClick={() => saveSettings({ mentionOnly: !settings.mentionOnly }, settings.mentionOnly ? "Triggers allowed without an @mention." : "Mention required.")}>
+                Mention: {settings.mentionOnly ? "Required" : "Optional"}
+              </button>
             </div>
-          ) : null}
+            {!personaEnabled || !settings.autoReplyEnabled ? (
+              <div style={{ color: "#ffd27a", fontSize: 12, marginBottom: 10 }}>
+                Personas only reply when both Persona AI and Auto reply are On for this server.
+              </div>
+            ) : null}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12 }}>
+              <div>
+                <span style={label}>Server-wide keywords (comma separated)</span>
+                <input style={input} value={keywordInput} onChange={(e) => setKeywordInput(e.target.value)} placeholder="e.g. possum, hey bot" />
+                <button
+                  style={{ ...action, marginTop: 6, padding: "6px 10px", fontSize: 11 }}
+                  disabled={ctlSaving}
+                  onClick={() => saveRuntime({ personaKeywordTriggers: keywordInput.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean) }, "Keywords saved.")}
+                >
+                  Save keywords
+                </button>
+                <div style={hint}>Words that wake a persona when someone @mentions the bot.</div>
+              </div>
+              <div>
+                <span style={label}>Persona-only channels (replies without @mention)</span>
+                <MultiPick items={textChannels} value={onlyChannels} onChange={(v) => void saveRuntime({ personaOnlyChannelIds: v }, "Persona-only channels updated.")} empty="No channels loaded." />
+              </div>
+            </div>
+          </section>
 
           <section style={{ display: "grid", gridTemplateColumns: "minmax(240px,320px) 1fr", gap: 12, alignItems: "start" }}>
             <div style={card}>

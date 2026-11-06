@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { buildDashboardHref } from "@/lib/dashboardContext";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
-import { getDashboardNavSections, getDashboardNavTopLinks } from "@/lib/dashboard/navigation";
+import { getDashboardNavSections, getDashboardNavTopLinks, getSectionHref } from "@/lib/dashboard/navigation";
 
 function itemClass(active: boolean): string {
   return active
@@ -97,14 +97,31 @@ export default function PossumSidebar() {
           const open = isSectionOpen(section.label, defaultOpen);
           return (
             <div key={section.label} className="rounded-lg border border-pink-900/50 bg-black/30 possum-nav-section">
-              <button
-                type="button"
-                onClick={() => toggleSection(section.label, defaultOpen)}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] font-black uppercase tracking-[0.18em] text-red-300/70"
-              >
-                {section.label}
-                <span>{open ? "-" : "+"}</span>
-              </button>
+              <div className="flex items-stretch">
+                <button
+                  type="button"
+                  onClick={() => navigateTo(getSectionHref(section.label))}
+                  onMouseEnter={() => prefetchHref(getSectionHref(section.label))}
+                  title={`Open ${section.label} overview`}
+                  className={`min-w-0 flex-1 px-3 py-2 text-left text-xs font-black uppercase tracking-[0.16em] hover:text-pink-200 ${
+                    isItemActive(pathname, getSectionHref(section.label)) ? "text-pink-200" : "text-pink-300/90"
+                  }`}
+                >
+                  {section.label}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.label, defaultOpen)}
+                  aria-expanded={open}
+                  aria-label={`${open ? "Collapse" : "Expand"} ${section.label}`}
+                  title={open ? "Collapse" : "Expand"}
+                  className="possum-chevron flex w-10 items-center justify-center border-l border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/15"
+                >
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }}>
+                    <path d="M4 7l6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
               {open ? (
                 <div className="relative z-10 space-y-1 px-2 pb-2">
                   {section.items.map((item) => {

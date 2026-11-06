@@ -6,6 +6,7 @@ import { buildDashboardHref, readDashboardGuildId, readDashboardUserId } from "@
 import { SAVIORS_GUILD_ID } from "@/lib/dashboard/engineRegistry";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { isPremiumEnforcementEnabled } from "@/lib/premiumMode";
+import { getDashboardNavSections, getSectionSlug } from "@/lib/dashboard/navigation";
 
 type ToggleController = {
   read: (guildId: string, userId?: string) => Promise<boolean>;
@@ -582,7 +583,7 @@ function pillClass(on: boolean | null) {
     : "rounded-full border border-red-600/50 bg-red-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-300";
 }
 
-export default function DashboardClient() {
+export default function DashboardClient({ groupSlug }: { groupSlug?: string } = {}) {
   const premiumEnforced = isPremiumEnforcementEnabled();
   const [guildId, setGuildId] = useState("");
   const [viewerUserId, setViewerUserId] = useState("");
@@ -729,21 +730,47 @@ export default function DashboardClient() {
   );
 
   const premiumUnlocked = !premiumEnforced || Boolean(subscription?.active || subscription?.developerBypass);
-  const groupedCards = useMemo(
-    () =>
-      SECTION_ORDER.map((section) => ({
-        section,
-        cards: cards.filter((card) => card.routeKey !== "/dashboard/system-health" && getCardSection(card) === section),
-      })).filter((group) => group.cards.length > 0),
-    [cards]
+  const navGroup = useMemo(
+    () => (groupSlug ? getDashboardNavSections(isMasterOwner).find((s) => getSectionSlug(s.label) === groupSlug) || null : null),
+    [groupSlug, isMasterOwner]
   );
+  const baseHref = (href: string) => href.split("?")[0].split("#")[0];
+  const groupedCards = useMemo(() => {
+    if (groupSlug) {
+      if (!navGroup) return [];
+      const wanted = new Set(navGroup.items.map((item) => baseHref(item.href)));
+      const matched = cards.filter((card) => card.routeKey && wanted.has(baseHref(card.routeKey)));
+      return matched.length ? [{ section: navGroup.label as DashboardSection, cards: matched }] : [];
+    }
+    return SECTION_ORDER.map((section) => ({
+      section,
+      cards: cards.filter((card) => card.routeKey !== "/dashboard/system-health" && getCardSection(card) === section),
+    })).filter((group) => group.cards.length > 0);
+  }, [cards, groupSlug, navGroup]);
+  const extraGroupLinks = useMemo(() => {
+    if (!navGroup) return [];
+    const withCards = new Set(cards.map((card) => baseHref(card.routeKey || "")));
+    const seen = new Set<string>();
+    return navGroup.items.filter((item) => {
+      const key = baseHref(item.href);
+      if (withCards.has(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [cards, navGroup]);
 
   return (
     <section className="space-y-5">
       <header className="rounded-xl border possum-divider bg-black/50 p-5 possum-border">
-        <p className="text-xs uppercase tracking-[0.22em] possum-soft">Possum Control</p>
-        <h2 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red possum-glow">Guild Dashboard</h2>
-        <p className="mt-2 text-sm text-red-200/80">
+        <p className="text-xs uppercase tracking-[0.22em] possum-soft">{navGroup ? "Group Overview" : "Possum Control"}</p>
+        <h2 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red possum-glow">{navGroup ? navGroup.label : "Guild Dashboard"}</h2>
+        {navGroup ? (
+          <p className="mt-2 text-sm text-red-200/80">
+            Live status for everything in {navGroup.label}. Use the toggles to switch features on or off, or click a card to open its settings.
+          </p>
+        ) : null}
+        {groupSlug && !navGroup ? <p className="mt-2 text-sm text-red-200/80">That group does not exist.</p> : null}
+        <p className="mt-2 text-sm text-red-200/80" hidden={Boolean(groupSlug)}>
           {guildId === SAVIORS_GUILD_ID
             ? "Saviors baseline stays intact until you explicitly toggle something."
             : "Cards are grouped by live engine category. Use toggles here to turn engines on or off for the active guild without leaving the dashboard. Studio/editor pages open directly with Go."}
@@ -753,7 +780,7 @@ export default function DashboardClient() {
         </p>
       </header>
 
-      {quickAccessCards.length ? (
+      {!groupSlug && quickAccessCards.length ? (
         <section className="space-y-3">
           <header className="rounded-xl border possum-divider bg-black/45 p-4 possum-border">
             <p className="text-xs uppercase tracking-[0.22em] possum-soft">Quick Access</p>
@@ -780,6 +807,24 @@ export default function DashboardClient() {
                   </Link>
                 </div>
               </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {extraGroupLinks.length ? (
+        <section className="space-y-2">
+          <p className="text-xs uppercase tracking-[0.22em] possum-soft">Pages in this group</p>
+          <div className="flex flex-wrap gap-2">
+            {extraGroupLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={buildDashboardHref(item.href)}
+                prefetch={false}
+                className="rounded-lg border border-emerald-400/50 bg-black/50 px-3 py-2 text-xs font-black uppercase tracking-[0.08em] text-emerald-200 hover:bg-emerald-500/10"
+              >
+                {item.label}
+              </Link>
             ))}
           </div>
         </section>

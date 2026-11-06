@@ -15,7 +15,6 @@ type LandingSession = {
   } | null;
 };
 
-const HERO_IMAGE = "/img/possum-hero.png";
 
 const buttonBase: CSSProperties = {
   display: "inline-flex",
@@ -227,16 +226,6 @@ export default function Home() {
             </div>
           </div>
 
-          <div
-            style={{
-              marginTop: 34,
-              minHeight: "clamp(260px, 42vw, 560px)",
-              borderRadius: 24,
-              border: "1px solid rgba(57,255,20,0.45)",
-              background: `linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.35)), center / cover no-repeat url(${HERO_IMAGE})`,
-              boxShadow: "0 0 36px rgba(57,255,20,0.2), inset 0 0 80px rgba(0,0,0,0.30)",
-            }}
-          />
         </section>
 
         <div style={{ marginTop: 22, textAlign: "center" }}>

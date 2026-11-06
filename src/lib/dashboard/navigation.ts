@@ -12,6 +12,17 @@ export type DashboardNavSection = {
   items: DashboardNavItem[];
 };
 
+export function getSectionSlug(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function getSectionHref(label: string): string {
+  return `/dashboard/group/${getSectionSlug(label)}`;
+}
+
 export function getDashboardNavTopLinks(isMasterOwner = false): DashboardNavTopLink[] {
   const topLinks: DashboardNavTopLink[] = [
     { href: "/dashboard/system-health", label: "System Health" },

@@ -26,6 +26,7 @@ export function getSectionHref(label: string): string {
 export function getDashboardNavTopLinks(isMasterOwner = false): DashboardNavTopLink[] {
   const topLinks: DashboardNavTopLink[] = [
     { href: "/dashboard/system-health", label: "System Health" },
+    { href: "/dashboard/operations", label: "Operations", creatorOnly: true },
     { href: "/dashboard/master", label: "Master Control", creatorOnly: true }
   ];
   return topLinks.filter(

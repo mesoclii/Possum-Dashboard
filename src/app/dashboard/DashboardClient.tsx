@@ -579,7 +579,7 @@ function pillClass(on: boolean | null) {
     return "rounded-full border border-red-600/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-200/70";
   }
   return on
-    ? "rounded-full border border-emerald-500/50 bg-emerald-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-emerald-300"
+    ? "rounded-full border border-pink-500/50 bg-pink-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-pink-200"
     : "rounded-full border border-red-600/50 bg-red-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-300";
 }
 
@@ -821,7 +821,7 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
                 key={item.href}
                 href={buildDashboardHref(item.href)}
                 prefetch={false}
-                className="rounded-lg border border-emerald-400/50 bg-black/50 px-3 py-2 text-xs font-black uppercase tracking-[0.08em] text-emerald-200 hover:bg-emerald-500/10"
+                className="rounded-lg border border-pink-400/50 bg-black/50 px-3 py-2 text-xs font-black uppercase tracking-[0.08em] text-pink-100 hover:bg-pink-500/10"
               >
                 {item.label}
               </Link>

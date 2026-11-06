@@ -33,8 +33,8 @@ const buttonBase: CSSProperties = {
 const primaryButton: CSSProperties = {
   ...buttonBase,
   color: "#190000",
-  background: "linear-gradient(90deg, #ff2bd6 0%, #39ff14 100%)",
-  boxShadow: "0 0 30px rgba(255,43,214,0.45), 0 0 50px rgba(57,255,20,0.25)",
+  background: "linear-gradient(90deg, #ff2bd6 0%, #ff2a4d 100%)",
+  boxShadow: "0 0 30px rgba(255,43,214,0.45), 0 0 50px rgba(255,42,77,0.25)",
 };
 
 const secondaryButton: CSSProperties = {
@@ -132,7 +132,7 @@ export default function Home() {
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at 80% 0%, rgba(255,43,214,0.20) 0%, transparent 45%), radial-gradient(circle at 10% 100%, rgba(57,255,20,0.14) 0%, transparent 45%), transparent",
+          "radial-gradient(circle at 80% 0%, rgba(255,43,214,0.20) 0%, transparent 45%), radial-gradient(circle at 10% 100%, rgba(255,42,77,0.16) 0%, transparent 45%), transparent",
         color: "#ffe2e2",
       }}
     >
@@ -143,7 +143,7 @@ export default function Home() {
             borderRadius: 28,
             background: "linear-gradient(180deg, rgba(60,0,50,0.28), rgba(0,0,0,0.72))",
             padding: "42px 34px 34px",
-            boxShadow: "0 0 40px rgba(255,43,214,0.25), 0 0 80px rgba(57,255,20,0.10)",
+            boxShadow: "0 0 40px rgba(255,43,214,0.25), 0 0 80px rgba(255,42,77,0.12)",
             overflow: "hidden",
           }}
         >

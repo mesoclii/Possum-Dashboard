@@ -116,11 +116,11 @@ html {
   scroll-behavior: smooth;
 }
 
-/* ===== Neon gamer theme: pink / green / red ===== */
+/* ===== Neon gamer theme: pink / red ===== */
 :root {
   --neon-red: #ff2a4d;
   --neon-pink: #ff2bd6;
-  --neon-green: #39ff14;
+  --neon-green: #ff2bd6;
   --neon-blurple: #5865f2;
 }
 
@@ -132,7 +132,7 @@ body::before {
   z-index: -2;
   background:
     radial-gradient(900px 600px at 85% 0%, rgba(255, 43, 214, 0.18), transparent 60%),
-    radial-gradient(900px 600px at 0% 100%, rgba(57, 255, 20, 0.12), transparent 60%),
+    radial-gradient(900px 600px at 0% 100%, rgba(255, 43, 214, 0.12), transparent 60%),
     linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.96));
   pointer-events: none;
 }
@@ -144,7 +144,7 @@ body::after {
   z-index: -1;
   background-image:
     linear-gradient(rgba(255, 43, 214, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(57, 255, 20, 0.05) 1px, transparent 1px);
+    linear-gradient(90deg, rgba(255, 43, 214, 0.05) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: linear-gradient(180deg, transparent, #000 40%, transparent);
   pointer-events: none;
@@ -165,7 +165,7 @@ body::after {
 
 @keyframes neon-pulse {
   0%, 100% { box-shadow: 0 0 14px rgba(255, 43, 214, 0.28), inset 0 0 14px rgba(255, 43, 214, 0.08); }
-  50% { box-shadow: 0 0 26px rgba(57, 255, 20, 0.30), inset 0 0 18px rgba(57, 255, 20, 0.10); }
+  50% { box-shadow: 0 0 26px rgba(255, 43, 214, 0.30), inset 0 0 18px rgba(255, 43, 214, 0.10); }
 }
 
 /* Animated neon edge under the top bar */
@@ -212,11 +212,11 @@ main section {
   transition: box-shadow 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 main section:nth-of-type(even) {
-  border-color: rgba(57, 255, 20, 0.40) !important;
-  box-shadow: 0 0 22px rgba(57, 255, 20, 0.10), inset 0 0 22px rgba(57, 255, 20, 0.04);
+  border-color: rgba(255, 43, 214, 0.40) !important;
+  box-shadow: 0 0 22px rgba(255, 43, 214, 0.10), inset 0 0 22px rgba(255, 43, 214, 0.04);
 }
 main section:hover {
-  box-shadow: 0 0 34px rgba(255, 43, 214, 0.28), inset 0 0 26px rgba(57, 255, 20, 0.08);
+  box-shadow: 0 0 34px rgba(255, 43, 214, 0.28), inset 0 0 26px rgba(255, 43, 214, 0.08);
 }
 
 /* Buttons and links styled as buttons */
@@ -228,7 +228,7 @@ main button:not(:disabled):hover,
 main a[style*="text-transform: uppercase"]:hover {
   transform: translateY(-1px);
   border-color: var(--neon-green) !important;
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.45), inset 0 0 12px rgba(57, 255, 20, 0.12);
+  box-shadow: 0 0 20px rgba(255, 43, 214, 0.45), inset 0 0 12px rgba(255, 43, 214, 0.12);
 }
 main button:not(:disabled):active {
   transform: translateY(0);
@@ -246,12 +246,12 @@ main button:disabled {
   box-shadow: 0 0 30px rgba(255, 43, 214, 0.45), inset 0 0 20px rgba(255, 43, 214, 0.2);
 }
 .possum-btn-green {
-  border-color: rgba(57, 255, 20, 0.6);
+  border-color: rgba(255, 43, 214, 0.6);
   color: var(--neon-green) !important;
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.22), inset 0 0 16px rgba(57, 255, 20, 0.12);
+  box-shadow: 0 0 20px rgba(255, 43, 214, 0.22), inset 0 0 16px rgba(255, 43, 214, 0.12);
 }
 .possum-btn-green:hover {
-  box-shadow: 0 0 30px rgba(57, 255, 20, 0.45), inset 0 0 20px rgba(57, 255, 20, 0.18);
+  box-shadow: 0 0 30px rgba(255, 43, 214, 0.45), inset 0 0 20px rgba(255, 43, 214, 0.18);
 }
 
 .possum-pill {
@@ -261,13 +261,13 @@ main button:disabled {
 }
 
 .possum-nav-active {
-  box-shadow: 0 0 16px rgba(255, 43, 214, 0.35), inset 0 0 10px rgba(57, 255, 20, 0.12);
+  box-shadow: 0 0 16px rgba(255, 43, 214, 0.35), inset 0 0 10px rgba(255, 43, 214, 0.12);
 }
 .possum-nav-section {
   transition: border-color 140ms ease;
 }
 .possum-nav-section:hover {
-  border-color: rgba(57, 255, 20, 0.45);
+  border-color: rgba(255, 43, 214, 0.45);
 }
 
 /* Inputs */
@@ -281,7 +281,7 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--neon-green) !important;
-  box-shadow: 0 0 0 2px rgba(57, 255, 20, 0.25), 0 0 16px rgba(57, 255, 20, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 43, 214, 0.25), 0 0 16px rgba(255, 43, 214, 0.25);
 }
 input[type="checkbox"],
 input[type="radio"],
@@ -316,8 +316,8 @@ input[type="range"] {
   overflow: hidden;
   border: 1px solid rgba(255, 43, 214, 0.55);
   background:
-    linear-gradient(90deg, rgba(255, 43, 214, 0.18) 0%, rgba(0, 0, 0, 0.85) 55%, rgba(57, 255, 20, 0.14) 100%);
-  box-shadow: 0 0 36px rgba(255, 43, 214, 0.3), 0 0 60px rgba(57, 255, 20, 0.12);
+    linear-gradient(90deg, rgba(255, 43, 214, 0.18) 0%, rgba(0, 0, 0, 0.85) 55%, rgba(255, 43, 214, 0.14) 100%);
+  box-shadow: 0 0 36px rgba(255, 43, 214, 0.3), 0 0 60px rgba(255, 43, 214, 0.12);
   display: flex;
   align-items: center;
 }
@@ -333,7 +333,7 @@ input[type="range"] {
   text-transform: uppercase;
   font-weight: 800;
   font-size: 12px;
-  text-shadow: 0 0 12px rgba(57, 255, 20, 0.8);
+  text-shadow: 0 0 12px rgba(255, 43, 214, 0.8);
 }
 .possum-banner-title {
   font-size: clamp(26px, 5vw, 54px);
@@ -386,8 +386,8 @@ input[type="range"] {
   }
 }
 .possum-chevron {
-  box-shadow: inset 0 0 12px rgba(57, 255, 20, 0.12);
+  box-shadow: inset 0 0 12px rgba(255, 43, 214, 0.12);
 }
 .possum-chevron:hover {
-  box-shadow: inset 0 0 16px rgba(57, 255, 20, 0.3);
+  box-shadow: inset 0 0 16px rgba(255, 43, 214, 0.3);
 }

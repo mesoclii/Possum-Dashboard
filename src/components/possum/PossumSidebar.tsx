@@ -8,8 +8,8 @@ import { getDashboardNavSections, getDashboardNavTopLinks, getSectionHref } from
 
 function itemClass(active: boolean): string {
   return active
-    ? "block w-full rounded-md border border-pink-500/70 bg-gradient-to-r from-pink-600/25 to-emerald-500/10 px-3 py-2 text-left text-sm font-extrabold uppercase tracking-[0.05em] text-pink-100 possum-nav-active"
-    : "block w-full rounded-md border border-transparent px-3 py-2 text-left text-sm font-bold uppercase tracking-[0.04em] text-red-300/85 hover:border-emerald-400/50 hover:bg-emerald-500/10 hover:text-emerald-200";
+    ? "block w-full rounded-md border border-pink-500/70 bg-gradient-to-r from-pink-600/30 to-red-600/10 px-3 py-2 text-left text-sm font-extrabold uppercase tracking-[0.05em] text-pink-100 possum-nav-active"
+    : "block w-full rounded-md border border-transparent px-3 py-2 text-left text-sm font-bold uppercase tracking-[0.04em] text-red-300/85 hover:border-pink-400/50 hover:bg-pink-500/10 hover:text-pink-100";
 }
 
 function isItemActive(pathname: string | null, href: string) {
@@ -62,7 +62,7 @@ export default function PossumSidebar() {
   }, [router]);
 
   return (
-    <div className="rounded-xl border possum-divider bg-black/55 p-4 possum-border">
+    <div className="flex min-h-full flex-col rounded-xl border possum-divider bg-black/55 p-4 possum-border">
       <div className="mb-4 border-b possum-divider pb-3">
         <p className="text-[11px] uppercase tracking-[0.24em] possum-soft">Possum Bot</p>
         <button
@@ -115,7 +115,7 @@ export default function PossumSidebar() {
                   aria-expanded={open}
                   aria-label={`${open ? "Collapse" : "Expand"} ${section.label}`}
                   title={open ? "Collapse" : "Expand"}
-                  className="possum-chevron flex w-10 items-center justify-center border-l border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/15"
+                  className="possum-chevron flex w-10 items-center justify-center border-l border-pink-400/40 text-pink-200 hover:bg-pink-500/15"
                 >
                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }}>
                     <path d="M4 7l6 6 6-6" />

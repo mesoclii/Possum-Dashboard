@@ -27,7 +27,7 @@ function detectHostMemoryMb() {
 const hostMemoryMb = detectHostMemoryMb();
 const autoVmMode = args.has("--auto") && hostMemoryMb > 0 && hostMemoryMb <= 1536;
 const vmMode = args.has("--vm") || autoVmMode;
-const memoryAttempts = vmMode ? [384, 448, 512] : [448];
+const memoryAttempts = vmMode ? [640, 768, 896] : [448];
 
 function log(message) {
   process.stdout.write(`[safe-next-build] ${message}\n`);

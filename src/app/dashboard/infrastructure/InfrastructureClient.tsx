@@ -41,6 +41,7 @@ type Report = {
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
   settings?: { mode: string; repairEnabled: boolean };
+  setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
   directory?: { categories: DirectoryRow[]; channels: DirectoryRow[]; roles: DirectoryRow[] };
 };
@@ -137,6 +138,7 @@ export default function InfrastructureClient() {
         <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
         <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
+        <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0}</p>
         {report?.onboarding?.status === "needs-choice" ? (
           <p className="mt-2 text-sm text-pink-100">This server was just discovered. Choose Auto-Adapt to use channels that already exist, or Full Setup and then confirm before Possum creates anything.</p>
         ) : null}

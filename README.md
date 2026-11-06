@@ -8,9 +8,8 @@ The dashboard checkout is `~/negan-dashboard` and its PM2 process is `possum-das
 
 ```bash
 cd ~/negan-dashboard
-git pull --ff-only origin main
-npm run build
-pm2 restart possum-dashboard --update-env
+git pull --ff-only origin fix/dashboard-safe-deploy-2026-11-06
+npm run deploy:vm
 pm2 status
 ```
 

@@ -42,6 +42,7 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
         { href: "/dashboard/bot-personalizer", label: "Bot Personalizer" },
         { href: "/dashboard/bot-masters", label: "Bot Masters / Dashboard Access" },
         { href: "/dashboard/channels", label: "Channels" },
+        { href: "/dashboard/infrastructure", label: "Infrastructure" },
         { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/giveaways", label: "Giveaways" },
         { href: "/dashboard/jed", label: "Jed" },

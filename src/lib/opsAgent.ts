@@ -25,7 +25,7 @@ export async function opsAgentRequest(path: string, init: RequestInit = {}) {
   let url: URL;
   try {
     const baseUrl = new URL(base);
-    const hostname = baseUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+    const hostname = baseUrl.hostname.toLowerCase().replace(/^\[|\]$/g, "");
     if (
       baseUrl.protocol !== "http:" ||
       !["127.0.0.1", "::1", "localhost"].includes(hostname) ||

@@ -6,10 +6,19 @@ export const runtime = "nodejs";
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await requireOpsOwner(request);
   if (auth.response) return auth.response;
+
   const { id } = await context.params;
-  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) return NextResponse.json({ success: false, error: "Invalid incident ID." }, { status: 400 });
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id)) {
+    return NextResponse.json({ success: false, error: "Invalid incident ID." }, { status: 400 });
+  }
+
   const actor = String(auth.session?.user?.id || "creator");
-  const result = await opsAgentRequest(`/v1/incidents/${encodeURIComponent(id)}/acknowledge`, { method: "POST", body: JSON.stringify({ actor }) });
+  const incoming = await request.json().catch(() => ({}));
+  const payload = { actor };
+  const result = await opsAgentRequest(`/v1/incidents/${encodeURIComponent(id)}/acknowledge`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
   if (!result.ok) return opsError(result);
-  return NextResponse.json({ success: true, data: result.body?.incident || result.body });
+  return NextResponse.json({ success: true, data: result.body?.data || {} });
 }

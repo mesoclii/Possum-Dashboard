@@ -17,7 +17,7 @@ const DEFAULT_TIMEOUT_MS = 8000;
 
 function agentBaseUrl(): string {
   const rawHost = String(process.env.OPS_AGENT_HOST || "127.0.0.1").trim() || "127.0.0.1";
-  const host = rawHost.replace(/^\\[|\\]$/g, "").toLowerCase();
+  const host = rawHost.replace(/^\[|\]$/g, "").toLowerCase();
   if (!["127.0.0.1", "::1", "localhost"].includes(host)) {
     throw new Error("OPS_AGENT_HOST must be a loopback address.");
   }

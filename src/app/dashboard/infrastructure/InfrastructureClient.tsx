@@ -109,6 +109,9 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     };
   }
   if (action === "settings") {
+    if (Object.prototype.hasOwnProperty.call(body, "enabledEngines")) {
+      return { title: "Server features saved", lines: [`Enabled ${Array.isArray(body.enabledEngines) ? body.enabledEngines.length : 0} feature systems. Infrastructure will only track selected systems.`, "No Discord resources were created or changed."] };
+    }
     if (Object.prototype.hasOwnProperty.call(body, "repairEnabled")) {
       return {
         title: `Repair ${body.repairEnabled ? "enabled" : "disabled"}`,
@@ -315,7 +318,8 @@ function ConfirmDialog({
 export default function InfrastructureClient() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
-  const [report, setReport] = useState<Report | null>(null);\n  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [report, setReport] = useState<Report | null>(null);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
@@ -356,7 +360,8 @@ export default function InfrastructureClient() {
       .then(async (response) => {
         const json = await readJson(response);
         if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
-        setReport(json.report || null);\n        setSelectedFeatures(json.report?.settings?.enabledEngines || []);
+        setReport(json.report || null);
+        setSelectedFeatures(json.report?.settings?.enabledEngines || []);
       })
       .catch((error: unknown) => notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed"));
   }, []);
@@ -402,7 +407,8 @@ export default function InfrastructureClient() {
       const refreshedResponse = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
-      setReport(nextReport);\n      if (nextReport?.settings?.featuresConfigured) setSelectedFeatures(nextReport.settings.enabledEngines || []);
+      setReport(nextReport);
+      if (nextReport?.settings?.featuresConfigured) setSelectedFeatures(nextReport.settings.enabledEngines || []);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
       const delta = typeof before === "number" && typeof after === "number" && before !== after
@@ -473,7 +479,8 @@ export default function InfrastructureClient() {
     }
   }
 
-  const locked = Boolean(busyAction);\n  const featureSelectionRequired = !report?.settings?.featuresConfigured;
+  const locked = Boolean(busyAction);
+  const featureSelectionRequired = !report?.settings?.featuresConfigured;
   const busyLabel = busyAction ? `Running ${busyAction.replace(/-/g, " ")}` : "";
 
   const rows = useMemo(() => {

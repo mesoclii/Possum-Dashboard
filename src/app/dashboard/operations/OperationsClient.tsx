@@ -41,6 +41,13 @@ type Incident = {
   firstSeenAt: string;
   lastSeenAt: string;
   summary: string;
+  details?: Record<string, unknown>;
+  events?: Array<{ at: string; type: string; message?: string; by?: string }>;
+  acknowledgedAt?: string | null;
+  acknowledgedBy?: string | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+  resolutionReason?: string | null;
 };
 
 type LogLine = { source: string; label?: string; level: string; category: string; text: string };
@@ -50,6 +57,15 @@ type AlertsConfig = {
   alertRepeatMs?: number;
   maxDeliveryAttempts?: number;
   delivery?: { pending?: number };
+};
+
+type MetricSample = {
+  ts: number;
+  host?: {
+    cpu?: { usagePct?: number | null };
+    memory?: { usedPct?: number | null; swapUsedPct?: number | null };
+    disk?: { root?: { usedPct?: number | null } };
+  } | null;
 };
 
 const panel = {
@@ -116,6 +132,8 @@ export default function OperationsClient() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [alerts, setAlerts] = useState<AlertsConfig | null>(null);
+  const [metrics, setMetrics] = useState<MetricSample[]>([]);
+  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [logSource, setLogSource] = useState("all");
@@ -176,11 +194,22 @@ export default function OperationsClient() {
     }
   }, []);
 
+  const loadMetrics = useCallback(async () => {
+    try {
+      const response = await fetch("/api/ops/metrics?resolution=raw&rangeMs=86400000&limit=2000", { cache: "no-store" });
+      const body = await response.json();
+      if (body?.success) setMetrics((Array.isArray(body.data) ? body.data : []) as MetricSample[]);
+    } catch {
+      // Keep the last successful history sample.
+    }
+  }, []);
+
   useEffect(() => {
     void loadOverview();
     void loadIncidents();
     void loadAlerts();
-  }, [loadOverview, loadIncidents, loadAlerts]);
+    void loadMetrics();
+  }, [loadOverview, loadIncidents, loadAlerts, loadMetrics]);
 
   useEffect(() => {
     const handle = setInterval(() => {
@@ -195,6 +224,13 @@ export default function OperationsClient() {
     }, 15000);
     return () => clearInterval(handle);
   }, [loadIncidents]);
+
+  useEffect(() => {
+    const handle = setInterval(() => {
+      void loadMetrics();
+    }, 15000);
+    return () => clearInterval(handle);
+  }, [loadMetrics]);
 
   useEffect(() => {
     void loadLogs();
@@ -323,6 +359,19 @@ export default function OperationsClient() {
       </section>
 
       <section style={panel}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div style={label}>24-hour resource history</div>
+          <div style={{ fontSize: 11, color: "#a08080" }}>{metrics.length} retained samples · 15-second collection target</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 12 }}>
+          <MetricLine title="CPU" samples={metrics} value={(sample) => sample.host?.cpu?.usagePct} />
+          <MetricLine title="RAM" samples={metrics} value={(sample) => sample.host?.memory?.usedPct} />
+          <MetricLine title="Swap" samples={metrics} value={(sample) => sample.host?.memory?.swapUsedPct} />
+          <MetricLine title="Root disk" samples={metrics} value={(sample) => sample.host?.disk?.root?.usedPct} />
+        </div>
+      </section>
+
+      <section style={panel}>
         <div style={label}>Host resources</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginTop: 12 }}>
           <Stat title="CPU" value={fmtPercent(host?.cpu?.usagePct)} />
@@ -372,9 +421,33 @@ export default function OperationsClient() {
                     {incident.status} · {incident.occurrences}× · {incident.service}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: "#c99090" }}>
-                  First seen {incident.firstSeenAt} · last {incident.lastSeenAt}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 12, color: "#c99090" }}>
+                    First seen {incident.firstSeenAt} · last {incident.lastSeenAt}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedIncidentId((current) => current === incident.id ? null : incident.id)}
+                    style={actionButton}
+                  >
+                    {expandedIncidentId === incident.id ? "Hide timeline" : "Timeline"}
+                  </button>
                 </div>
+                {expandedIncidentId === incident.id ? (
+                  <div style={{ borderTop: "1px solid rgba(255,0,0,.14)", paddingTop: 8, display: "grid", gap: 6 }}>
+                    <div style={{ fontSize: 12, color: "#ffd0d0" }}>{incident.summary || "No additional summary."}</div>
+                    {incident.details && Object.keys(incident.details).length ? (
+                      <pre style={{ ...mono, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 11, color: "#c99090", margin: 0 }}>
+                        {JSON.stringify(incident.details, null, 2)}
+                      </pre>
+                    ) : null}
+                    {(incident.events || []).map((event, eventIndex) => (
+                      <div key={`${incident.id}-${eventIndex}`} style={{ fontSize: 11, color: "#c99090" }}>
+                        <strong>{event.type}</strong> · {event.at} {event.by ? `· ${event.by}` : ""} {event.message || ""}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {incident.status !== "resolved" ? (
                   <div style={{ display: "flex", gap: 8 }}>
                     {incident.status === "open" ? (
@@ -513,6 +586,44 @@ const select = {
   padding: "6px 8px",
   fontSize: 12,
 };
+
+function MetricLine({
+  title,
+  samples,
+  value,
+}: {
+  title: string;
+  samples: MetricSample[];
+  value: (sample: MetricSample) => number | null | undefined;
+}) {
+  const points = samples
+    .map((sample, index) => ({ index, value: value(sample) }))
+    .filter((point): point is { index: number; value: number } => typeof point.value === "number" && Number.isFinite(point.value));
+  const latest = points.length ? points[points.length - 1].value : null;
+  const maxIndex = Math.max(1, samples.length - 1);
+  const coordinates = points.map((point) => {
+    const x = (point.index / maxIndex) * 600;
+    const y = 82 - (Math.max(0, Math.min(100, point.value)) / 100) * 72;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+
+  return (
+    <div style={{ border: "1px solid rgba(255,0,0,.14)", borderRadius: 9, padding: 10, background: "rgba(0,0,0,.25)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span style={{ ...label, fontSize: 10 }}>{title}</span>
+        <strong style={{ fontSize: 16 }}>{latest === null ? "--" : fmtPercent(latest)}</strong>
+      </div>
+      <svg viewBox="0 0 600 90" role="img" aria-label={`${title} over the last 24 hours`} style={{ width: "100%", height: 72, marginTop: 4 }}>
+        <line x1="0" y1="10" x2="600" y2="10" stroke="rgba(255,255,255,.10)" strokeDasharray="4 6" />
+        <line x1="0" y1="46" x2="600" y2="46" stroke="rgba(255,255,255,.08)" strokeDasharray="4 6" />
+        <line x1="0" y1="82" x2="600" y2="82" stroke="rgba(255,255,255,.10)" />
+        {points.length > 1 ? <polyline points={coordinates} fill="none" stroke="#ff5a5a" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" /> : null}
+        {points.length === 1 ? <circle cx={coordinates.split(",")[0]} cy={coordinates.split(",")[1]} r="5" fill="#ff5a5a" /> : null}
+      </svg>
+      <div style={{ fontSize: 10, color: "#a08080" }}>{points.length} data points · percentage</div>
+    </div>
+  );
+}
 
 function Stat({ title, value, color }: { title: string; value: string; color?: string }) {
   return (

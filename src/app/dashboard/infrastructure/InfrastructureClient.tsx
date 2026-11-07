@@ -11,6 +11,7 @@ type Proposal = {
   field: string;
   status: string;
   reason: string;
+  proposedName?: string;
   suggestedName?: string;
   suggestedId?: string;
   matches?: { id: string; name: string }[];
@@ -724,7 +725,13 @@ export default function InfrastructureClient() {
         locked={locked && busyAction !== "provision"}
         onConfirm={() => void post("provision", { action: "provision", confirmed: true })}
         onCancel={() => setConfirm("")}
-      />
+      >
+        <div className="max-h-60 space-y-1 overflow-y-auto">
+          {(report?.proposals || []).filter((proposal) => proposal.status === "missing" && !proposal.protectedFlow).slice(0, 30).map((proposal) => (
+            <p key={proposal.id} className="text-xs text-red-100">{proposal.resourceType || "resource"} · {proposal.engine}.{proposal.field} → <strong>{proposal.proposedName || proposal.field}</strong></p>
+          ))}
+        </div>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirm === "repair"}

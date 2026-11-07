@@ -22,6 +22,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     firstSeenAt: String(item?.firstSeenAt || item?.createdAt || ""),
     lastSeenAt: String(item?.lastSeenAt || item?.createdAt || ""),
     summary: String(item?.summary || item?.detail || ""),
-  })).reverse();
+  }));
   return res.status(200).json({ success: true, data: { incidents } });
 }

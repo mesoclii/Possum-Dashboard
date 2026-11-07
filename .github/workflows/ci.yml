@@ -28,5 +28,8 @@ jobs:
       - name: Lint dashboard
         run: npm run lint
 
+      - name: Test VM build cancellation and rollback
+        run: node --test scripts/safe-next-build.test.js
+
       - name: Build dashboard
         run: npm run build

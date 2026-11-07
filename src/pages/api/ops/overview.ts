@@ -43,7 +43,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const http: Record<string, any> = {};
   for (const service of sourceServices) {
     const key = service.id === "possum-bot" ? "bot" : service.id === "possum-dashboard" ? "dashboard" : service.id === "game-provider-bridge" ? "bridge" : service.id;
-    http[key] = service.http || {};
+    http[key] = service.http ? {
+      ok: Boolean(service.http.ok),
+      status: service.http.statusCode ?? null,
+      latencyMs: service.http.latencyMs ?? null,
+      error: service.http.error || null,
+    } : {};
   }
   const botProbe = sourceServices.find((service: any) => service.id === "possum-bot")?.http;
   const gateway = typeof botProbe?.discordReady === "boolean"

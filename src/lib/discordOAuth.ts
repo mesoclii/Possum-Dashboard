@@ -87,7 +87,7 @@ export function getDiscordOauthConfigurationIssue() {
   if (redirect.username || redirect.password || redirect.search || redirect.hash) {
     return "DISCORD_REDIRECT_URI must not contain credentials, a query string, or a fragment.";
   }
-  if (redirect.pathname.replace(/\\/+$/, "") !== "/api/auth/discord/callback") {
+  if (redirect.pathname.replace(/\/+$/, "") !== "/api/auth/discord/callback") {
     return "DISCORD_REDIRECT_URI must use the exact callback path /api/auth/discord/callback.";
   }
   if (process.env.NODE_ENV === "production" && redirect.protocol !== "https:") {

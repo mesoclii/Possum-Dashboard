@@ -24,10 +24,19 @@ export async function opsAgentRequest(path: string, init: RequestInit = {}) {
   }
   let url: URL;
   try {
-    url = new URL(path, base);
-    if (url.origin !== new URL(base).origin) throw new Error("Invalid operations path");
+    const baseUrl = new URL(base);
+    const hostname = baseUrl.hostname.toLowerCase().replace(/^\\[|\\]$/g, "");
+    if (
+      baseUrl.protocol !== "http:" ||
+      !["127.0.0.1", "::1", "localhost"].includes(hostname) ||
+      baseUrl.pathname !== "/" ||
+      baseUrl.username ||
+      baseUrl.password
+    ) throw new Error("Operations agent must be local and loopback-only");
+    url = new URL(path, baseUrl);
+    if (url.origin !== baseUrl.origin) throw new Error("Invalid operations path");
   } catch {
-    return { ok: false, status: 500, body: { success: false, error: "Invalid operations agent configuration." } };
+    return { ok: false, status: 500, body: { success: false, error: "Operations agent must be configured on a local loopback URL." } };
   }
   try {
     const headers = new Headers(init.headers);

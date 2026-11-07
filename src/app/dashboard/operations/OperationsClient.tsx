@@ -12,7 +12,7 @@ type ServiceRow = {
   memoryBytes: number | null;
 };
 
-type HttpProbe = { ok?: boolean; status?: number | null; latencyMs?: number | null; error?: string | null };
+type HttpProbe = { ok?: boolean; status?: number | null; latencyMs?: number | null; error?: string | null; databaseReady?: boolean | null };
 
 type Overview = {
   agent?: { uptimeSec?: number; ticks?: number; lastTickAt?: string | null; lastError?: string | null };
@@ -290,6 +290,7 @@ export default function OperationsClient() {
         <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
           <Stat title="Active services" value={`${services.filter((svc) => svc.state === "online").length} / ${services.length}`} />
           <Stat title="Open incidents" value={String((counts.open || 0) + (counts.acknowledged || 0))} />
+          <Stat title="Database" value={overview?.http?.bot?.databaseReady === true ? "Healthy" : overview?.http?.bot?.databaseReady === false ? "Unhealthy" : "Unknown"} color={overview?.http?.bot?.databaseReady === false ? "#ff4a4a" : undefined} />
           <Stat title="Host memory" value={fmtPercent(host?.memory?.usedPct)} />
           <Stat title="Root disk" value={fmtPercent(host?.disk?.root?.usedPct)} />
         </div>

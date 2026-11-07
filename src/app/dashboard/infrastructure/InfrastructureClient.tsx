@@ -42,7 +42,7 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
-  settings?: { mode: string; repairEnabled: boolean; featuresConfigured?: boolean; enabledEngines?: string[]; resourceNameOverrides?: Record<string, string> };
+  settings?: { mode: string; repairEnabled: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
@@ -110,8 +110,8 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     };
   }
   if (action === "settings") {
-    if (Object.prototype.hasOwnProperty.call(body, "enabledEngines")) {
-      return { title: "Server features saved", lines: [`Enabled ${Array.isArray(body.enabledEngines) ? body.enabledEngines.length : 0} feature systems. Infrastructure will only track selected systems.`, "No Discord resources were created or changed."] };
+    if (Object.prototype.hasOwnProperty.call(body, "trackedEngines")) {
+      return { title: "Server features saved", lines: [`Enabled ${Array.isArray(body.trackedEngines) ? body.trackedEngines.length : 0} feature systems. Infrastructure will only track selected systems.`, "No Discord resources were created or changed."] };
     }
     if (Object.prototype.hasOwnProperty.call(body, "repairEnabled")) {
       return {
@@ -363,7 +363,7 @@ export default function InfrastructureClient() {
         const json = await readJson(response);
         if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
         setReport(json.report || null);
-        setSelectedFeatures(json.report?.settings?.enabledEngines || []);
+        setSelectedFeatures(json.report?.settings?.trackedEngines || []);
         setNameOverrides(json.report?.settings?.resourceNameOverrides || {});
       })
       .catch((error: unknown) => notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed"));
@@ -411,7 +411,7 @@ export default function InfrastructureClient() {
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
       setReport(nextReport);
-      if (nextReport?.settings?.featuresConfigured) setSelectedFeatures(nextReport.settings.enabledEngines || []);
+      if (nextReport?.settings?.trackedEnginesConfigured) setSelectedFeatures(nextReport.settings.trackedEngines || []);
       if (nextReport?.settings?.resourceNameOverrides) setNameOverrides(nextReport.settings.resourceNameOverrides);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
@@ -484,7 +484,7 @@ export default function InfrastructureClient() {
   }
 
   const locked = Boolean(busyAction);
-  const featureSelectionRequired = !report?.settings?.featuresConfigured;
+  const featureSelectionRequired = !report?.settings?.trackedEnginesConfigured;
   const busyLabel = busyAction ? `Running ${busyAction.replace(/-/g, " ")}` : "";
 
   const rows = useMemo(() => {
@@ -550,7 +550,7 @@ export default function InfrastructureClient() {
           })}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <ActionButton label="Save features & names" tip="Save this guild’s feature selection. This changes tracking scope only and does not create or modify Discord resources." busy={busyAction === "feature-settings"} busyLabel="Saving…" locked={locked} onClick={() => post("feature-settings", { action: "settings", enabledEngines: selectedFeatures, resourceNameOverrides: nameOverrides })} />
+          <ActionButton label="Save features & names" tip="Save this guild’s feature selection. This changes tracking scope only and does not create or modify Discord resources." busy={busyAction === "feature-settings"} busyLabel="Saving…" locked={locked} onClick={() => post("feature-settings", { action: "settings", trackedEngines: selectedFeatures, resourceNameOverrides: nameOverrides })} />
           <span className="text-xs text-red-100/60">Protected systems remain suggestion-only. Their existing runtime and verification flows are not changed.</span>
         </div>
       </section>

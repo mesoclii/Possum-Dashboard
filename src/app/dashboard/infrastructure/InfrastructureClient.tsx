@@ -8,7 +8,9 @@ type FeatureOption = { id: string; name: string; group: string; description: str
 type Proposal = {
   id: string;
   engine: string;
+  engineLabel?: string;
   field: string;
+  intendedName?: string;
   status: string;
   reason: string;
   proposedName?: string;
@@ -45,6 +47,8 @@ type Report = {
   proposals?: Proposal[];
   settings?: { mode: string; repairEnabled: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
+  allEngines?: { engine: string; label: string; requirements: number }[];
+  trackedEngineCount?: number;
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
   watch?: {

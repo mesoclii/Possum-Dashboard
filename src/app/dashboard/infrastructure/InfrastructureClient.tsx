@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
 
 type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string; botPermissions?: { status?: string; flags?: string[] } };
+type FeatureOption = { id: string; name: string; group: string; description: string; protected: boolean; selectable: boolean };
 type Proposal = {
   id: string;
   engine: string;
@@ -40,7 +41,8 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
-  settings?: { mode: string; repairEnabled: boolean };
+  settings?: { mode: string; repairEnabled: boolean; featuresConfigured?: boolean; enabledEngines?: string[] };
+  featureCatalog?: FeatureOption[];
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
   watch?: {
@@ -313,7 +315,7 @@ function ConfirmDialog({
 export default function InfrastructureClient() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
-  const [report, setReport] = useState<Report | null>(null);
+  const [report, setReport] = useState<Report | null>(null);\n  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
@@ -354,7 +356,7 @@ export default function InfrastructureClient() {
       .then(async (response) => {
         const json = await readJson(response);
         if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
-        setReport(json.report || null);
+        setReport(json.report || null);\n        setSelectedFeatures(json.report?.settings?.enabledEngines || []);
       })
       .catch((error: unknown) => notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed"));
   }, []);
@@ -400,7 +402,7 @@ export default function InfrastructureClient() {
       const refreshedResponse = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
-      setReport(nextReport);
+      setReport(nextReport);\n      if (nextReport?.settings?.featuresConfigured) setSelectedFeatures(nextReport.settings.enabledEngines || []);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
       const delta = typeof before === "number" && typeof after === "number" && before !== after
@@ -471,7 +473,7 @@ export default function InfrastructureClient() {
     }
   }
 
-  const locked = Boolean(busyAction);
+  const locked = Boolean(busyAction);\n  const featureSelectionRequired = !report?.settings?.featuresConfigured;
   const busyLabel = busyAction ? `Running ${busyAction.replace(/-/g, " ")}` : "";
 
   const rows = useMemo(() => {
@@ -508,7 +510,41 @@ export default function InfrastructureClient() {
         ))}
       </div>
 
-      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+            <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black uppercase text-red-200">Server feature selection</h2>
+            <p className="mt-1 max-w-3xl text-sm text-red-100/80">Choose the Possum systems this guild actually uses. Infrastructure will only discover, recommend, provision and monitor requirements belonging to selected systems. You can change this later.</p>
+          </div>
+          <span className="rounded-md border border-pink-800/60 px-2 py-1 text-xs text-pink-100">{selectedFeatures.length} selected</span>
+        </div>
+        {!report?.settings?.featuresConfigured ? <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-100">Choose and save this guild’s feature set before Auto-Adapt, Full Setup or Repair can run. Scanning remains read-only.</p> : <p className="mt-3 text-xs text-pink-100/70">Feature selection saved. Unselected systems are excluded from infrastructure requirements. Existing configuration and Discord resources are never deleted when a feature is turned off.</p>}
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {(["community", "moderation", "engagement", "support"] as const).map((group) => {
+            const options = (report?.featureCatalog || []).filter((feature) => feature.group === group);
+            if (!options.length) return null;
+            const title = group === "community" ? "Community" : group === "moderation" ? "Moderation & security" : group === "engagement" ? "Engagement" : "Support & administration";
+            return <div key={group} className="rounded-lg border border-red-900/40 p-3">
+              <h3 className="text-sm font-black uppercase text-pink-100">{title}</h3>
+              <div className="mt-2 space-y-2">
+                {options.map((feature) => <label key={feature.id} className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm text-red-100">
+                  <input type="checkbox" checked={selectedFeatures.includes(feature.id)} disabled={!feature.selectable || locked} onChange={(event) => setSelectedFeatures((current) => event.target.checked ? [...new Set([...current, feature.id])] : current.filter((id) => id !== feature.id))} className="mt-1 accent-red-500" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-bold">{feature.name}{feature.protected ? <span className="ml-2 text-[10px] font-normal uppercase text-amber-200">Protected flow</span> : null}</span>
+                    <span className="block text-xs text-red-100/60">{feature.description}</span>
+                  </span>
+                </label>)}
+              </div>
+            </div>;
+          })}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <ActionButton label="Save server features" tip="Save this guild’s feature selection. This changes tracking scope only and does not create or modify Discord resources." busy={busyAction === "feature-settings"} busyLabel="Saving…" locked={locked} onClick={() => post("feature-settings", { action: "settings", enabledEngines: selectedFeatures })} />
+          <span className="text-xs text-red-100/60">Protected systems remain suggestion-only. Their existing runtime and verification flows are not changed.</span>
+        </div>
+      </section>
+
+<section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
         <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
@@ -520,11 +556,11 @@ export default function InfrastructureClient() {
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
           <ActionButton label="Discovery" tip="Set the mode to discovery. Nothing is created." busy={busyAction === "discovery"} busyLabel="Saving…" locked={locked} onClick={() => post("discovery", { action: "settings", mode: "discovery" })} />
-          <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked} onClick={() => post("adapt-preview", { action: "adapt" })} />
-          <ActionButton label="Full Setup" tip="Select full-setup mode. Resources are created only after the confirmation below." busy={busyAction === "full-setup"} busyLabel="Saving…" locked={locked} onClick={() => post("full-setup", { action: "settings", mode: "full-setup" })} />
-          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
-          <ActionButton label="Confirm Full Setup" tip="Open the confirmation for creating at most five missing categories or channels." busy={false} locked={locked} onClick={() => setConfirm("setup")} />
-          <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked} onClick={() => setConfirm("repair")} />
+          <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked || featureSelectionRequired} onClick={() => post("adapt-preview", { action: "adapt" })} />
+          <ActionButton label="Full Setup" tip="Select full-setup mode. Resources are created only after the confirmation below." busy={busyAction === "full-setup"} busyLabel="Saving…" locked={locked || featureSelectionRequired} onClick={() => post("full-setup", { action: "settings", mode: "full-setup" })} />
+          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked || featureSelectionRequired} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
+          <ActionButton label="Confirm Full Setup" tip="Open the confirmation for creating at most five missing categories or channels." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("setup")} />
+          <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("repair")} />
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
           <ActionButton label="TXT" tip="Download the directory as text." busy={busyAction === "export-txt"} busyLabel="Exporting…" locked={locked} onClick={() => download("txt")} />

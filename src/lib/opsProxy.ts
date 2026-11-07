@@ -13,6 +13,40 @@ import { isDashboardControlOwner } from "@/lib/dashboardOwner";
  */
 
 const DEFAULT_AGENT_PORT = "3190";
+const MAX_AGENT_RESPONSE_BYTES = 512 * 1024;
+
+async function readAgentResponse(response: Response) {
+  const reader = response.body?.getReader();
+  if (!reader) return { text: "", oversized: false };
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let oversized = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const remaining = MAX_AGENT_RESPONSE_BYTES - total;
+      if (value.byteLength > remaining) {
+        if (remaining > 0) chunks.push(value.subarray(0, remaining));
+        total += Math.max(0, remaining);
+        oversized = true;
+        await reader.cancel().catch(() => {});
+        break;
+      }
+      chunks.push(value);
+      total += value.byteLength;
+      if (total === MAX_AGENT_RESPONSE_BYTES) {
+        const next = await reader.read();
+        if (!next.done) oversized = true;
+        break;
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  return { text: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8"), oversized };
+}
 const DEFAULT_TIMEOUT_MS = 8000;
 
 function agentBaseUrl(): string {
@@ -85,8 +119,8 @@ export async function callAgent(options: {
       cache: "no-store",
     });
 
-    const text = await response.text();
-    if (text.length > 512 * 1024) {
+    const { text, oversized } = await readAgentResponse(response);
+    if (oversized) {
       return { ok: false, status: 502, error: "Operations agent response exceeded the size limit." };
     }
     let payload: unknown = null;

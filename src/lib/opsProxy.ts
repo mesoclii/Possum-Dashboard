@@ -101,6 +101,9 @@ export async function callAgent(options: {
   if (!token) {
     return { ok: false, status: 503, error: "Operations agent is not configured (OPS_AGENT_TOKEN)" };
   }
+  if (token.length < 32) {
+    return { ok: false, status: 503, error: "OPS_AGENT_TOKEN must contain at least 32 characters." };
+  }
 
   try {
     const baseUrl = new URL(agentBaseUrl());
@@ -132,7 +135,10 @@ export async function callAgent(options: {
       }
     }
 
-    const record = (payload || {}) as { success?: boolean; data?: unknown; error?: string };
+    if (!payload || typeof payload !== "object" || typeof (payload as { success?: unknown }).success !== "boolean") {
+      return { ok: false, status: 502, error: "Operations agent returned an invalid response." };
+    }
+    const record = payload as { success?: boolean; data?: unknown; error?: string };
 
     if (!response.ok || record.success === false) {
       return { ok: false, status: response.status, error: record.error || `Agent returned HTTP ${response.status}` };

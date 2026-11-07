@@ -321,6 +321,8 @@ export default function InfrastructureClient() {
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [featuresDirty, setFeaturesDirty] = useState(false);
+  const [namesDirty, setNamesDirty] = useState(false);
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
@@ -411,8 +413,12 @@ export default function InfrastructureClient() {
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
       setReport(nextReport);
-      if (nextReport?.settings?.trackedEnginesConfigured) setSelectedFeatures(nextReport.settings.trackedEngines || []);
-      if (nextReport?.settings?.resourceNameOverrides) setNameOverrides(nextReport.settings.resourceNameOverrides);
+      if (body.action === "settings" && (Object.prototype.hasOwnProperty.call(body, "trackedEngines") || Object.prototype.hasOwnProperty.call(body, "resourceNameOverrides"))) {
+        if (nextReport?.settings?.trackedEnginesConfigured) setSelectedFeatures(nextReport.settings.trackedEngines || []);
+        setNameOverrides(nextReport?.settings?.resourceNameOverrides || {});
+        setFeaturesDirty(false);
+        setNamesDirty(false);
+      }
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
       const delta = typeof before === "number" && typeof after === "number" && before !== after
@@ -484,7 +490,7 @@ export default function InfrastructureClient() {
   }
 
   const locked = Boolean(busyAction);
-  const featureSelectionRequired = !report?.settings?.trackedEnginesConfigured;
+  const featureSelectionRequired = !report?.settings?.trackedEnginesConfigured || featuresDirty || namesDirty;
   const busyLabel = busyAction ? `Running ${busyAction.replace(/-/g, " ")}` : "";
 
   const rows = useMemo(() => {
@@ -539,7 +545,7 @@ export default function InfrastructureClient() {
               <h3 className="text-sm font-black uppercase text-pink-100">{title}</h3>
               <div className="mt-2 space-y-2">
                 {options.map((feature) => <label key={feature.id} className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm text-red-100">
-                  <input type="checkbox" checked={selectedFeatures.includes(feature.id)} disabled={!feature.selectable || locked} onChange={(event) => setSelectedFeatures((current) => event.target.checked ? [...new Set([...current, feature.id])] : current.filter((id) => id !== feature.id))} className="mt-1 accent-red-500" />
+                  <input type="checkbox" checked={selectedFeatures.includes(feature.id)} disabled={!feature.selectable || locked} onChange={(event) => { setFeaturesDirty(true); setSelectedFeatures((current) => event.target.checked ? [...new Set([...current, feature.id])] : current.filter((id) => id !== feature.id)); }} className="mt-1 accent-red-500" />
                   <span className="min-w-0 flex-1">
                     <span className="block font-bold">{feature.name}{feature.protected ? <span className="ml-2 text-[10px] font-normal uppercase text-amber-200">Protected flow</span> : null}</span>
                     <span className="block text-xs text-red-100/60">{feature.description}</span>
@@ -673,7 +679,7 @@ export default function InfrastructureClient() {
             <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">
               <p className="text-sm font-bold text-red-100">{proposal.engine}.{proposal.field}</p>
               <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
-              {proposal.status === "missing" && !proposal.protectedFlow ? <label className="mt-2 block text-xs text-pink-100/70">Proposed resource name<input value={nameOverrides[proposal.id] ?? proposal.proposedName ?? ""} onChange={(event) => setNameOverrides((current) => ({ ...current, [proposal.id]: event.target.value }))} maxLength={90} className="mt-1 w-full rounded-md border border-red-900/50 bg-black px-2 py-1 text-sm text-red-50" /></label> : null}
+              {proposal.status === "missing" && !proposal.protectedFlow ? <label className="mt-2 block text-xs text-pink-100/70">Proposed resource name<input value={nameOverrides[proposal.id] ?? proposal.proposedName ?? ""} onChange={(event) => { setNamesDirty(true); setNameOverrides((current) => ({ ...current, [proposal.id]: event.target.value })); }} maxLength={90} className="mt-1 w-full rounded-md border border-red-900/50 bg-black px-2 py-1 text-sm text-red-50" /></label> : null}
               {proposal.status === "ready" ? (
                 <ActionButton label="Approve empty field" tip="Write the suggested resource into this empty field. A populated id is not overwritten." busy={false} locked={locked} onClick={() => ask({ title: "Approve empty field", detail: `${proposal.engine}.${proposal.field} will be filled only if it is still empty.`, confirmLabel: "Approve", body: { action: "approve", proposalIds: [proposal.id] } })} />
               ) : null}

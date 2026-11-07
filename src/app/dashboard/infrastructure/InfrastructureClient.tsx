@@ -12,6 +12,7 @@ type Proposal = {
   status: string;
   reason: string;
   proposedName?: string;
+  resourceType?: string;
   suggestedName?: string;
   suggestedId?: string;
   matches?: { id: string; name: string }[];

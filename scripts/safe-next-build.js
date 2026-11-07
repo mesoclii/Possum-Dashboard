@@ -4,7 +4,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { spawnSync } = require("child_process");
+const { spawn } = require("child_process");
 
 const rootDir = path.resolve(__dirname, "..");
 const nextBin = path.join(rootDir, "node_modules", "next", "dist", "bin", "next");
@@ -30,9 +30,40 @@ const vmMode = args.has("--vm") || autoVmMode;
 const ciMode = String(process.env.CI || "").trim().toLowerCase() === "true";
 const memoryAttempts = vmMode ? [640, 768, 896] : ciMode ? [4096] : [448];
 
+let activeChild = null;
+let receivedSignal = "";
+
 function log(message) {
   process.stdout.write(`[safe-next-build] ${message}\n`);
 }
+
+function signalExitCode(signal) {
+  return signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1;
+}
+
+function forwardSignal(signal) {
+  if (receivedSignal) return;
+  receivedSignal = signal;
+  log(`Received ${signal}; stopping the active Next.js build.`);
+
+  const child = activeChild;
+  if (!child) return;
+
+  try {
+    if (process.platform !== "win32" && child.pid) {
+      process.kill(-child.pid, signal);
+    } else {
+      child.kill(signal);
+    }
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {}
+  }
+}
+
+process.on("SIGINT", () => forwardSignal("SIGINT"));
+process.on("SIGTERM", () => forwardSignal("SIGTERM"));
 
 function removeDir(targetPath) {
   if (!fs.existsSync(targetPath)) return;
@@ -69,91 +100,143 @@ function restoreBuildCache() {
   return moveDir(cacheHoldDir, targetCacheDir);
 }
 
-if (!fs.existsSync(nextBin)) {
-  log("Next.js build binary is missing. Run install before building.");
-  process.exit(1);
-}
+function runNextBuild(env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [nextBin, "build", "--webpack"], {
+      cwd: rootDir,
+      stdio: "inherit",
+      env,
+      detached: process.platform !== "win32",
+    });
+    activeChild = child;
 
-if (hostMemoryMb > 0) {
-  log(`Detected host memory: ${hostMemoryMb} MB.${autoVmMode ? " Enabling low-memory VM build mode automatically." : ""}`);
-}
+    child.once("error", (error) => {
+      if (activeChild === child) activeChild = null;
+      reject(error);
+    });
 
-const hadCachedBuildData = stashBuildCache(buildDir);
-if (hadCachedBuildData) {
-  log("Captured existing Next build cache for reuse.");
-}
+    child.once("close", (code, signal) => {
+      if (activeChild === child) activeChild = null;
+      resolve({
+        status: Number.isInteger(code) ? code : signalExitCode(signal),
+        signal: signal || null,
+      });
+    });
 
-const hadExistingBuild = moveDir(buildDir, rollbackDir, { tolerateBusy: true, label: "rollback build capture" });
-if (hadExistingBuild) {
-  log(`Moved existing build to ${path.basename(rollbackDir)} for rollback.`);
-}
-
-let buildSucceeded = false;
-let finalMemoryMb = memoryAttempts[memoryAttempts.length - 1];
-let lastStatus = 1;
-
-for (const memoryMb of memoryAttempts) {
-  finalMemoryMb = memoryMb;
-  const nodeOptions = [process.env.NODE_OPTIONS || "", `--max-old-space-size=${memoryMb}`, "--max-semi-space-size=16"]
-    .join(" ")
-    .trim();
-
-  const env = {
-    ...process.env,
-    CI: process.env.CI || "1",
-    NEXT_TELEMETRY_DISABLED: "1",
-    POSSUM_LOW_MEMORY_BUILD: vmMode ? "1" : "0",
-    POSSUM_HOST_MEMORY_MB: hostMemoryMb ? String(hostMemoryMb) : "",
-    NODE_OPTIONS: nodeOptions,
-  };
-
-  log(`Starting Next build with ${memoryMb} MB heap cap${vmMode ? " (vm mode)" : ""}.`);
-  if (restoreBuildCache()) {
-    log("Restored Next build cache.");
-  }
-  const result = spawnSync(process.execPath, [nextBin, "build", "--webpack"], {
-    cwd: rootDir,
-    stdio: "inherit",
-    env,
+    if (receivedSignal) forwardSignal(receivedSignal);
   });
+}
 
-  if (result.status === 0) {
-    buildSucceeded = true;
-    break;
-  }
-
-  lastStatus = result.status || 1;
+function restorePreviousBuild(hadExistingBuild) {
   stashBuildCache(buildDir);
   removeDir(buildDir);
-
-  const moreAttemptsRemain = vmMode && memoryMb !== memoryAttempts[memoryAttempts.length - 1];
-  if (moreAttemptsRemain) {
-    log(`Build failed at ${memoryMb} MB. Retrying with a larger heap cap.`);
-  }
-}
-
-if (!buildSucceeded) {
-  log("Build failed.");
-  removeDir(buildDir);
-  if (hadExistingBuild) {
+  if (hadExistingBuild && fs.existsSync(rollbackDir)) {
     moveDir(rollbackDir, buildDir);
     log("Restored previous .next build.");
   }
   removeDir(cacheHoldDir);
-  process.exit(lastStatus);
 }
 
-const meta = {
-  builtAt: new Date().toISOString(),
-  vmMode,
-  autoVmMode,
-  hostMemoryMb,
-  memoryMb: finalMemoryMb,
-  rollbackAvailable: fs.existsSync(rollbackDir),
-};
-fs.writeFileSync(rollbackMetaPath, JSON.stringify(meta, null, 2));
-log("Build completed successfully.");
-if (meta.rollbackAvailable) {
-  log("Previous build kept at .next.previous for rollback.");
+async function main() {
+  if (!fs.existsSync(nextBin)) {
+    log("Next.js build binary is missing. Run install before building.");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (hostMemoryMb > 0) {
+    log(`Detected host memory: ${hostMemoryMb} MB.${autoVmMode ? " Enabling low-memory VM build mode automatically." : ""}`);
+  }
+
+  const hadCachedBuildData = stashBuildCache(buildDir);
+  if (hadCachedBuildData) {
+    log("Captured existing Next build cache for reuse.");
+  }
+
+  const hadExistingBuild = moveDir(buildDir, rollbackDir, { tolerateBusy: true, label: "rollback build capture" });
+  if (hadExistingBuild) {
+    log(`Moved existing build to ${path.basename(rollbackDir)} for rollback.`);
+  }
+
+  let buildSucceeded = false;
+  let finalMemoryMb = memoryAttempts[memoryAttempts.length - 1];
+  let lastStatus = 1;
+
+  try {
+    for (const memoryMb of memoryAttempts) {
+      if (receivedSignal) break;
+      finalMemoryMb = memoryMb;
+      const nodeOptions = [process.env.NODE_OPTIONS || "", `--max-old-space-size=${memoryMb}`, "--max-semi-space-size=16"]
+        .join(" ")
+        .trim();
+
+      const env = {
+        ...process.env,
+        CI: process.env.CI || "1",
+        NEXT_TELEMETRY_DISABLED: "1",
+        POSSUM_LOW_MEMORY_BUILD: vmMode ? "1" : "0",
+        POSSUM_HOST_MEMORY_MB: hostMemoryMb ? String(hostMemoryMb) : "",
+        NODE_OPTIONS: nodeOptions,
+      };
+
+      log(`Starting Next build with ${memoryMb} MB heap cap${vmMode ? " (vm mode)" : ""}.`);
+      if (restoreBuildCache()) {
+        log("Restored Next build cache.");
+      }
+
+      const result = await runNextBuild(env);
+      if (receivedSignal || result.signal) break;
+
+      if (result.status === 0) {
+        buildSucceeded = true;
+        break;
+      }
+
+      lastStatus = result.status || 1;
+      stashBuildCache(buildDir);
+      removeDir(buildDir);
+
+      const moreAttemptsRemain = vmMode && memoryMb !== memoryAttempts[memoryAttempts.length - 1];
+      if (moreAttemptsRemain) {
+        log(`Build failed at ${memoryMb} MB. Retrying with a larger heap cap.`);
+      }
+    }
+  } catch (error) {
+    lastStatus = 1;
+    log(`Build runner failed: ${error?.stack || String(error)}`);
+  }
+
+  if (receivedSignal) {
+    log(`Build cancelled by ${receivedSignal}; restoring the previous production build.`);
+    restorePreviousBuild(hadExistingBuild);
+    process.exitCode = signalExitCode(receivedSignal);
+    return;
+  }
+
+  if (!buildSucceeded) {
+    log("Build failed.");
+    restorePreviousBuild(hadExistingBuild);
+    process.exitCode = lastStatus;
+    return;
+  }
+
+  const meta = {
+    builtAt: new Date().toISOString(),
+    vmMode,
+    autoVmMode,
+    hostMemoryMb,
+    memoryMb: finalMemoryMb,
+    rollbackAvailable: fs.existsSync(rollbackDir),
+  };
+  fs.writeFileSync(rollbackMetaPath, JSON.stringify(meta, null, 2));
+  log("Build completed successfully.");
+  if (meta.rollbackAvailable) {
+    log("Previous build kept at .next.previous for rollback.");
+  }
+  removeDir(cacheHoldDir);
 }
-removeDir(cacheHoldDir);
+
+main().catch((error) => {
+  log(`Unexpected build runner failure: ${error?.stack || String(error)}`);
+  process.exitCode = 1;
+});

@@ -532,7 +532,7 @@ export default function InfrastructureClient() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase text-red-200">Server feature selection</h2>
-            <p className="mt-1 max-w-3xl text-sm text-red-100/80">Choose the Possum systems this guild actually uses. Infrastructure will only discover, recommend, provision and monitor requirements belonging to selected systems. You can change this later.</p>
+            <p className="mt-1 max-w-3xl text-sm text-red-100/80">Choose the Possum systems this guild actually uses. Infrastructure will only discover, recommend, provision and monitor requirements belonging to selected systems. This does not switch bot engines on or off. You can change it later.</p>
           </div>
           <span className="rounded-md border border-pink-800/60 px-2 py-1 text-xs text-pink-100">{selectedFeatures.length} selected</span>
         </div>

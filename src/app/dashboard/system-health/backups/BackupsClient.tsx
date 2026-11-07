@@ -2,6 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+type EngineConfigBackup = {
+  id: string;
+  guildId: string;
+  name: string;
+  createdAt: string;
+  actorUserId: string;
+  engineCount: number;
+  featureCount: number;
+};
+
 function getGuildId() {
   if (typeof window === "undefined") return "";
   const q = new URLSearchParams(window.location.search).get("guildId") || "";
@@ -18,7 +28,20 @@ export default function BackupsPage() {
   const [engineBackupText, setEngineBackupText] = useState("");
   const [engineFilter, setEngineFilter] = useState("");
   const [engineKeys, setEngineKeys] = useState<string[]>([]);
+  const [engineConfigBackups, setEngineConfigBackups] = useState<EngineConfigBackup[]>([]);
+  const [backupName, setBackupName] = useState("");
+  const [backupAction, setBackupAction] = useState("");
   const [msg, setMsg] = useState("");
+
+  const loadEngineConfigBackups = useCallback(async () => {
+    if (!guildId) return;
+    const response = await fetch(`/api/bot/engine-config-backups?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body?.success === false) {
+      throw new Error(body?.error || "Failed to load saved engine backups.");
+    }
+    setEngineConfigBackups(Array.isArray(body.backups) ? body.backups : []);
+  }, [guildId]);
 
   const loadSnapshots = useCallback(async () => {
     const r = await fetch("/api/system/snapshots");
@@ -37,9 +60,77 @@ export default function BackupsPage() {
     const handle = window.setTimeout(() => {
       loadSnapshots().catch(() => {});
       loadEngineCatalog().catch(() => {});
+      loadEngineConfigBackups().catch((error) => setMsg(error?.message || "Failed to load saved engine backups."));
     }, 0);
     return () => window.clearTimeout(handle);
-  }, [loadEngineCatalog, loadSnapshots]);
+  }, [loadEngineCatalog, loadEngineConfigBackups, loadSnapshots]);
+
+  async function createEngineConfigBackup() {
+    if (!guildId) return;
+    try {
+      setBackupAction("create");
+      const response = await fetch("/api/bot/engine-config-backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, action: "create", name: backupName }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.error || "Failed to create a configuration backup.");
+      }
+      setBackupName("");
+      setMsg(`Saved backup "${body.backup?.name || "Configuration backup"}".`);
+      await loadEngineConfigBackups();
+    } catch (error: any) {
+      setMsg(error?.message || "Failed to create a configuration backup.");
+    } finally {
+      setBackupAction("");
+    }
+  }
+
+  async function restoreEngineConfigBackup(backup: EngineConfigBackup) {
+    if (!guildId || !window.confirm(`Restore "${backup.name}" to this server? The current configuration will first be saved as a recovery backup.`)) return;
+    try {
+      setBackupAction(backup.id);
+      const response = await fetch("/api/bot/engine-config-backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, action: "restore", backupId: backup.id }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.error || "Failed to restore the configuration backup.");
+      }
+      setMsg(`Restored "${backup.name}". A recovery backup of the previous configuration was also saved.`);
+      await loadEngineConfigBackups();
+    } catch (error: any) {
+      setMsg(error?.message || "Failed to restore the configuration backup.");
+    } finally {
+      setBackupAction("");
+    }
+  }
+
+  async function deleteEngineConfigBackup(backup: EngineConfigBackup) {
+    if (!guildId || !window.confirm(`Delete the saved backup "${backup.name}"?`)) return;
+    try {
+      setBackupAction(backup.id);
+      const response = await fetch("/api/bot/engine-config-backups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, action: "delete", backupId: backup.id }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success === false) {
+        throw new Error(body?.error || "Failed to delete the configuration backup.");
+      }
+      setMsg(`Deleted backup "${backup.name}".`);
+      await loadEngineConfigBackups();
+    } catch (error: any) {
+      setMsg(error?.message || "Failed to delete the configuration backup.");
+    } finally {
+      setBackupAction("");
+    }
+  }
 
   async function createSnapshot() {
     const r = await fetch("/api/system/snapshots", {
@@ -121,6 +212,48 @@ export default function BackupsPage() {
     <div style={{ padding: 18 }}>
       <h1 style={{ marginTop: 0 }}>Backups + Restore</h1>
       <div style={{ color: "#ff9c9c", marginBottom: 10 }}>{msg}</div>
+
+      <div style={{ marginBottom: 12, padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>
+        <h2 style={{ marginTop: 0 }}>Saved Server Configuration Backups</h2>
+        <p>Save a named copy of this server&apos;s bot engine configuration and feature toggles before changing your setup. Restoring automatically creates a recovery backup of the current settings first.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input
+            aria-label="Backup name"
+            value={backupName}
+            onChange={(event) => setBackupName(event.target.value)}
+            maxLength={100}
+            placeholder="Backup name (optional)"
+            style={{ minWidth: 240, background: "#0c0c0c", color: "#ffd7d7", border: "1px solid #5f0000", borderRadius: 8, padding: "8px 10px" }}
+          />
+          <button type="button" disabled={Boolean(backupAction) || !guildId} onClick={() => void createEngineConfigBackup()}>
+            {backupAction === "create" ? "Saving..." : "Create Server Backup"}
+          </button>
+          <button type="button" disabled={Boolean(backupAction)} onClick={() => void loadEngineConfigBackups().catch((error) => setMsg(error?.message || "Failed to load saved backups."))}>
+            Refresh Backups
+          </button>
+        </div>
+        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+          {engineConfigBackups.map((backup) => (
+            <div key={backup.id} style={{ border: "1px solid #3b2020", borderRadius: 8, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <div>
+                <strong>{backup.name}</strong>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>
+                  {new Date(backup.createdAt).toLocaleString()} · {backup.engineCount} engines · {backup.featureCount} feature settings
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" disabled={Boolean(backupAction)} onClick={() => void restoreEngineConfigBackup(backup)}>
+                  {backupAction === backup.id ? "Working..." : "Restore"}
+                </button>
+                <button type="button" disabled={Boolean(backupAction)} onClick={() => void deleteEngineConfigBackup(backup)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+          {engineConfigBackups.length === 0 ? <div>No saved full server backups yet.</div> : null}
+        </div>
+      </div>
 
       <div style={{ marginBottom: 12, padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>
         <button onClick={createSnapshot}>Create Snapshot</button>

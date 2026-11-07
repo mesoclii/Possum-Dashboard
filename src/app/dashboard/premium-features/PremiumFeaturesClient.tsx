@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import PlanTierPicker from "@/components/possum/PlanTierPicker";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
-import { buildDashboardHref, readDashboardGuildId } from "@/lib/dashboardContext";
+import { readDashboardGuildId } from "@/lib/dashboardContext";
 import { fetchGuildData } from "@/lib/liveRuntime";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 import { PRICING_FOOTNOTE, PREMIUM_FEATURES } from "@/lib/premiumCatalog";
@@ -159,7 +159,7 @@ export default function PremiumFeaturesClient() {
   return (
     <div style={{ color: "#ffd0d0", maxWidth: 1380 }}>
       <section id="premium-addons" style={{ ...card, marginBottom: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.3fr) minmax(320px,0.8fr)", gap: 18 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 18 }}>
           <div>
             <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase" }}>
               Paid Guild Features
@@ -174,7 +174,7 @@ export default function PremiumFeaturesClient() {
                 fontSize: "clamp(2rem, 4vw, 3.6rem)",
               }}
             >
-              Premium Features
+              Possum Pro
             </h1>
             <p style={{ color: "#ffb5b5", lineHeight: 1.7, maxWidth: 860 }}>
               This page only lists paid guild add-ons, plan pricing, and master-owner trial controls. Standard features
@@ -387,24 +387,6 @@ export default function PremiumFeaturesClient() {
               <div style={{ color: "#ffd0d0", lineHeight: 1.65, marginTop: 10 }}>{feature.summary}</div>
               <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 10 }}>Included in: {feature.includedIn.join(", ")}</div>
               <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>{feature.pricingNote}</div>
-              <Link
-                href={buildDashboardHref(feature.route)}
-                style={{
-                  display: "inline-block",
-                  textDecoration: "none",
-                  marginTop: 14,
-                  borderRadius: 12,
-                  border: "1px solid rgba(255,0,0,.45)",
-                  padding: "10px 14px",
-                  fontWeight: 900,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "#ffd7d7",
-                  background: "#130707",
-                }}
-              >
-                Open
-              </Link>
             </div>
           ))}
         </div>
@@ -476,4 +458,3 @@ export default function PremiumFeaturesClient() {
     </div>
   );
 }
-

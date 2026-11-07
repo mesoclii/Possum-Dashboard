@@ -40,8 +40,9 @@ type DashboardSection =
   | "Social Alerts"
   | "Security"
   | "Economy"
+  | "Gaming"
   | "Fun + Games"
-  | "Premium";
+  | "Possum Pro";
 
 const SECTION_ORDER: DashboardSection[] = [
   "Guild Control",
@@ -50,8 +51,9 @@ const SECTION_ORDER: DashboardSection[] = [
   "Social Alerts",
   "Security",
   "Economy",
+  "Gaming",
   "Fun + Games",
-  "Premium",
+  "Possum Pro",
 ];
 
 function readBoolPath(input: unknown, path: string[], fallback = false): boolean {
@@ -361,15 +363,6 @@ function getCardSection(card: Card): DashboardSection {
     return "Security";
   }
   if (
-    href === "/dashboard/premium-features" ||
-    href === "/dashboard/heist" ||
-    href === "/dashboard/tts" ||
-    href === "/dashboard/ai/persona" ||
-    href === "/dashboard/ai/openai-platform"
-  ) {
-    return "Premium";
-  }
-  if (
     href === "/dashboard/economy" ||
     href.startsWith("/dashboard/economy/") ||
     href === "/dashboard/prestige" ||
@@ -382,6 +375,21 @@ function getCardSection(card: Card): DashboardSection {
   }
   if (
     href === "/dashboard/games" ||
+    href === "/dashboard/games/wilds" ||
+    href === "/dashboard/wow"
+  ) {
+    return "Gaming";
+  }
+  if (
+    href === "/dashboard/premium-features" ||
+    href === "/dashboard/heist" ||
+    href === "/dashboard/tts" ||
+    href === "/dashboard/ai/persona" ||
+    href === "/dashboard/ai/openai-platform"
+  ) {
+    return "Possum Pro";
+  }
+  if (
     href === "/dashboard/crew" ||
     href === "/dashboard/dominion" ||
     href === "/dashboard/contracts" ||
@@ -566,7 +574,7 @@ const CARDS: Card[] = [
   { href: "/dashboard/failsafe", title: "Failsafe", description: "Emergency pause and safety switches.", toggle: engineController("failsafe") },
   { href: "/dashboard/system-health", title: "System Health", description: "Runtime monitor, drift and health checks.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/master", title: "Master Control", description: "Creator-only global view for guild coverage, route counts, and what is set where.", goOnly: true, goLabel: "Open", creatorOnly: true },
-  { href: "/dashboard/premium-features", title: "Premium Features", description: "Plan state, paid add-ons, and owner trial controls.", goOnly: true, goLabel: "Go" },
+  { href: "/dashboard/premium-features", title: "Possum Pro", description: "Plan state, paid add-ons, and owner trial controls.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/heist", title: "Heist", description: "Heist signup engine controls.", toggle: engineController("heist", ["active"]), premiumRequired: true },
   { href: "/dashboard/tts", title: "TTS", description: "Voice route and TTS runtime control.", toggle: engineController("tts", ["enabled"]), premiumRequired: true },
   { href: "/dashboard/ai/persona", title: "Persona AI", description: "Hosted persona runtime, photos, triggers, and roster controls.", goOnly: true, goLabel: "Go", premiumRequired: true },
@@ -782,17 +790,17 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
         <h2 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red possum-glow">{navGroup ? navGroup.label : "Guild Dashboard"}</h2>
         {navGroup ? (
           <p className="mt-2 text-sm text-red-200/80">
-            Live status for everything in {navGroup.label}. Use the toggles to switch features on or off, or click a card to open its settings.
+            Live status for everything in {navGroup.label}. Use a toggle to switch a feature on or off, or open a card to view its settings.
           </p>
         ) : null}
         {groupSlug && !navGroup ? <p className="mt-2 text-sm text-red-200/80">That group does not exist.</p> : null}
         <p className="mt-2 text-sm text-red-200/80" hidden={Boolean(groupSlug)}>
           {guildId === SAVIORS_GUILD_ID
             ? "Saviors baseline stays intact until you explicitly toggle something."
-            : "Cards are grouped by live engine category. Use toggles here to turn engines on or off for the active guild without leaving the dashboard. Studio/editor pages open directly with Go."}
+            : "Cards are grouped by live engine category. Use toggles here to turn engines on or off for the active guild without leaving the dashboard. Open a card to view its settings."}
         </p>
         <p className="mt-2 text-xs uppercase tracking-[0.14em] text-red-300/70">
-          Premium access: {!premiumEnforced ? "Disabled - all guilds currently run unlocked" : subscription?.developerBypass ? "Developer Override" : subscription?.plan || "Free"}
+          Possum Pro access: {!premiumEnforced ? "Disabled - all guilds currently run unlocked" : subscription?.developerBypass ? "Developer Override" : subscription?.plan || "Free"}
         </p>
       </header>
 
@@ -813,13 +821,6 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
                   <Link href={card.href} prefetch={false} className="min-w-0 flex-1">
                     <h3 className="text-base font-extrabold uppercase tracking-[0.06em] possum-red">{card.title}</h3>
                     <p className="mt-1 text-sm text-red-200/75">{card.description}</p>
-                  </Link>
-                  <Link
-                    href={card.href}
-                    prefetch={false}
-                    className="rounded-lg border border-red-600/60 bg-black/50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-red-200"
-                  >
-                    {card.goLabel || "Go"}
                   </Link>
                 </div>
               </div>
@@ -875,18 +876,9 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
 
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         {card.goOnly ? (
-                          <>
-                            <span className={lockedPremium ? "rounded-full border border-pink-400/60 bg-pink-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-pink-200" : "rounded-full border border-red-600/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-200/75"}>
-                              {lockedPremium ? "Premium" : "Editor"}
-                            </span>
-                            <Link
-                              href={card.href}
-                              prefetch={false}
-                              className="rounded-lg border border-red-600/60 bg-black/50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-red-200"
-                            >
-                              {card.goLabel || "Go"}
-                            </Link>
-                          </>
+                          <span className={lockedPremium ? "rounded-full border border-pink-400/60 bg-pink-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-pink-200" : "rounded-full border border-red-600/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-200/75"}>
+                            {lockedPremium ? "Possum Pro" : "Editor"}
+                          </span>
                         ) : (
                           <>
                             <span className={pillClass(state.value)}>{statusLabel}</span>
@@ -896,7 +888,7 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
                               disabled={!guildId || !card.toggle || toggleSaving || toggleLoading || lockedPremium}
                               className="rounded-lg border border-red-600/60 bg-black/50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              {toggleSaving ? "Saving" : toggleLoading ? "Loading" : lockedPremium ? "Premium" : state.value ? "Turn Off" : "Turn On"}
+                              {toggleSaving ? "Saving" : toggleLoading ? "Loading" : lockedPremium ? "Possum Pro" : state.value ? "Turn Off" : "Turn On"}
                             </button>
                           </>
                         )}

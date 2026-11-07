@@ -294,7 +294,7 @@ export default function HallOfFameClient() {
                 checked={config.allowSelfStar}
                 onChange={(e) => setConfig((prev) => ({ ...prev, allowSelfStar: e.target.checked }))}
               />{" "}
-              Count the message author's own star
+              Count the message author&apos;s own star
             </label>
           </section>
 

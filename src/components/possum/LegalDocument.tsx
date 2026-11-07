@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 export type LegalSection = { title: string; body: ReactNode };
 
@@ -24,9 +25,9 @@ export default function LegalDocument({
       }}
     >
       <article style={{ maxWidth: 820, margin: "0 auto", lineHeight: 1.7 }}>
-        <a href="/" style={{ color: "#ff6b6b", textDecoration: "none", fontSize: 14 }}>
+        <Link href="/" style={{ color: "#ff6b6b", textDecoration: "none", fontSize: 14 }}>
           &larr; Back to Possum Bot
-        </a>
+        </Link>
         <h1 style={{ fontSize: 36, margin: "18px 0 6px", letterSpacing: 0.5 }}>{title}</h1>
         <p style={{ color: "#aaa", margin: "0 0 22px", fontSize: 14 }}>Last updated: {updated}</p>
         <p style={{ color: "#ddd" }}>{intro}</p>

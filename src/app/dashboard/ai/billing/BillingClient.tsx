@@ -102,7 +102,7 @@ export default function BillingClient() {
       {data ? (
         <>
           {!data.billingActive ? (
-            <div style={card}>AI billing isn't switched on yet, so the existing free AI limits still apply. Credits can't be bought until it is.</div>
+            <div style={card}>AI billing isn&apos;t switched on yet, so the existing free AI limits still apply. Credits can&apos;t be bought until it is.</div>
           ) : null}
 
           <div style={card}>

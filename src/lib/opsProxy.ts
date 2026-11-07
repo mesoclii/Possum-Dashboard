@@ -89,7 +89,9 @@ export async function callAgent(options: {
       return { ok: false, status: response.status, error: record.error || `Agent returned HTTP ${response.status}` };
     }
 
-    return { ok: true, status: 200, data: record.data };
+    // The agent's v1 endpoints return their payload at the top level. Accept
+    // both that contract and the older { data: ... } envelope.
+    return { ok: true, status: 200, data: record.data !== undefined ? record.data : payload };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const offline = message.includes("ECONNREFUSED") || message.includes("fetch failed");

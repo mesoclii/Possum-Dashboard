@@ -43,13 +43,17 @@ export async function GET(request: NextRequest) {
     const key = service.id === "possum-bot" ? "bot" : service.id === "possum-dashboard" ? "dashboard" : service.id === "game-provider-bridge" ? "bridge" : service.id;
     http[key] = service.http || {};
   }
+  const botProbe = sourceServices.find((service: any) => service.id === "possum-bot")?.http;
+  const gateway = typeof botProbe?.discordReady === "boolean"
+    ? { state: botProbe.discordReady ? "ready" : "disconnected", durationMs: 0 }
+    : null;
   return NextResponse.json({
     success: true,
     data: {
       agent: { uptimeSec: raw.agent?.startedAt ? Math.max(0, (Date.now() - Date.parse(raw.agent.startedAt)) / 1000) : 0, ticks: raw.agent?.lastCheckAt ? 1 : 0, lastTickAt: raw.agent?.lastCheckAt || null, lastError: null },
       host: hostView,
-      gateway: null,
-      pm2: { ok: Array.isArray(raw.pm2), error: null },
+      gateway,
+      pm2: { ok: Array.isArray(raw.pm2) && raw.pm2.length > 0, error: Array.isArray(raw.pm2) && raw.pm2.length > 0 ? null : "PM2 returned no processes" },
       services,
       http,
       incidents,

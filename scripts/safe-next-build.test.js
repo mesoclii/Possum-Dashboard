@@ -20,7 +20,9 @@ test("successful build promotes staged output and keeps the previous build for r
   fs.mkdirSync(scriptsDir, { recursive: true });
   fs.mkdirSync(path.dirname(nextBin), { recursive: true });
   fs.mkdirSync(buildDir, { recursive: true });
+  fs.mkdirSync(path.join(buildDir, "cache", "webpack"), { recursive: true });
   fs.writeFileSync(path.join(buildDir, "production.marker"), "previous production build");
+  fs.writeFileSync(path.join(buildDir, "cache", "webpack", "cache.marker"), "existing webpack cache");
   fs.writeFileSync(nextEnvPath, "original next env");
   fs.writeFileSync(tsconfigPath, "original tsconfig");
   fs.copyFileSync(path.join(__dirname, "safe-next-build.js"), runnerPath);
@@ -30,6 +32,8 @@ test("successful build promotes staged output and keeps the previous build for r
     'const path = require("node:path");',
     'const distDir = path.join(process.cwd(), process.env.POSSUM_NEXT_DIST_DIR || ".next");',
     'fs.mkdirSync(distDir, { recursive: true });',
+    'const cacheMarker = path.join(distDir, "cache", "webpack", "cache.marker");',
+    'if (fs.existsSync(cacheMarker)) fs.writeFileSync(path.join(distDir, "cache-reused.marker"), "reused");',
     'fs.writeFileSync(path.join(distDir, "BUILD_ID"), "new-build");',
     'fs.writeFileSync(path.join(process.cwd(), "next-env.d.ts"), "generated next env");',
     'fs.writeFileSync(path.join(process.cwd(), "tsconfig.json"), "generated tsconfig");',
@@ -48,6 +52,8 @@ test("successful build promotes staged output and keeps the previous build for r
 
     assert.deepEqual(result, { code: 0, signal: null });
     assert.equal(fs.readFileSync(path.join(buildDir, "BUILD_ID"), "utf8"), "new-build");
+    assert.equal(fs.readFileSync(path.join(buildDir, "cache-reused.marker"), "utf8"), "reused");
+    assert.equal(fs.readFileSync(path.join(buildDir, "cache", "webpack", "cache.marker"), "utf8"), "existing webpack cache");
     assert.equal(fs.readFileSync(path.join(root, ".next.previous", "production.marker"), "utf8"), "previous production build");
     assert.equal(fs.readFileSync(nextEnvPath, "utf8"), "original next env");
     assert.equal(fs.readFileSync(tsconfigPath, "utf8"), "original tsconfig");

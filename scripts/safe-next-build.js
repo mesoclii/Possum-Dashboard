@@ -71,6 +71,16 @@ function removeDir(targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 
+function seedBuildCache() {
+  const source = path.join(buildDir, "cache");
+  if (!fs.existsSync(source)) {
+    log("No existing Next.js build cache found; this build will create one.");
+    return;
+  }
+  fs.cpSync(source, path.join(stagingDir, "cache"), { recursive: true, force: true });
+  log("Reusing the existing Next.js build cache.");
+}
+
 function snapshotBuildConfig() {
   return ["next-env.d.ts", "tsconfig.json"].map((name) => {
     const filePath = path.join(rootDir, name);
@@ -163,6 +173,7 @@ async function main() {
   }
 
   removeDir(stagingDir);
+  seedBuildCache();
   const buildConfigSnapshot = snapshotBuildConfig();
 
   let buildSucceeded = false;

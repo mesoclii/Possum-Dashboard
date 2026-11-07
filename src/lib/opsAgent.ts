@@ -30,14 +30,13 @@ export async function opsAgentRequest(path: string, init: RequestInit = {}) {
     return { ok: false, status: 500, body: { success: false, error: "Invalid operations agent configuration." } };
   }
   try {
+    const headers = new Headers(init.headers);
+    headers.set("accept", "application/json");
+    headers.set("authorization", `Bearer ${token}`);
+    if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
     const response = await fetch(url, {
       ...init,
-      headers: {
-        accept: "application/json",
-        authorization: `Bearer ${token}`,
-        ...(init.body ? { "content-type": "application/json" } : {}),
-        ...init.headers,
-      },
+      headers,
       cache: "no-store",
       signal: AbortSignal.timeout(6000),
     });

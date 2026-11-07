@@ -13,6 +13,40 @@ import { isDashboardControlOwner } from "@/lib/dashboardOwner";
  */
 
 const DEFAULT_AGENT_PORT = "3190";
+const MAX_AGENT_RESPONSE_BYTES = 512 * 1024;
+
+async function readAgentResponse(response: Response) {
+  const reader = response.body?.getReader();
+  if (!reader) return { text: "", oversized: false };
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let oversized = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const remaining = MAX_AGENT_RESPONSE_BYTES - total;
+      if (value.byteLength > remaining) {
+        if (remaining > 0) chunks.push(value.subarray(0, remaining));
+        total += Math.max(0, remaining);
+        oversized = true;
+        await reader.cancel().catch(() => {});
+        break;
+      }
+      chunks.push(value);
+      total += value.byteLength;
+      if (total === MAX_AGENT_RESPONSE_BYTES) {
+        const next = await reader.read();
+        if (!next.done) oversized = true;
+        break;
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  return { text: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8"), oversized };
+}
 const DEFAULT_TIMEOUT_MS = 8000;
 
 function agentBaseUrl(): string {
@@ -67,6 +101,9 @@ export async function callAgent(options: {
   if (!token) {
     return { ok: false, status: 503, error: "Operations agent is not configured (OPS_AGENT_TOKEN)" };
   }
+  if (token.length < 32) {
+    return { ok: false, status: 503, error: "OPS_AGENT_TOKEN must contain at least 32 characters." };
+  }
 
   try {
     const baseUrl = new URL(agentBaseUrl());
@@ -85,8 +122,8 @@ export async function callAgent(options: {
       cache: "no-store",
     });
 
-    const text = await response.text();
-    if (text.length > 512 * 1024) {
+    const { text, oversized } = await readAgentResponse(response);
+    if (oversized) {
       return { ok: false, status: 502, error: "Operations agent response exceeded the size limit." };
     }
     let payload: unknown = null;
@@ -98,15 +135,16 @@ export async function callAgent(options: {
       }
     }
 
-    const record = (payload || {}) as { success?: boolean; data?: unknown; error?: string };
+    if (!payload || typeof payload !== "object" || typeof (payload as { success?: unknown }).success !== "boolean") {
+      return { ok: false, status: 502, error: "Operations agent returned an invalid response." };
+    }
+    const record = payload as { success?: boolean; data?: unknown; error?: string };
 
     if (!response.ok || record.success === false) {
       return { ok: false, status: response.status, error: record.error || `Agent returned HTTP ${response.status}` };
     }
 
-    // The agent's v1 endpoints return their payload at the top level. Accept
-    // both that contract and the older { data: ... } envelope.
-    return { ok: true, status: 200, data: record.data !== undefined ? record.data : payload };
+    return { ok: true, status: 200, data: record.data };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const offline = message.includes("ECONNREFUSED") || message.includes("fetch failed");

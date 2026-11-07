@@ -535,7 +535,8 @@ export default function InfrastructureClient() {
           </div>
           <span className="rounded-md border border-pink-800/60 px-2 py-1 text-xs text-pink-100">{selectedFeatures.length} selected</span>
         </div>
-        {!report?.settings?.featuresConfigured ? <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-100">Choose and save this guild’s feature set before Auto-Adapt, Full Setup or Repair can run. Scanning remains read-only.</p> : <p className="mt-3 text-xs text-pink-100/70">Feature selection saved. Unselected systems are excluded from infrastructure requirements. Existing configuration and Discord resources are never deleted when a feature is turned off.</p>}
+        {!report?.settings?.trackedEnginesConfigured ? <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-100">Choose and save this guild’s feature set before Auto-Adapt, Full Setup or Repair can run. Scanning remains read-only.</p> : <p className="mt-3 text-xs text-pink-100/70">Feature selection saved. Unselected systems are excluded from infrastructure requirements. Existing configuration and Discord resources are never deleted when a feature is turned off.</p>}
+        {featuresDirty || namesDirty ? <p className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-100">You have unsaved feature or naming changes. Save them before running setup, Auto-Adapt or Repair.</p> : null}
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {(["community", "moderation", "engagement", "support"] as const).map((group) => {
             const options = (report?.featureCatalog || []).filter((feature) => feature.group === group);

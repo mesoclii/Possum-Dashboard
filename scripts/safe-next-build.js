@@ -41,14 +41,8 @@ function signalExitCode(signal) {
   return signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1;
 }
 
-function forwardSignal(signal) {
-  if (receivedSignal) return;
-  receivedSignal = signal;
-  log(`Received ${signal}; stopping the active Next.js build.`);
-
-  const child = activeChild;
+function signalChild(child, signal) {
   if (!child) return;
-
   try {
     if (process.platform !== "win32" && child.pid) {
       process.kill(-child.pid, signal);
@@ -60,6 +54,13 @@ function forwardSignal(signal) {
       child.kill(signal);
     } catch {}
   }
+}
+
+function forwardSignal(signal) {
+  if (receivedSignal) return;
+  receivedSignal = signal;
+  log(`Received ${signal}; stopping the active Next.js build.`);
+  signalChild(activeChild, signal);
 }
 
 process.on("SIGINT", () => forwardSignal("SIGINT"));
@@ -123,7 +124,7 @@ function runNextBuild(env) {
       });
     });
 
-    if (receivedSignal) forwardSignal(receivedSignal);
+    if (receivedSignal) signalChild(child, receivedSignal);
   });
 }
 

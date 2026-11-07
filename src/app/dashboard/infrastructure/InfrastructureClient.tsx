@@ -683,7 +683,8 @@ export default function InfrastructureClient() {
         <div className="mt-3 space-y-2">
           {(report?.proposals || []).filter((proposal) => proposal.status !== "populated").slice(0, 40).map((proposal) => (
             <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">
-              <p className="text-sm font-bold text-red-100">{proposal.engine}.{proposal.field}</p>
+              <p className="text-sm font-bold text-red-100">{proposal.engineLabel || proposal.engine}.{proposal.field}</p>
+              {proposal.intendedName ? <p className="text-xs text-pink-100/70">Intended destination: {proposal.intendedName}</p> : null}
               <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
               {proposal.status === "missing" && !proposal.protectedFlow ? <label className="mt-2 block text-xs text-pink-100/70">Proposed resource name<input value={nameOverrides[proposal.id] ?? proposal.proposedName ?? ""} onChange={(event) => { setNamesDirty(true); setNameOverrides((current) => ({ ...current, [proposal.id]: event.target.value })); }} maxLength={90} className="mt-1 w-full rounded-md border border-red-900/50 bg-black px-2 py-1 text-sm text-red-50" /></label> : null}
               {proposal.status === "ready" ? (

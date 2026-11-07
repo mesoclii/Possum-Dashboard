@@ -7,16 +7,13 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const auth = await requireOpsOwner(request);
   if (auth.response) return auth.response;
+
   const result = await opsAgentRequest("/v1/alerts/config");
   if (!result.ok) return opsError(result);
-  const config = result.body?.config || {};
-  return NextResponse.json({
-    success: true,
-    data: {
-      webhookConfigured: Boolean(config.webhookConfigured),
-      alertRepeatMs: Number(config.repeatMs || 0),
-      maxDeliveryAttempts: null,
-      delivery: { pending: 0 },
-    },
-  });
+
+  const data = result.body?.data;
+  if (!data || typeof data !== "object") {
+    return NextResponse.json({ success: false, error: "Operations agent returned invalid alert configuration." }, { status: 502 });
+  }
+  return NextResponse.json({ success: true, data });
 }

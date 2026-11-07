@@ -9,8 +9,8 @@ const { spawn } = require("child_process");
 const rootDir = path.resolve(__dirname, "..");
 const nextBin = path.join(rootDir, "node_modules", "next", "dist", "bin", "next");
 const buildDir = path.join(rootDir, ".next");
+const stagingDir = path.join(rootDir, ".next.building");
 const rollbackDir = path.join(rootDir, ".next.previous");
-const cacheHoldDir = path.join(rootDir, ".next.cache.hold");
 const rollbackMetaPath = path.join(rootDir, ".next.rollback.json");
 const args = new Set(process.argv.slice(2));
 
@@ -28,7 +28,7 @@ const hostMemoryMb = detectHostMemoryMb();
 const autoVmMode = args.has("--auto") && hostMemoryMb > 0 && hostMemoryMb <= 1536;
 const vmMode = args.has("--vm") || autoVmMode;
 const ciMode = String(process.env.CI || "").trim().toLowerCase() === "true";
-const memoryAttempts = vmMode ? [640, 768, 896] : ciMode ? [4096] : [448];
+const memoryAttempts = vmMode ? [640] : ciMode ? [4096] : [448];
 
 let activeChild = null;
 let receivedSignal = "";
@@ -71,6 +71,26 @@ function removeDir(targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
 
+function snapshotBuildConfig() {
+  return ["next-env.d.ts", "tsconfig.json"].map((name) => {
+    const filePath = path.join(rootDir, name);
+    return {
+      filePath,
+      content: fs.existsSync(filePath) ? fs.readFileSync(filePath) : null,
+    };
+  });
+}
+
+function restoreBuildConfig(snapshot) {
+  for (const { filePath, content } of snapshot) {
+    if (content === null) {
+      if (fs.existsSync(filePath)) fs.rmSync(filePath);
+    } else {
+      fs.writeFileSync(filePath, content);
+    }
+  }
+}
+
 function moveDir(fromPath, toPath, options = {}) {
   if (!fs.existsSync(fromPath)) return false;
   const { tolerateBusy = false, label = "path move" } = options;
@@ -86,19 +106,6 @@ function moveDir(fromPath, toPath, options = {}) {
     }
     throw err;
   }
-}
-
-function stashBuildCache(fromBuildDir) {
-  const cacheDir = path.join(fromBuildDir, "cache");
-  if (!fs.existsSync(cacheDir)) return false;
-  return moveDir(cacheDir, cacheHoldDir, { tolerateBusy: true, label: "build-cache capture" });
-}
-
-function restoreBuildCache() {
-  if (!fs.existsSync(cacheHoldDir)) return false;
-  const targetCacheDir = path.join(buildDir, "cache");
-  fs.mkdirSync(buildDir, { recursive: true });
-  return moveDir(cacheHoldDir, targetCacheDir);
 }
 
 function runNextBuild(env) {
@@ -128,14 +135,20 @@ function runNextBuild(env) {
   });
 }
 
-function restorePreviousBuild(hadExistingBuild) {
-  stashBuildCache(buildDir);
-  removeDir(buildDir);
-  if (hadExistingBuild && fs.existsSync(rollbackDir)) {
-    moveDir(rollbackDir, buildDir);
-    log("Restored previous .next build.");
+function promoteStagedBuild() {
+  removeDir(rollbackDir);
+  const hadExistingBuild = moveDir(buildDir, rollbackDir);
+  try {
+    if (!moveDir(stagingDir, buildDir)) {
+      throw new Error("Staged Next build is missing and cannot be promoted.");
+    }
+  } catch (error) {
+    if (hadExistingBuild && !fs.existsSync(buildDir)) {
+      moveDir(rollbackDir, buildDir);
+      log("Restored previous .next build after promotion failed.");
+    }
+    throw error;
   }
-  removeDir(cacheHoldDir);
 }
 
 async function main() {
@@ -149,15 +162,8 @@ async function main() {
     log(`Detected host memory: ${hostMemoryMb} MB.${autoVmMode ? " Enabling low-memory VM build mode automatically." : ""}`);
   }
 
-  const hadCachedBuildData = stashBuildCache(buildDir);
-  if (hadCachedBuildData) {
-    log("Captured existing Next build cache for reuse.");
-  }
-
-  const hadExistingBuild = moveDir(buildDir, rollbackDir, { tolerateBusy: true, label: "rollback build capture" });
-  if (hadExistingBuild) {
-    log(`Moved existing build to ${path.basename(rollbackDir)} for rollback.`);
-  }
+  removeDir(stagingDir);
+  const buildConfigSnapshot = snapshotBuildConfig();
 
   let buildSucceeded = false;
   let finalMemoryMb = memoryAttempts[memoryAttempts.length - 1];
@@ -177,25 +183,26 @@ async function main() {
         NEXT_TELEMETRY_DISABLED: "1",
         POSSUM_LOW_MEMORY_BUILD: vmMode ? "1" : "0",
         POSSUM_HOST_MEMORY_MB: hostMemoryMb ? String(hostMemoryMb) : "",
+        POSSUM_NEXT_DIST_DIR: path.basename(stagingDir),
         NODE_OPTIONS: nodeOptions,
       };
 
       log(`Starting Next build with ${memoryMb} MB heap cap${vmMode ? " (vm mode)" : ""}.`);
-      if (restoreBuildCache()) {
-        log("Restored Next build cache.");
-      }
-
       const result = await runNextBuild(env);
+      restoreBuildConfig(buildConfigSnapshot);
       if (receivedSignal || result.signal) break;
 
       if (result.status === 0) {
+        const buildIdPath = path.join(stagingDir, "BUILD_ID");
+        if (!fs.existsSync(buildIdPath) || !fs.readFileSync(buildIdPath, "utf8").trim()) {
+          throw new Error("Next build succeeded but the staged BUILD_ID is missing.");
+        }
         buildSucceeded = true;
         break;
       }
 
       lastStatus = result.status || 1;
-      stashBuildCache(buildDir);
-      removeDir(buildDir);
+      removeDir(stagingDir);
 
       const moreAttemptsRemain = vmMode && memoryMb !== memoryAttempts[memoryAttempts.length - 1];
       if (moreAttemptsRemain) {
@@ -203,22 +210,30 @@ async function main() {
       }
     }
   } catch (error) {
+    restoreBuildConfig(buildConfigSnapshot);
     lastStatus = 1;
     log(`Build runner failed: ${error?.stack || String(error)}`);
   }
 
   if (receivedSignal) {
-    log(`Build cancelled by ${receivedSignal}; restoring the previous production build.`);
-    restorePreviousBuild(hadExistingBuild);
+    log(`Build cancelled by ${receivedSignal}; keeping the current production build.`);
+    removeDir(stagingDir);
     process.exitCode = signalExitCode(receivedSignal);
     return;
   }
 
   if (!buildSucceeded) {
     log("Build failed.");
-    restorePreviousBuild(hadExistingBuild);
+    removeDir(stagingDir);
     process.exitCode = lastStatus;
     return;
+  }
+
+  try {
+    promoteStagedBuild();
+  } catch (error) {
+    removeDir(stagingDir);
+    throw error;
   }
 
   const meta = {
@@ -234,7 +249,6 @@ async function main() {
   if (meta.rollbackAvailable) {
     log("Previous build kept at .next.previous for rollback.");
   }
-  removeDir(cacheHoldDir);
 }
 
 main().catch((error) => {

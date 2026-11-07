@@ -3,8 +3,10 @@ import type { NextConfig } from "next";
 
 const rootDir = path.resolve(__dirname);
 const isLowMemoryBuild = process.env.POSSUM_LOW_MEMORY_BUILD === "1";
+const distDir = process.env.POSSUM_NEXT_DIST_DIR || ".next";
 
 const nextConfig: NextConfig = {
+  distDir,
   productionBrowserSourceMaps: false,
   poweredByHeader: false,
   compress: true,

@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
   const severity = String(request.nextUrl.searchParams.get("severity") || "");
   const limit = Math.max(1, Math.min(500, Number(request.nextUrl.searchParams.get("limit") || 200)));
   const query = new URLSearchParams({ limit: String(limit) });
-  if (SOURCES.has(source)) query.set("kind", source);
+  const sourceAliases: Record<string, string> = { "dash-out": "dashboard-out", "dash-error": "dashboard-error" };
+  const normalizedSource = sourceAliases[source] || source;
+  if (SOURCES.has(normalizedSource)) query.set("kind", normalizedSource);
   const result = await opsAgentRequest(`/v1/logs?${query.toString()}`);
   if (!result.ok) return opsError(result);
   const lines = (Array.isArray(result.body?.logs) ? result.body.logs : [])

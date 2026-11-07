@@ -42,7 +42,7 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
-  settings?: { mode: string; repairEnabled: boolean; featuresConfigured?: boolean; enabledEngines?: string[] };
+  settings?: { mode: string; repairEnabled: boolean; featuresConfigured?: boolean; enabledEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
@@ -321,6 +321,7 @@ export default function InfrastructureClient() {
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
@@ -363,6 +364,7 @@ export default function InfrastructureClient() {
         if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
         setReport(json.report || null);
         setSelectedFeatures(json.report?.settings?.enabledEngines || []);
+        setNameOverrides(json.report?.settings?.resourceNameOverrides || {});
       })
       .catch((error: unknown) => notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed"));
   }, []);
@@ -410,6 +412,7 @@ export default function InfrastructureClient() {
       const nextReport = refreshed.report || json.report || null;
       setReport(nextReport);
       if (nextReport?.settings?.featuresConfigured) setSelectedFeatures(nextReport.settings.enabledEngines || []);
+      if (nextReport?.settings?.resourceNameOverrides) setNameOverrides(nextReport.settings.resourceNameOverrides);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
       const delta = typeof before === "number" && typeof after === "number" && before !== after
@@ -547,7 +550,7 @@ export default function InfrastructureClient() {
           })}
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <ActionButton label="Save server features" tip="Save this guild’s feature selection. This changes tracking scope only and does not create or modify Discord resources." busy={busyAction === "feature-settings"} busyLabel="Saving…" locked={locked} onClick={() => post("feature-settings", { action: "settings", enabledEngines: selectedFeatures })} />
+          <ActionButton label="Save features & names" tip="Save this guild’s feature selection. This changes tracking scope only and does not create or modify Discord resources." busy={busyAction === "feature-settings"} busyLabel="Saving…" locked={locked} onClick={() => post("feature-settings", { action: "settings", enabledEngines: selectedFeatures, resourceNameOverrides: nameOverrides })} />
           <span className="text-xs text-red-100/60">Protected systems remain suggestion-only. Their existing runtime and verification flows are not changed.</span>
         </div>
       </section>
@@ -670,6 +673,7 @@ export default function InfrastructureClient() {
             <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">
               <p className="text-sm font-bold text-red-100">{proposal.engine}.{proposal.field}</p>
               <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
+              {proposal.status === "missing" && !proposal.protectedFlow ? <label className="mt-2 block text-xs text-pink-100/70">Proposed resource name<input value={nameOverrides[proposal.id] ?? proposal.proposedName ?? ""} onChange={(event) => setNameOverrides((current) => ({ ...current, [proposal.id]: event.target.value }))} maxLength={90} className="mt-1 w-full rounded-md border border-red-900/50 bg-black px-2 py-1 text-sm text-red-50" /></label> : null}
               {proposal.status === "ready" ? (
                 <ActionButton label="Approve empty field" tip="Write the suggested resource into this empty field. A populated id is not overwritten." busy={false} locked={locked} onClick={() => ask({ title: "Approve empty field", detail: `${proposal.engine}.${proposal.field} will be filled only if it is still empty.`, confirmLabel: "Approve", body: { action: "approve", proposalIds: [proposal.id] } })} />
               ) : null}

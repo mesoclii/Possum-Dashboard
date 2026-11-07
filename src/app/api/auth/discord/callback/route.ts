@@ -4,7 +4,7 @@ import { buildDashboardUrl } from "@/lib/dashboardUrl";
 import {
   exchangeDiscordCode,
   fetchDiscordUser,
-  isDiscordOauthConfigured,
+  getDiscordOauthConfigurationIssue,
 } from "@/lib/discordOAuth";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import {
@@ -26,12 +26,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (!isDiscordOauthConfigured() || !isDashboardSessionConfigured()) {
+  const oauthIssue = getDiscordOauthConfigurationIssue();
+  if (oauthIssue || !isDashboardSessionConfigured()) {
     return NextResponse.json(
-      {
-        success: false,
-        error: "Discord OAuth/session env values are not configured.",
-      },
+      { success: false, error: oauthIssue || "SESSION_SECRET is not configured on the dashboard." },
       { status: 500 }
     );
   }

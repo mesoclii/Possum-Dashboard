@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildDiscordOauthUrl, isDiscordOauthConfigured } from "@/lib/discordOAuth";
+import { buildDiscordOauthUrl, getDiscordOauthConfigurationIssue } from "@/lib/discordOAuth";
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import {
@@ -20,14 +20,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (!isDiscordOauthConfigured()) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Discord OAuth is not configured. Add DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, and DISCORD_REDIRECT_URI to the dashboard env.",
-      },
-      { status: 500 }
-    );
+  const oauthIssue = getDiscordOauthConfigurationIssue();
+  if (oauthIssue) {
+    return NextResponse.json({ success: false, error: oauthIssue }, { status: 500 });
   }
 
   if (!isDashboardSessionConfigured()) {

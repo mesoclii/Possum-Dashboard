@@ -84,12 +84,12 @@ export function buildDiscordOauthUrl(state: string) {
   return `${DISCORD_AUTH_BASE}?${params.toString()}`;
 }
 
-export function buildDiscordInviteUrl(options: { guildId?: string } = {}) {
+export function buildDiscordInviteUrl(options: { guildId?: string; state?: string } = {}) {
   const clientId = getOptionalEnv("DISCORD_CLIENT_ID") || DEFAULT_DISCORD_CLIENT_ID;
   const permissions = getOptionalEnv("DISCORD_INVITE_PERMISSIONS") || "8";
   const inviteCodeGrantFlag = getOptionalEnv("DISCORD_INVITE_CODE_GRANT");
-  const inviteRedirect =
-    getOptionalEnv("DISCORD_INVITE_REDIRECT_URI") || getOptionalEnv("DISCORD_REDIRECT_URI") || "";
+  const callbackRedirect = getOptionalEnv("DISCORD_REDIRECT_URI");
+  const state = String(options.state || "").trim();
   const requireCodeGrant =
     inviteCodeGrantFlag.length > 0
       ? ["true", "1", "yes"].includes(inviteCodeGrantFlag.toLowerCase())
@@ -97,8 +97,11 @@ export function buildDiscordInviteUrl(options: { guildId?: string } = {}) {
   let scopes = normalizeScopes(getOptionalEnv("DISCORD_INVITE_SCOPES") || "bot applications.commands");
 
   if (requireCodeGrant) {
-    if (!inviteRedirect) {
-      throw new Error("DISCORD_INVITE_REDIRECT_URI is not configured.");
+    if (!callbackRedirect) {
+      throw new Error("DISCORD_REDIRECT_URI is not configured for the invite code-grant callback.");
+    }
+    if (!state) {
+      throw new Error("OAuth state is required for the invite code-grant flow.");
     }
     scopes = ensureScopes(scopes, ["bot", "applications.commands", "identify", "guilds"]);
   }
@@ -116,7 +119,8 @@ export function buildDiscordInviteUrl(options: { guildId?: string } = {}) {
 
   if (requireCodeGrant) {
     params.set("response_type", "code");
-    params.set("redirect_uri", inviteRedirect);
+    params.set("redirect_uri", callbackRedirect);
+    params.set("state", state);
   }
 
   return `${DISCORD_AUTH_BASE}?${params.toString()}`;

@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const process = service.process && typeof service.process === "object" ? service.process : null;
     return {
       name: String(service.id || service.name || service.processName || "unknown"),
-      state: process?.status || (process ? "unknown" : "not_registered"),
+      state: process?.status || (service.processName ? "not_registered" : (service.http?.ok ? "online" : "down")),
       status: service.http?.statusCode ?? null,
       uptimeMs: Number(process?.uptime || 0),
       restarts: Number(process?.restarts || 0),
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const host = raw.host || null;
   const hostView = host ? {
     uptimeSec: host.uptimeSec,
-    cpu: { usagePct: null, loadAvg: [host.load1, host.load5, host.load15], cores: host.cpuCount },
+    cpu: { usagePct: host.cpuUsagePercent ?? null, loadAvg: [host.load1, host.load5, host.load15], cores: host.cpuCount },
     memory: { usedPct: host.memory?.usedPercent ?? null, swapUsedPct: host.swap?.usedPercent ?? null, totalBytes: host.memory?.totalBytes },
     disk: { root: { usedPct: host.disk?.usedPercent ?? null } },
   } : null;

@@ -66,5 +66,12 @@ export function normalizeIncident(item: any) {
     firstSeenAt: String(item?.firstSeenAt || item?.createdAt || ""),
     lastSeenAt: String(item?.lastSeenAt || item?.createdAt || ""),
     summary: String(item?.summary || item?.detail || ""),
+    details: item?.details && typeof item.details === "object" ? item.details : {},
+    events: Array.isArray(item?.events) ? item.events : [],
+    acknowledgedAt: item?.acknowledgedAt || null,
+    acknowledgedBy: item?.acknowledgedBy || null,
+    resolvedAt: item?.resolvedAt || null,
+    resolvedBy: item?.resolvedBy || null,
+    resolutionReason: item?.resolutionReason || null,
   };
 }

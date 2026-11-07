@@ -16,9 +16,18 @@ const DEFAULT_AGENT_PORT = "3190";
 const DEFAULT_TIMEOUT_MS = 8000;
 
 function agentBaseUrl(): string {
-  const host = String(process.env.OPS_AGENT_HOST || "127.0.0.1").trim() || "127.0.0.1";
-  const port = String(process.env.OPS_AGENT_PORT || DEFAULT_AGENT_PORT).trim() || DEFAULT_AGENT_PORT;
-  return `http://${host}:${port}`;
+  const rawHost = String(process.env.OPS_AGENT_HOST || "127.0.0.1").trim() || "127.0.0.1";
+  const host = rawHost.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!["127.0.0.1", "::1", "localhost"].includes(host)) {
+    throw new Error("OPS_AGENT_HOST must be a loopback address.");
+  }
+  const portText = String(process.env.OPS_AGENT_PORT || DEFAULT_AGENT_PORT).trim() || DEFAULT_AGENT_PORT;
+  const port = Number(portText);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("OPS_AGENT_PORT must be between 1 and 65535.");
+  }
+  const address = host.includes(":") ? `[${host}]` : host;
+  return `http://${address}:${port}`;
 }
 
 export type OpsActor = { userId: string; label: string };
@@ -60,7 +69,10 @@ export async function callAgent(options: {
   }
 
   try {
-    const response = await fetch(`${agentBaseUrl()}${options.path}`, {
+    const baseUrl = new URL(agentBaseUrl());
+    const targetUrl = new URL(options.path, baseUrl);
+    if (targetUrl.origin !== baseUrl.origin) throw new Error("Invalid operations agent path.");
+    const response = await fetch(targetUrl, {
       method: options.method || "GET",
       headers: {
         authorization: `Bearer ${token}`,
@@ -74,6 +86,9 @@ export async function callAgent(options: {
     });
 
     const text = await response.text();
+    if (text.length > 512 * 1024) {
+      return { ok: false, status: 502, error: "Operations agent response exceeded the size limit." };
+    }
     let payload: unknown = null;
     if (text) {
       try {
@@ -89,9 +104,7 @@ export async function callAgent(options: {
       return { ok: false, status: response.status, error: record.error || `Agent returned HTTP ${response.status}` };
     }
 
-    // The agent's v1 endpoints return their payload at the top level. Accept
-    // both that contract and the older { data: ... } envelope.
-    return { ok: true, status: 200, data: record.data !== undefined ? record.data : payload };
+    return { ok: true, status: 200, data: record.data };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const offline = message.includes("ECONNREFUSED") || message.includes("fetch failed");

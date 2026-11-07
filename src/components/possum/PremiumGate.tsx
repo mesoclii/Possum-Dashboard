@@ -125,7 +125,7 @@ export default function PremiumGate({ featureKey, featureLabel, children }: Prem
       </div>
       {error ? <div style={{ color: "#ffb5b5", marginBottom: 12 }}>{error}</div> : null}
       <Link href={buildDashboardHref("/dashboard/premium-features")} style={action}>
-        Open Premium Features
+        Open Possum Pro
       </Link>
     </section>
   );

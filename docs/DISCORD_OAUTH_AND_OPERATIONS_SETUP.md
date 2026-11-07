@@ -4,6 +4,8 @@ The dashboard uses the Discord OAuth2 authorization-code flow at:
 
 `/api/auth/discord/login` → Discord → `/api/auth/discord/callback`
 
+Bot invites that require an OAuth2 code grant use the same callback. The invite endpoint stores and validates OAuth state, and the callback exchanges Discord's code before returning to `/guilds`. Set `DISCORD_INVITE_CODE_GRANT=true` when the Discord application requires a code grant. `DISCORD_INVITE_REDIRECT_URI` is deprecated; remove it and use `DISCORD_REDIRECT_URI` for both login and bot installation.
+
 ## Required dashboard environment
 
 Set these values in the dashboard process environment. Do not commit real secrets.
@@ -25,7 +27,7 @@ In the same Discord application identified by `DISCORD_CLIENT_ID`:
 2. Add the exact `DISCORD_REDIRECT_URI` value to Redirects.
 3. Save the change.
 4. Confirm the OAuth2 client secret belongs to this same application.
-5. The dashboard requests the `identify` and `guilds` scopes.
+5. Dashboard login requests `identify` and `guilds`. Code-grant bot invites additionally request `bot` and `applications.commands`.
 
 Do not register a callback on a different host, use the bot invite redirect as the dashboard callback, or mix credentials from separate Discord applications.
 

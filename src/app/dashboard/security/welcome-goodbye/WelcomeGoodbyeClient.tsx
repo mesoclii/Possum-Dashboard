@@ -28,6 +28,7 @@ export default function WelcomeGoodbyeClient() {
   const [guildId, setGuildId] = useState("");
   const [guildName, setGuildName] = useState("");
   const [verification, setVerification] = useState<Record<string, any>>({});
+  const [onboarding, setOnboarding] = useState<Record<string, any>>({});
   const [moderator, setModerator] = useState<Record<string, any>>({});
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,12 +49,14 @@ export default function WelcomeGoodbyeClient() {
     try {
       setLoading(true);
       setMessage("");
-      const [verificationJson, moderatorJson, guildJson] = await Promise.all([
+      const [verificationJson, onboardingJson, moderatorJson, guildJson] = await Promise.all([
         fetchRuntimeEngine(targetGuildId, "verification"),
+        fetchRuntimeEngine(targetGuildId, "onboarding"),
         fetchRuntimeEngine(targetGuildId, "moderator"),
         fetchGuildData(targetGuildId),
       ]);
       setVerification(verificationJson?.config || {});
+      setOnboarding(onboardingJson?.config || {});
       setModerator(moderatorJson?.config || {});
       setChannels(Array.isArray(guildJson.channels) ? guildJson.channels : []);
     } catch (err: any) {
@@ -75,6 +78,24 @@ export default function WelcomeGoodbyeClient() {
       const json = await saveRuntimeEngine(guildId, "verification", verification);
       setVerification(json?.config || {});
       setMessage(okLabel);
+    } catch (err: any) {
+      setMessage(err?.message || "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePostVerifyMessage() {
+    if (!guildId) return;
+    try {
+      setSaving(true);
+      setMessage("");
+      const json = await saveRuntimeEngine(guildId, "onboarding", {
+        sendPostVerifyMessage: onboarding.sendPostVerifyMessage,
+        postVerifyTemplate: onboarding.postVerifyTemplate,
+      });
+      setOnboarding((current) => ({ ...current, ...(json?.config || {}) }));
+      setMessage("Saved post-verification welcome message.");
     } catch (err: any) {
       setMessage(err?.message || "Save failed.");
     } finally {
@@ -181,6 +202,37 @@ export default function WelcomeGoodbyeClient() {
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button type="button" style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} disabled={saving} onClick={() => void saveVerification("Saved verification welcome flow.")}>
                 {saving ? "Saving..." : "Save Welcome"}
+              </button>
+            </div>
+          </div>
+
+          <div style={panel}>
+            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Post-Verification Welcome Message</h3>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 10 }}>
+              This is the rich welcome sent after a member verifies. It is separate from the initial rules and verification panel above. Discord channel mentions and custom emoji tags are saved as written.
+            </div>
+            <label style={{ display: "block", marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={onboarding.sendPostVerifyMessage !== false}
+                onChange={(event) => setOnboarding((current) => ({ ...current, sendPostVerifyMessage: event.target.checked }))}
+              />{" "}
+              Send post-verification welcome message
+            </label>
+            <textarea
+              aria-label="Post-verification welcome message"
+              style={{ ...input, minHeight: 280, fontFamily: "monospace", whiteSpace: "pre-wrap" }}
+              value={String(onboarding.postVerifyTemplate || "")}
+              onChange={(event) => setOnboarding((current) => ({ ...current, postVerifyTemplate: event.target.value }))}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button
+                type="button"
+                style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }}
+                disabled={saving}
+                onClick={() => void savePostVerifyMessage()}
+              >
+                {saving ? "Saving..." : "Save Post-Verification Welcome"}
               </button>
             </div>
           </div>

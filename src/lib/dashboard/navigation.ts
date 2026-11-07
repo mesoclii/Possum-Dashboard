@@ -130,6 +130,7 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
       label: "Gaming",
       items: [
         { href: "/dashboard/games", label: "Gaming Hub" },
+        { href: "/dashboard/games/wilds", label: "Possum Wilds (Pro)" },
         { href: "/dashboard/wow", label: "WoW Groups" },
       ],
     },
@@ -153,6 +154,7 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
       items: [
         { href: "/dashboard/premium-features", label: "Premium Features" },
         { href: "/dashboard/heist", label: "Heist" },
+        { href: "/dashboard/games/wilds", label: "Possum Wilds" },
         { href: "/dashboard/tts", label: "TTS" },
         { href: "/dashboard/ai/persona", label: "Persona AI" },
         { href: "/dashboard/social-alerts", label: "Social Alerts" },

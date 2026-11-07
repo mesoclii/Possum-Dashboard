@@ -69,7 +69,7 @@ type ApiJson = {
   report?: Report;
   result?: Record<string, unknown>;
   preview?: AdaptPreview;
-  record?: { settings?: { mode?: string; repairEnabled?: boolean } };
+  record?: { settings?: { mode?: string; repairEnabled?: boolean; trackedEngines?: string[] | null } };
   export?: { body?: string };
 };
 
@@ -122,6 +122,16 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
       return {
         title: `Repair ${body.repairEnabled ? "enabled" : "disabled"}`,
         lines: ["Repair eligibility changed for this server.", "No Discord resources were changed."],
+      };
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "trackedEngines")) {
+      const count = Array.isArray(body.trackedEngines) ? body.trackedEngines.length : 0;
+      return {
+        title: "Tracked features updated",
+        lines: [
+          count ? `Infrastructure will only check/create resources for ${count} selected feature${count === 1 ? "" : "s"}.` : "Infrastructure tracking is set to all features.",
+          "Run Scan to refresh health for the selected features.",
+        ],
       };
     }
     return {
@@ -330,6 +340,8 @@ export default function InfrastructureClient() {
   const [namesDirty, setNamesDirty] = useState(false);
   const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
+  const [featureQuery, setFeatureQuery] = useState("");
+  const [featureDraft, setFeatureDraft] = useState<string[] | null>(null);
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [busyAction, setBusyAction] = useState("");
@@ -424,6 +436,7 @@ export default function InfrastructureClient() {
         setFeaturesDirty(false);
         setNamesDirty(false);
       }
+      if (Object.prototype.hasOwnProperty.call(body, "trackedEngines")) setFeatureDraft(null);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
       const delta = typeof before === "number" && typeof after === "number" && before !== after
@@ -437,6 +450,21 @@ export default function InfrastructureClient() {
       setBusyAction("");
     }
   }
+
+  const allEngines = useMemo(() => report?.allEngines || [], [report]);
+  const trackedSet = useMemo(() => {
+    if (featureDraft) return new Set(featureDraft);
+    const configured = report?.settings?.trackedEngines;
+    if (Array.isArray(configured)) return new Set(configured);
+    return new Set(allEngines.map((row) => row.engine));
+  }, [allEngines, featureDraft, report?.settings?.trackedEngines]);
+  const featureRows = useMemo(() => {
+    const needle = featureQuery.trim().toLowerCase();
+    const rows = allEngines.filter((row) => !needle || `${row.label} ${row.engine}`.toLowerCase().includes(needle));
+    return rows;
+  }, [allEngines, featureQuery]);
+  const trackedConfigured = Array.isArray(report?.settings?.trackedEngines) || Boolean(featureDraft);
+  const featureDirty = featureDraft !== null;
 
   function ask(next: PendingWrite) {
     if (inFlight.current) {
@@ -571,7 +599,7 @@ export default function InfrastructureClient() {
         <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
         <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
-        <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0}</p>
+        <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0} · Tracking {report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)} feature{(report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)) === 1 ? "" : "s"}</p>
         {report?.onboarding?.status === "needs-choice" ? (
           <p className="mt-2 text-sm text-pink-100">This server was just discovered. Choose Auto-Adapt to use channels that already exist, or Full Setup and then confirm before Possum creates anything.</p>
         ) : null}
@@ -582,13 +610,50 @@ export default function InfrastructureClient() {
           <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked || featureSelectionRequired} onClick={() => post("adapt-preview", { action: "adapt" })} />
           <ActionButton label="Full Setup" tip="Select full-setup mode. Resources are created only after the confirmation below." busy={busyAction === "full-setup"} busyLabel="Saving…" locked={locked || featureSelectionRequired} onClick={() => post("full-setup", { action: "settings", mode: "full-setup" })} />
           <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked || featureSelectionRequired} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
-          <ActionButton label="Confirm Full Setup" tip="Open the confirmation for creating at most five missing categories or channels." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("setup")} />
+          <ActionButton label="Confirm Full Setup" tip="Open the confirmation for creating at most five missing categories or channels for tracked features." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("setup")} />
           <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("repair")} />
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
           <ActionButton label="TXT" tip="Download the directory as text." busy={busyAction === "export-txt"} busyLabel="Exporting…" locked={locked} onClick={() => download("txt")} />
         </div>
-        <p className="mt-2 text-xs text-red-200/70">Mode {report?.settings?.mode || "discovery"}. Protected onboarding, verification, pre-onboarding, and heist fields stay suggestion-only.</p>
+        <p className="mt-2 text-xs text-red-200/70">Mode {report?.settings?.mode || "discovery"}. Tracked features control what health/adapt/create will consider. Protected onboarding, verification, pre-onboarding, and heist fields stay suggestion-only.</p>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Server Features To Track</h2>
+        <p className="mt-2 text-sm text-red-100/80">Check the features this server actually uses. Infrastructure will only scan, adapt, and create resources for checked features. Unchecked features are ignored (useful when a server does not have every engine enabled).</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ActionButton label="Select all" tip="Track every available feature." busy={false} locked={locked || !allEngines.length} onClick={() => setFeatureDraft(allEngines.map((row) => row.engine))} />
+          <ActionButton label="Clear all" tip="Uncheck every feature (then pick only what this server uses)." busy={false} locked={locked || !allEngines.length} onClick={() => setFeatureDraft([])} />
+          <ActionButton label="Use all features" tip="Remove the custom selection so all features are tracked." busy={busyAction === "tracked-all"} busyLabel="Saving…" locked={locked || !trackedConfigured} onClick={() => ask({ title: "Track all features", detail: "This removes the custom feature selection for this server. Infrastructure will consider all features again.", confirmLabel: "Track all", body: { action: "settings", trackedEngines: null } })} />
+          <ActionButton label="Save tracked features" tip="Save the checked features for this server." busy={busyAction === "tracked-save"} busyLabel="Saving…" locked={locked || !featureDirty} onClick={() => ask({ title: "Save tracked features", detail: `Infrastructure will track ${trackedSet.size} feature${trackedSet.size === 1 ? "" : "s"} for this server. Unchecked features will not be created or flagged.`, confirmLabel: "Save", body: { action: "settings", trackedEngines: [...trackedSet] } })} />
+        </div>
+        <input value={featureQuery} onChange={(event) => setFeatureQuery(event.target.value)} placeholder="Search features/engines" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
+        <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+          {featureRows.map((row) => {
+            const checked = trackedSet.has(row.engine);
+            return (
+              <label key={row.engine} className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${checked ? "border-pink-700/60 bg-pink-950/20" : "border-red-900/40"}`}>
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={checked}
+                  disabled={locked}
+                  onChange={() => {
+                    const base = featureDraft ? new Set(featureDraft) : new Set(Array.isArray(report?.settings?.trackedEngines) ? report!.settings!.trackedEngines! : allEngines.map((e) => e.engine));
+                    if (base.has(row.engine)) base.delete(row.engine); else base.add(row.engine);
+                    setFeatureDraft([...base]);
+                  }}
+                />
+                <span>
+                  <span className="block text-sm font-bold text-red-100">{row.label}</span>
+                  <span className="block text-xs text-pink-100/70">{row.engine} · {row.requirements} mapping{row.requirements === 1 ? "" : "s"}</span>
+                </span>
+              </label>
+            );
+          })}
+          {!allEngines.length ? <p className="text-xs text-pink-100/70">Scan the server to load available features.</p> : null}
+        </div>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
@@ -680,6 +745,7 @@ export default function InfrastructureClient() {
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Proposed mappings (tracked features)</h2>
         <div className="mt-3 space-y-2">
           {(report?.proposals || []).filter((proposal) => proposal.status !== "populated").slice(0, 40).map((proposal) => (
             <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">

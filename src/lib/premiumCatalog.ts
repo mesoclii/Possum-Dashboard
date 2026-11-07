@@ -156,6 +156,15 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Protects your setup work."
   },
   {
+    id: "wilds",
+    label: "Possum Wilds",
+    route: "/dashboard/games/wilds",
+    summary: "Pro creature-collection game: encounters, captures, battles, progression, and species art/asset management.",
+    premiumLabel: "Premium Feature",
+    includedIn: ["Pro"],
+    pricingNote: "Included through paid guild plans."
+  },
+  {
     id: "openai-platform",
     label: "Creator AI Platform",
     route: "/dashboard/ai/openai-platform",
@@ -184,6 +193,7 @@ export const PLAN_COMMON_FEATURES: string[] = [
   "TTS Engine",
   "Persona AI",
   "Heist Engine",
+  "Possum Wilds",
   "Advanced Security + Governance Suite",
   "Automation + Custom Commands Suite",
   "Social Alerts + Signal Relay (Twitch, YouTube, feeds)",

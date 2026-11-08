@@ -47,8 +47,9 @@ async function waitForDashboard(timeoutMs = 30000) {
 }
 
 function restorePreviousBuild() {
-  if (!fs.existsSync(rollbackDir)) {
-    process.stderr.write("[possum-deploy] No .next.previous build exists; automatic rollback is unavailable.\n");
+  const rollbackBuildId = path.join(rollbackDir, "BUILD_ID");
+  if (!fs.existsSync(rollbackBuildId) || !fs.readFileSync(rollbackBuildId, "utf8").trim()) {
+    process.stderr.write("[possum-deploy] No valid .next.previous production build exists; automatic rollback is unavailable.\n");
     return false;
   }
   if (fs.existsSync(buildDir)) fs.renameSync(buildDir, failedDir);

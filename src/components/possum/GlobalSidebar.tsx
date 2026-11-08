@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { buildDashboardHref } from "@/lib/dashboardContext";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
+import { usePublicFeatureVisibility } from "@/components/possum/usePublicFeatureVisibility";
 import { getDashboardNavSections, getDashboardNavTopLinks } from "@/lib/dashboard/navigation";
 
 function isItemActive(pathname: string | null, href: string) {
@@ -14,9 +15,13 @@ function isItemActive(pathname: string | null, href: string) {
 export default function GlobalSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMasterOwner } = useDashboardSessionState();
+  const { isMasterOwner, isPrimaryOwner } = useDashboardSessionState();
+  const featureVisibility = usePublicFeatureVisibility();
   const topLinks = useMemo(() => getDashboardNavTopLinks(isMasterOwner), [isMasterOwner]);
-  const sections = useMemo(() => getDashboardNavSections(isMasterOwner), [isMasterOwner]);
+  const sections = useMemo(
+    () => getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner),
+    [featureVisibility, isMasterOwner, isPrimaryOwner]
+  );
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   function isSectionOpen(label: string, defaultOpen: boolean) {

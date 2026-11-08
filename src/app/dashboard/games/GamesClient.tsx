@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { resolveGuildContext } from "@/lib/liveRuntime";
 import GameSocialClient from "@/components/possum/GameSocialClient";
 
@@ -35,6 +36,12 @@ export default function GamesClient() {
         <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>
           Cat Drop, Pokemon, Truth Dare, Crew, Dominion, and other server mini-game engines stay on their own dedicated dashboard pages.
         </div>
+        <Link
+          href="/dashboard/games/wilds"
+          style={{ display: "inline-block", marginTop: 10, color: "#ffb0b0", fontSize: 12, textDecoration: "underline" }}
+        >
+          Possum Wilds (Pro) — species art/assets
+        </Link>
       </div>
       <GameSocialClient guildId={guildId} guildName={guildName} />
     </div>

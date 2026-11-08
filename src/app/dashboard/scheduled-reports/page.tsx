@@ -54,7 +54,19 @@ export default function ScheduledReportsPage() {
     if (!response.ok) setNotice(body.error || "Reports could not be loaded.");
   }
 
-  useEffect(() => { void load(); }, [guildId]);
+  useEffect(() => {
+    if (!guildId) return;
+    let cancelled = false;
+    (async () => {
+      const response = await fetch(`/api/bot/pro?guildId=${guildId}&feature=scheduled-reports&action=list`);
+      const body = await response.json();
+      if (cancelled) return;
+      setSchedules(Array.isArray(body.schedules) ? body.schedules : []);
+      setReports(Array.isArray(body.reports) ? body.reports : []);
+      if (!response.ok) setNotice(body.error || "Reports could not be loaded.");
+    })();
+    return () => { cancelled = true; };
+  }, [guildId]);
 
   if (!guildId) return <div style={{ color: "#ffe9f6", padding: 18 }}>Open this page from a guild.</div>;
 

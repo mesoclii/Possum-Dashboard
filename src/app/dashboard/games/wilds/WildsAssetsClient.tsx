@@ -54,19 +54,6 @@ const button: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const emptyRow = (): AssetRow => ({
-  slug: "",
-  name: "",
-  rarity: "",
-  family: "",
-  biome: "",
-  imageUrl: "",
-  licence: "",
-  credit: "",
-  notes: "",
-  approved: false,
-});
-
 export default function WildsAssetsClient() {
   const [guildId, setGuildId] = useState("");
   const [payload, setPayload] = useState<AssetPayload | null>(null);
@@ -87,7 +74,6 @@ export default function WildsAssetsClient() {
       return;
     }
     void load(context.guildId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function load(id: string) {

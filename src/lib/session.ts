@@ -5,6 +5,16 @@ export const DASHBOARD_SESSION_COOKIE = "possum_dashboard_session";
 export const DASHBOARD_OAUTH_STATE_COOKIE = "possum_dashboard_oauth_state";
 export const DASHBOARD_RETURN_TO_COOKIE = "possum_dashboard_return_to";
 
+export function dashboardOAuthStateCookieName(state: string) {
+  const suffix = crypto.createHash("sha256").update(state).digest("hex");
+  return `${DASHBOARD_OAUTH_STATE_COOKIE}_${suffix}`;
+}
+
+export function dashboardReturnToCookieName(state: string) {
+  const suffix = crypto.createHash("sha256").update(state).digest("hex");
+  return `${DASHBOARD_RETURN_TO_COOKIE}_${suffix}`;
+}
+
 export type DashboardDiscordUser = {
   id: string;
   username: string;

@@ -38,7 +38,23 @@ export default function AlertInboxPage() {
     if (!response.ok) setNotice(body.error || "The inbox could not be loaded.");
   }
 
-  useEffect(() => { void load(); }, [editor.guildId, state, severity, source]);
+  useEffect(() => {
+    if (!editor.guildId) return;
+    let cancelled = false;
+    (async () => {
+      const params = new URLSearchParams({ guildId: editor.guildId, feature: "alert-inbox", action: "list" });
+      if (state) params.set("state", state);
+      if (severity) params.set("severity", severity);
+      if (source) params.set("source", source);
+      const response = await fetch(`/api/bot/pro?${params.toString()}`);
+      const body = await response.json();
+      if (cancelled) return;
+      setEvents(Array.isArray(body.events) ? body.events : []);
+      setRetryMessage(body.retryStorageAvailable === false ? body.retryStorageMessage || "Retry storage is unavailable." : "");
+      if (!response.ok) setNotice(body.error || "The inbox could not be loaded.");
+    })();
+    return () => { cancelled = true; };
+  }, [editor.guildId, state, severity, source]);
 
   async function act(action: "acknowledge" | "resolve", row: EventRow) {
     const response = await fetch("/api/bot/pro", {

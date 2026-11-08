@@ -13,12 +13,55 @@ import { isDashboardControlOwner } from "@/lib/dashboardOwner";
  */
 
 const DEFAULT_AGENT_PORT = "3190";
+const MAX_AGENT_RESPONSE_BYTES = 512 * 1024;
+
+async function readAgentResponse(response: Response) {
+  const reader = response.body?.getReader();
+  if (!reader) return { text: "", oversized: false };
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let oversized = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const remaining = MAX_AGENT_RESPONSE_BYTES - total;
+      if (value.byteLength > remaining) {
+        if (remaining > 0) chunks.push(value.subarray(0, remaining));
+        total += Math.max(0, remaining);
+        oversized = true;
+        await reader.cancel().catch(() => {});
+        break;
+      }
+      chunks.push(value);
+      total += value.byteLength;
+      if (total === MAX_AGENT_RESPONSE_BYTES) {
+        const next = await reader.read();
+        if (!next.done) oversized = true;
+        break;
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  return { text: Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("utf8"), oversized };
+}
 const DEFAULT_TIMEOUT_MS = 8000;
 
 function agentBaseUrl(): string {
-  const host = String(process.env.OPS_AGENT_HOST || "127.0.0.1").trim() || "127.0.0.1";
-  const port = String(process.env.OPS_AGENT_PORT || DEFAULT_AGENT_PORT).trim() || DEFAULT_AGENT_PORT;
-  return `http://${host}:${port}`;
+  const rawHost = String(process.env.OPS_AGENT_HOST || "127.0.0.1").trim() || "127.0.0.1";
+  const host = rawHost.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!["127.0.0.1", "::1", "localhost"].includes(host)) {
+    throw new Error("OPS_AGENT_HOST must be a loopback address.");
+  }
+  const portText = String(process.env.OPS_AGENT_PORT || DEFAULT_AGENT_PORT).trim() || DEFAULT_AGENT_PORT;
+  const port = Number(portText);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("OPS_AGENT_PORT must be between 1 and 65535.");
+  }
+  const address = host.includes(":") ? `[${host}]` : host;
+  return `http://${address}:${port}`;
 }
 
 export type OpsActor = { userId: string; label: string };
@@ -58,9 +101,15 @@ export async function callAgent(options: {
   if (!token) {
     return { ok: false, status: 503, error: "Operations agent is not configured (OPS_AGENT_TOKEN)" };
   }
+  if (token.length < 32) {
+    return { ok: false, status: 503, error: "OPS_AGENT_TOKEN must contain at least 32 characters." };
+  }
 
   try {
-    const response = await fetch(`${agentBaseUrl()}${options.path}`, {
+    const baseUrl = new URL(agentBaseUrl());
+    const targetUrl = new URL(options.path, baseUrl);
+    if (targetUrl.origin !== baseUrl.origin) throw new Error("Invalid operations agent path.");
+    const response = await fetch(targetUrl, {
       method: options.method || "GET",
       headers: {
         authorization: `Bearer ${token}`,
@@ -73,7 +122,10 @@ export async function callAgent(options: {
       cache: "no-store",
     });
 
-    const text = await response.text();
+    const { text, oversized } = await readAgentResponse(response);
+    if (oversized) {
+      return { ok: false, status: 502, error: "Operations agent response exceeded the size limit." };
+    }
     let payload: unknown = null;
     if (text) {
       try {
@@ -83,7 +135,10 @@ export async function callAgent(options: {
       }
     }
 
-    const record = (payload || {}) as { success?: boolean; data?: unknown; error?: string };
+    if (!payload || typeof payload !== "object" || typeof (payload as { success?: unknown }).success !== "boolean") {
+      return { ok: false, status: 502, error: "Operations agent returned an invalid response." };
+    }
+    const record = payload as { success?: boolean; data?: unknown; error?: string };
 
     if (!response.ok || record.success === false) {
       return { ok: false, status: response.status, error: record.error || `Agent returned HTTP ${response.status}` };

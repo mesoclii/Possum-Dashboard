@@ -40,7 +40,7 @@ const action: CSSProperties = {
 };
 
 export default function PremiumFeaturesClient() {
-  const { isMasterOwner } = useDashboardSessionState();
+  const { isMasterOwner, loading: sessionLoading } = useDashboardSessionState();
   const guildId = readDashboardGuildId();
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
@@ -49,6 +49,15 @@ export default function PremiumFeaturesClient() {
   const [grantScope, setGrantScope] = useState<"guild" | "global">("guild");
   const [trialDays, setTrialDays] = useState(0);
   const [guildName, setGuildName] = useState("");
+  const [canManageCreatorSettings, setCanManageCreatorSettings] = useState(false);
+  const [featureVisibility, setFeatureVisibility] = useState<Record<string, boolean>>({});
+  const [pokemonPrivateOnly, setPokemonPrivateOnly] = useState(false);
+  const [pokemonPrivateOnlyForced, setPokemonPrivateOnlyForced] = useState(false);
+  const [pokemonPublicPaidMode, setPokemonPublicPaidMode] = useState(false);
+  const [pokemonAllowedGuildIds, setPokemonAllowedGuildIds] = useState<string[]>([]);
+  const [pokemonGuilds, setPokemonGuilds] = useState<{ id: string; name: string }[]>([]);
+  const [creatorSettingsBusy, setCreatorSettingsBusy] = useState(false);
+  const [creatorSettingsMessage, setCreatorSettingsMessage] = useState("");
 
   useEffect(() => {
     setGuildName(localStorage.getItem("activeGuildName") || "");
@@ -82,13 +91,93 @@ export default function PremiumFeaturesClient() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "true") setStatusMsg("Payment received. Premium activates within a few seconds; refresh if it does not show.");
+    if (params.get("success") === "true") setStatusMsg("Checkout completed. Premium stays locked until Stripe confirms payment; refresh the status in a few seconds.");
     else if (params.get("cancel") === "true") setStatusMsg("Checkout canceled. You were not charged.");
   }, []);
 
   useEffect(() => {
     void loadStatus();
   }, [loadStatus]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/public-feature-visibility", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || json?.success === false) throw new Error(json?.error || "Could not load feature visibility.");
+        if (!active) return;
+        setFeatureVisibility(json.visibility || {});
+        setCanManageCreatorSettings(Boolean(json.canManage));
+      })
+      .catch((error: unknown) => {
+        if (active) setCreatorSettingsMessage(error instanceof Error ? error.message : "Could not load creator controls.");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sessionLoading || !isMasterOwner) return;
+    let active = true;
+    fetch("/api/bot/pokemon-access", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok || json?.success === false) throw new Error(json?.error || "Could not load Pokémon access settings.");
+        if (!active) return;
+        setPokemonPrivateOnly(json.settings?.privateOnly === true);
+        setPokemonPrivateOnlyForced(json.settings?.privateOnlyForced === true);
+        setPokemonPublicPaidMode(json.settings?.publicPaidMode === true);
+        setPokemonAllowedGuildIds(Array.isArray(json.settings?.allowedGuildIds) ? json.settings.allowedGuildIds : []);
+        setPokemonGuilds(Array.isArray(json.guilds) ? json.guilds : []);
+      })
+      .catch((error: unknown) => {
+        if (active) setCreatorSettingsMessage(error instanceof Error ? error.message : "Could not load Pokémon access settings.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [isMasterOwner, sessionLoading]);
+
+  async function saveFeatureVisibility(featureId: string, visible: boolean) {
+    const next = { ...featureVisibility, [featureId]: visible };
+    setCreatorSettingsBusy(true);
+    setCreatorSettingsMessage("");
+    try {
+      const response = await fetch("/api/public-feature-visibility", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ visibility: next }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json?.success === false) throw new Error(json?.error || "Could not save feature visibility.");
+      setFeatureVisibility(json.visibility || next);
+      setCreatorSettingsMessage("Public feature visibility saved. Hidden items no longer appear in the public feature catalog or regular server-owner dashboard navigation.");
+    } catch (error: unknown) {
+      setCreatorSettingsMessage(error instanceof Error ? error.message : "Could not save feature visibility.");
+    } finally {
+      setCreatorSettingsBusy(false);
+    }
+  }
+
+  async function savePokemonAccess() {
+    setCreatorSettingsBusy(true);
+    setCreatorSettingsMessage("");
+    try {
+      const response = await fetch("/api/bot/pokemon-access", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ privateOnly: pokemonPrivateOnly, allowedGuildIds: pokemonAllowedGuildIds }),
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || json?.success === false) throw new Error(json?.error || "Could not save Pokémon access settings.");
+      setCreatorSettingsMessage("Pokémon access settings saved. The catcher, battle, and trade engines all use this same guild allowlist.");
+    } catch (error: unknown) {
+      setCreatorSettingsMessage(error instanceof Error ? error.message : "Could not save Pokémon access settings.");
+    } finally {
+      setCreatorSettingsBusy(false);
+    }
+  }
 
   async function savePlan(active: boolean, plan: string) {
     if (!guildId) return;
@@ -154,7 +243,11 @@ export default function PremiumFeaturesClient() {
     : status?.active
       ? `${status.plan} Active (${status.scope === "global" ? "Global Trial" : "Guild"})`
       : "Premium Off";
-  const visiblePremiumFeatures = PREMIUM_FEATURES.filter((feature) => !feature.creatorOnly || isMasterOwner);
+  const visiblePremiumFeatures = PREMIUM_FEATURES.filter((feature) =>
+    !feature.creatorOnly &&
+    featureVisibility[feature.id] !== false &&
+    (!feature.creatorOnly || isMasterOwner)
+  );
 
   return (
     <div style={{ color: "#ffd0d0", maxWidth: 1380 }}>
@@ -350,6 +443,82 @@ export default function PremiumFeaturesClient() {
           </div>
           <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 10 }}>
             Guild Scope writes a single guild entitlement. Global Trial writes the internal account-wide admin trial record for your current owner account.
+          </div>
+        </section>
+      ) : null}
+
+      {canManageCreatorSettings ? (
+        <section style={{ ...card, marginBottom: 16 }}>
+          <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 8 }}>
+            Private Creator Launch Controls
+          </div>
+          <p style={{ color: "#ffb5b5", fontSize: 13, lineHeight: 1.65, marginTop: 0 }}>
+            Only the primary Possum creator account can change these controls. Hiding a Pro feature removes its public listing and regular server-owner navigation; it does not grant access or change billing.
+          </p>
+          {creatorSettingsMessage ? <p role="status" style={{ color: "#ffd39a", fontSize: 13 }}>{creatorSettingsMessage}</p> : null}
+          <div style={{ display: "grid", gap: 10 }}>
+            {PREMIUM_FEATURES.filter((feature) => !feature.creatorOnly).map((feature) => (
+              <label key={feature.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, border: "1px solid rgba(255,0,0,.24)", borderRadius: 12, padding: 12 }}>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={featureVisibility[feature.id] === true}
+                  disabled={creatorSettingsBusy}
+                  onChange={(event) => void saveFeatureVisibility(feature.id, event.target.checked)}
+                  style={{ marginTop: 3, accentColor: "#ff2bd6" }}
+                />
+                <span>
+                  <strong style={{ display: "block", color: "#ffd7d7" }}>{feature.label}</strong>
+                  <span style={{ color: "#ffb5b5", fontSize: 12 }}>{featureVisibility[feature.id] ? "Visible in public listings and customer dashboard navigation." : "Hidden from public listings and customer dashboard navigation."}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 20, borderTop: "1px solid rgba(255,0,0,.3)", paddingTop: 16 }}>
+            <h2 style={{ color: "#ff9a9a", fontSize: 13, letterSpacing: "0.16em", textTransform: "uppercase" }}>Private Pokémon Guild Allowlist</h2>
+            <p style={{ color: "#ffb5b5", fontSize: 13, lineHeight: 1.65 }}>
+              Pokémon is not part of the public Pro catalog. Enable private-only mode to allow the catching, battle, and trade engines only in the guilds checked below. Turning on paid/public bot mode also enforces this allowlist automatically. This does not change your family guilds unless they are removed from the list.
+            </p>
+            {pokemonPublicPaidMode ? <p style={{ color: "#ffd39a", fontSize: 13 }}>Paid/public mode is active: Pokémon access is restricted to this allowlist regardless of the switch below.</p> : null}
+            {pokemonGuilds.length ? (
+              <div style={{ display: "grid", gap: 6, maxHeight: 240, overflowY: "auto", border: "1px solid rgba(255,0,0,.24)", borderRadius: 12, padding: 12 }}>
+                {pokemonGuilds.map((guild) => (
+                  <label key={guild.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 36, color: "#ffd7d7" }}>
+                    <input
+                      type="checkbox"
+                      checked={pokemonAllowedGuildIds.includes(guild.id)}
+                      disabled={creatorSettingsBusy}
+                      onChange={(event) => setPokemonAllowedGuildIds((current) => event.target.checked
+                        ? [...new Set([...current, guild.id])]
+                        : current.filter((id) => id !== guild.id))}
+                      style={{ accentColor: "#ff2bd6" }}
+                    />
+                    <span>{guild.name}</span>
+                  </label>
+                ))}
+              </div>
+            ) : <p style={{ color: "#ffb5b5", fontSize: 12 }}>The bot did not return any installed servers to choose from.</p>}
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 12, color: "#ffd7d7" }}>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={pokemonPrivateOnly}
+                disabled={creatorSettingsBusy || pokemonPublicPaidMode || pokemonPrivateOnlyForced}
+                onChange={(event) => setPokemonPrivateOnly(event.target.checked)}
+                style={{ marginTop: 3, accentColor: "#ff2bd6" }}
+              />
+              <span>
+                <strong style={{ display: "block" }}>Restrict all Pokémon engines to allowed guilds</strong>
+                <span style={{ color: "#ffb5b5", fontSize: 12 }}>When enabled, non-listed guilds cannot use Pokémon catching, battle, or trade features. Existing data is not deleted.</span>
+              </span>
+            </label>
+            <button type="button" disabled={creatorSettingsBusy} onClick={() => void savePokemonAccess()} style={{ ...action, marginTop: 12, color: "#ffd7d7", border: "1px solid rgba(255,0,0,.45)", background: "#130707", cursor: creatorSettingsBusy ? "wait" : "pointer" }}>
+              Save private controls
+            </button>
+            <p style={{ color: "#ffb5b5", fontSize: 11, lineHeight: 1.6 }}>
+              The allowlist is stored privately with bot data. For an environment-only launch guard, set <code>PAID_BOT_MODE=true</code> (or <code>SAAS_PREMIUM_ENFORCEMENT=true</code>) on the bot; do not put secret keys in dashboard-visible variables.
+            </p>
           </div>
         </section>
       ) : null}

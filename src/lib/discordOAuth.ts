@@ -58,18 +58,57 @@ async function readDiscordJson<T>(response: Response): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(parsed?.error_description || parsed?.message || `Discord request failed (${response.status})`);
+    const code = String(parsed?.error || "").trim();
+    const description = String(parsed?.error_description || parsed?.message || "").trim();
+    throw new Error(
+      [code ? `Discord OAuth error: ${code}` : `Discord request failed (${response.status})`, description]
+        .filter(Boolean)
+        .join(" | ")
+    );
   }
 
   return parsed as T;
 }
 
+export function getDiscordOauthConfigurationIssue() {
+  const clientId = String(process.env.DISCORD_CLIENT_ID || "").trim();
+  const clientSecret = String(process.env.DISCORD_CLIENT_SECRET || "").trim();
+  const redirectValue = String(process.env.DISCORD_REDIRECT_URI || "").trim();
+  if (!clientId) return "DISCORD_CLIENT_ID is missing from the dashboard environment.";
+  if (!clientSecret) return "DISCORD_CLIENT_SECRET is missing from the dashboard environment.";
+  if (!redirectValue) return "DISCORD_REDIRECT_URI is missing from the dashboard environment.";
+
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectValue);
+  } catch {
+    return "DISCORD_REDIRECT_URI must be an absolute URL.";
+  }
+  if (redirect.username || redirect.password || redirect.search || redirect.hash) {
+    return "DISCORD_REDIRECT_URI must not contain credentials, a query string, or a fragment.";
+  }
+  if (redirect.pathname !== "/api/auth/discord/callback") {
+    return "DISCORD_REDIRECT_URI must use the exact callback path /api/auth/discord/callback.";
+  }
+  if (process.env.NODE_ENV === "production" && redirect.protocol !== "https:") {
+    return "Production DISCORD_REDIRECT_URI must use HTTPS.";
+  }
+
+  const publicUrl = String(process.env.DASHBOARD_PUBLIC_URL || process.env.NEXT_PUBLIC_DASHBOARD_URL || "").trim();
+  if (publicUrl) {
+    try {
+      if (new URL(publicUrl).origin !== redirect.origin) {
+        return "DISCORD_REDIRECT_URI and DASHBOARD_PUBLIC_URL must use the same public origin.";
+      }
+    } catch {
+      return "DASHBOARD_PUBLIC_URL must be an absolute URL.";
+    }
+  }
+  return null;
+}
+
 export function isDiscordOauthConfigured() {
-  return Boolean(
-    String(process.env.DISCORD_CLIENT_ID || "").trim() &&
-      String(process.env.DISCORD_CLIENT_SECRET || "").trim() &&
-      String(process.env.DISCORD_REDIRECT_URI || "").trim()
-  );
+  return getDiscordOauthConfigurationIssue() === null;
 }
 
 export function buildDiscordOauthUrl(state: string) {

@@ -3,10 +3,6 @@ import { SERVER_BOT_API, buildServerBotApiHeaders, fetchServerBotApi, readServer
 import { readActorUserId } from "@/lib/botApi";
 import { getConfiguredGameAuthOrigin } from "@/lib/gameAuthOrigin";
 
-function readFirst(value: string | string[] | undefined): string {
-  return String(Array.isArray(value) ? value[0] : value || "").trim();
-}
-
 function getRequestOrigin(req: NextApiRequest): string {
   return getConfiguredGameAuthOrigin(req);
 }

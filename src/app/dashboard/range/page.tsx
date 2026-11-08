@@ -103,15 +103,6 @@ function toggle(list: string[], id: string) {
   return Array.from(set);
 }
 
-async function fileToDataUrl(file: File) {
-  return await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Image load failed."));
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function RangeEnginePage() {
   const {
     guildId,
@@ -145,31 +136,6 @@ export default function RangeEnginePage() {
         },
       },
     }));
-  }
-
-  async function uploadImage(
-    event: React.ChangeEvent<HTMLInputElement>,
-    target: "setup" | "live" | WeaponKey
-  ) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await fileToDataUrl(file).catch(() => "");
-    if (!dataUrl) return;
-
-    if (target === "setup") {
-      setCfg((prev) => ({
-        ...prev,
-        presentation: { ...prev.presentation, setupImageUrl: dataUrl },
-      }));
-    } else if (target === "live") {
-      setCfg((prev) => ({
-        ...prev,
-        presentation: { ...prev.presentation, liveImageUrl: dataUrl },
-      }));
-    } else {
-      updateWeapon(target, { imageUrl: dataUrl });
-    }
-    event.target.value = "";
   }
 
   if (!guildId) return <div style={{ color: "#ff8080", padding: 24 }}>Missing guildId. Open from /guilds first.</div>;

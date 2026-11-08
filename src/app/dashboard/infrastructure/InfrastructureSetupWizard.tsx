@@ -414,7 +414,7 @@ export default function InfrastructureSetupWizard({ embedded = false }: { embedd
     <Root className="space-y-4 text-red-100">
       <section className="rounded-xl border possum-divider bg-black/55 p-4 possum-border sm:p-6">
         <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
-        <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Setup & Infrastructure</h1>
+        <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed">
           Choose systems by category, review channel, category, and role names, then approve one setup. This only scopes infrastructure tracking; it does not switch runtime features on or off.
         </p>
@@ -428,12 +428,17 @@ export default function InfrastructureSetupWizard({ embedded = false }: { embedd
       {batchProgress ? <div role="status" aria-live="polite" className="rounded-lg border possum-divider bg-black/60 p-3 text-sm text-pink-100">{batchProgress}</div> : null}
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase">Choose what this server uses</h2>
             <p className="mt-1 text-sm text-pink-100/75">Turn systems on for setup tracking. You can change this selection later.</p>
           </div>
-          <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
+            <button type="button" disabled={busy || selectedFeatures.length === 0} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+              {busy ? "Preparing…" : "Preview selected setup"}
+            </button>
+          </div>
         </div>
         <div role="tablist" aria-label="Setup feature categories" className="mt-4 flex flex-wrap gap-2">
           {GROUPS.map((group) => {

@@ -130,7 +130,7 @@ function resourceName(proposal: Proposal, overrides: Record<string, string>) {
   );
 }
 
-export default function InfrastructureSetupWizard({ embedded = false }: { embedded?: boolean }) {
+export default function InfrastructureSetupWizard() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<SetupReport | null>(null);
@@ -147,7 +147,6 @@ export default function InfrastructureSetupWizard({ embedded = false }: { embedd
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ id?: string; name?: string; engine?: string; field?: string }[]>([]);
   const [batchProgress, setBatchProgress] = useState("");
-  const Root = embedded ? "section" : "main";
 
   const callApi = useCallback(async (body: Record<string, unknown>) => {
     const response = await fetch("/api/bot/infrastructure", {
@@ -397,21 +396,21 @@ export default function InfrastructureSetupWizard({ embedded = false }: { embedd
   }
 
   if (loading) {
-    return <Root className="rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">Loading infrastructure setup…</Root>;
+    return <main className="rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">Loading infrastructure setup…</main>;
   }
 
   if (!guildId) {
     return (
-      <Root className="space-y-3 rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">
-        <h1 className="text-2xl font-black uppercase">Infrastructure Setup</h1>
+      <main className="space-y-3 rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">
+        <h1 className="text-2xl font-black uppercase">Server Setup</h1>
         <p>Choose a server from the dashboard before configuring its setup.</p>
         <a href="/guilds" className="inline-flex min-h-11 items-center rounded-lg border possum-divider px-4 font-bold">Choose a server</a>
-      </Root>
+      </main>
     );
   }
 
   return (
-    <Root className="space-y-4 text-red-100">
+    <main className="space-y-4 text-red-100">
       <section className="rounded-xl border possum-divider bg-black/55 p-4 possum-border sm:p-6">
         <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
@@ -599,6 +598,6 @@ export default function InfrastructureSetupWizard({ embedded = false }: { embedd
           </section>
         </div>
       ) : null}
-    </Root>
+    </main>
   );
 }

@@ -50,6 +50,7 @@ export function getDashboardNavSections(
       label: "Guild Control",
       defaultOpen: true,
       items: [
+        { href: "/dashboard/server-setup", label: "Server Setup" },
         { href: "/dashboard/bot-personalizer", label: "Bot Personalizer" },
         { href: "/dashboard/bot-masters", label: "Bot Masters / Dashboard Access" },
         { href: "/dashboard/channels", label: "Channels" },

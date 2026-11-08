@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import InfrastructureSetupWizard from "../infrastructure/InfrastructureSetupWizard";
 
 export default function ServerSetupPage() {
-  redirect("/dashboard/infrastructure");
+  return <InfrastructureSetupWizard />;
 }

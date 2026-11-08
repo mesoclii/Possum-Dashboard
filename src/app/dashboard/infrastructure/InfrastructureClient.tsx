@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
-import InfrastructureSetupWizard from "./InfrastructureSetupWizard";
 
 type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string; botPermissions?: { status?: string; flags?: string[] } };
 type FeatureOption = { id: string; name: string; group: string; description: string; protected: boolean; selectable: boolean };
@@ -510,7 +509,6 @@ export default function InfrastructureClient() {
 
   return (
     <div className="space-y-4">
-      <InfrastructureSetupWizard embedded />
       <div aria-live="polite" className="sr-only">{locked ? `${busyLabel}. Other actions are temporarily disabled.` : "No infrastructure action is running."}</div>
 
       <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
@@ -538,7 +536,7 @@ export default function InfrastructureClient() {
         <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
         <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0} · Tracking {report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)} feature{(report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)) === 1 ? "" : "s"}</p>
         {report?.onboarding?.status === "needs-choice" ? (
-          <p className="mt-2 text-sm text-pink-100">This server was just discovered. Use Setup & Infrastructure above to review existing mappings or approve resource creation.</p>
+          <p className="mt-2 text-sm text-pink-100">This server was just discovered. Open Server Setup to choose systems, review resource names, and approve setup.</p>
         ) : null}
         <p className="mt-2 text-sm text-pink-100/80">{report?.ready ? "Observed by the saved scan." : report?.reason || "Scan the server to build a read-only directory."}</p>
         <div className="mt-3 flex flex-wrap gap-2">

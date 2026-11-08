@@ -5,8 +5,8 @@ import {
 } from "@/lib/discordOAuth";
 import {
   createOauthState,
-  DASHBOARD_OAUTH_STATE_COOKIE,
-  DASHBOARD_RETURN_TO_COOKIE,
+  dashboardOAuthStateCookieName,
+  dashboardReturnToCookieName,
   isDashboardSessionConfigured,
   shouldUseSecureCookies,
 } from "@/lib/session";
@@ -35,10 +35,11 @@ export async function GET(req: NextRequest) {
         path: "/",
         maxAge: 60 * 10,
       };
-      response.cookies.set(DASHBOARD_OAUTH_STATE_COOKIE, state, cookieOptions);
-      response.cookies.set(DASHBOARD_RETURN_TO_COOKIE, "/guilds", cookieOptions);
+      response.cookies.set(dashboardOAuthStateCookieName(state), state, cookieOptions);
+      response.cookies.set(dashboardReturnToCookieName(state), "/guilds", cookieOptions);
     }
 
+    response.headers.set("Cache-Control", "no-store, private");
     return response;
   } catch (error: any) {
     return NextResponse.json(

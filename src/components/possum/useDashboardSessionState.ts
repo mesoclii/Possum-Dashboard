@@ -6,12 +6,14 @@ type DashboardSessionState = {
   loading: boolean;
   loggedIn: boolean;
   isMasterOwner: boolean;
+  isPrimaryOwner: boolean;
 };
 
 const DEFAULT_STATE: DashboardSessionState = {
   loading: true,
   loggedIn: false,
   isMasterOwner: false,
+  isPrimaryOwner: false,
 };
 
 const SESSION_CACHE_TTL_MS = 5 * 60_000;
@@ -40,6 +42,7 @@ function readSessionStorageCache(): DashboardSessionState | null {
       loading: false,
       loggedIn: Boolean(parsed.loggedIn),
       isMasterOwner: Boolean(parsed.isMasterOwner),
+      isPrimaryOwner: Boolean(parsed.isPrimaryOwner),
     };
   } catch {
     return null;
@@ -55,6 +58,7 @@ function writeSessionStorageCache(value: DashboardSessionState) {
         loading: false,
         loggedIn: Boolean(value.loggedIn),
         isMasterOwner: Boolean(value.isMasterOwner),
+        isPrimaryOwner: Boolean(value.isPrimaryOwner),
         checkedAt: Date.now(),
       })
     );
@@ -87,6 +91,7 @@ async function loadDashboardSessionState(): Promise<DashboardSessionState> {
       loading: false,
       loggedIn: false,
       isMasterOwner: false,
+      isPrimaryOwner: false,
     };
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 3500);
@@ -101,12 +106,14 @@ async function loadDashboardSessionState(): Promise<DashboardSessionState> {
         loading: false,
         loggedIn: Boolean(json?.loggedIn),
         isMasterOwner: Boolean(json?.isMasterOwner),
+        isPrimaryOwner: Boolean(json?.isPrimaryOwner),
       };
     } catch {
       nextState = {
         loading: false,
         loggedIn: false,
         isMasterOwner: false,
+        isPrimaryOwner: false,
       };
     } finally {
       window.clearTimeout(timeout);

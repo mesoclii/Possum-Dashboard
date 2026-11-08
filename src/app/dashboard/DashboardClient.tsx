@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { buildDashboardHref, readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
 import { SAVIORS_GUILD_ID } from "@/lib/dashboard/engineRegistry";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
+import { usePublicFeatureVisibility } from "@/components/possum/usePublicFeatureVisibility";
 import { isPremiumEnforcementEnabled } from "@/lib/premiumMode";
 import { getDashboardNavSections, getSectionSlug } from "@/lib/dashboard/navigation";
+import { PREMIUM_FEATURES } from "@/lib/premiumCatalog";
 
 type ToggleController = {
   read: (guildId: string, userId?: string) => Promise<boolean>;
@@ -23,6 +25,7 @@ type Card = {
   goLabel?: string;
   premiumRequired?: boolean;
   creatorOnly?: boolean;
+  primaryOwnerOnly?: boolean;
   routeKey?: string;
   state?: ToggleState;
 };
@@ -564,9 +567,9 @@ const CARDS: Card[] = [
   { href: "/dashboard/rarespawn", title: "Rare Spawn", description: "Rare event spawn/claim settings.", toggle: rareSpawnController },
   { href: "/dashboard/range", title: "Range", description: "Range game interactions and limits.", toggle: engineController("range") },
   { href: "/dashboard/truthdare", title: "Truth Or Dare", description: "Truth/Dare prompts, channel locks, and bet controls.", toggle: engineController("truthDare") },
-  { href: "/dashboard/pokemon-catching", title: "Pokemon Catching", description: "Wild spawn lanes, catch rates, reward tuning, and catch logs.", toggle: pokemonCatchingController },
-  { href: "/dashboard/pokemon-battle", title: "Pokemon Battle", description: "Battle lane, battle logging, and duel availability.", toggle: pokemonBattleController },
-  { href: "/dashboard/pokemon-trade", title: "Pokemon Trade", description: "Trade gate and trade log routing.", toggle: pokemonTradeController },
+  { href: "/dashboard/pokemon-catching", title: "Pokemon Catching", description: "Wild spawn lanes, catch rates, reward tuning, and catch logs.", toggle: pokemonCatchingController, primaryOwnerOnly: true },
+  { href: "/dashboard/pokemon-battle", title: "Pokemon Battle", description: "Battle lane, battle logging, and duel availability.", toggle: pokemonBattleController, primaryOwnerOnly: true },
+  { href: "/dashboard/pokemon-trade", title: "Pokemon Trade", description: "Trade gate and trade log routing.", toggle: pokemonTradeController, primaryOwnerOnly: true },
   { href: "/dashboard/governance", title: "Governance", description: "Governance state and enforcement controls.", toggle: engineController("security.governance", ["active"]) },
   { href: "/dashboard/security", title: "Security", description: "Security stack, moderation, and policies.", toggle: engineController("security.governance", ["active"]) },
   { href: "/dashboard/blacklist", title: "Blacklist", description: "Blacklist add/remove/show control.", toggle: engineController("blacklist") },
@@ -599,14 +602,15 @@ function pillClass(on: boolean | null) {
     : "rounded-full border border-red-600/50 bg-red-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-300";
 }
 
-export default function DashboardClient({ groupSlug }: { groupSlug?: string } = {}) {
+export default function DashboardClient({ groupSlug, switchboardOnly = false }: { groupSlug?: string; switchboardOnly?: boolean } = {}) {
   const premiumEnforced = isPremiumEnforcementEnabled();
   const [guildId, setGuildId] = useState("");
   const [viewerUserId, setViewerUserId] = useState("");
   const [states, setStates] = useState<Record<string, ToggleState>>({});
   const [loadingStates, setLoadingStates] = useState(false);
   const [subscription, setSubscription] = useState<{ active: boolean; plan: string; developerBypass?: boolean } | null>(null);
-  const { isMasterOwner } = useDashboardSessionState();
+  const { isMasterOwner, isPrimaryOwner, loading: sessionLoading } = useDashboardSessionState();
+  const featureVisibility = usePublicFeatureVisibility();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -680,8 +684,8 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
   }, [viewerUserId]);
 
   useEffect(() => {
-    loadStates(guildId).catch(() => {});
-  }, [guildId, loadStates, viewerUserId]);
+    if (!switchboardOnly || isMasterOwner) loadStates(guildId).catch(() => {});
+  }, [guildId, isMasterOwner, loadStates, switchboardOnly, viewerUserId]);
 
   useEffect(() => {
     if (!premiumEnforced) {
@@ -736,8 +740,16 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
         routeKey: card.href,
         href: buildDashboardHref(card.href),
         state: states[card.href] || { value: null, saving: false },
-      })).filter((card) => !card.creatorOnly || isMasterOwner),
-    [isMasterOwner, states]
+      })).filter((card) => {
+        if (card.creatorOnly && !isMasterOwner) return false;
+        if (card.primaryOwnerOnly && !isPrimaryOwner) return false;
+        if (switchboardOnly && !card.toggle) return false;
+        if (isMasterOwner || switchboardOnly) return true;
+        const route = card.routeKey.split("?")[0].split("#")[0];
+        const premiumFeature = PREMIUM_FEATURES.find((feature) => feature.route.split("?")[0].split("#")[0] === route);
+        return !premiumFeature || featureVisibility?.[premiumFeature.id] === true;
+      }),
+    [featureVisibility, isMasterOwner, isPrimaryOwner, states, switchboardOnly]
   );
 
   const quickAccessCards = useMemo(
@@ -747,11 +759,17 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
 
   const premiumUnlocked = !premiumEnforced || Boolean(subscription?.active || subscription?.developerBypass);
   const navGroup = useMemo(
-    () => (groupSlug ? getDashboardNavSections(isMasterOwner).find((s) => getSectionSlug(s.label) === groupSlug) || null : null),
-    [groupSlug, isMasterOwner]
+    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner).find((s) => getSectionSlug(s.label) === groupSlug) || null : null),
+    [featureVisibility, groupSlug, isMasterOwner, isPrimaryOwner]
   );
   const baseHref = (href: string) => href.split("?")[0].split("#")[0];
   const groupedCards = useMemo(() => {
+    if (switchboardOnly) {
+      return SECTION_ORDER.map((section) => ({
+        section,
+        cards: cards.filter((card) => getCardSection(card) === section),
+      })).filter((group) => group.cards.length > 0);
+    }
     if (groupSlug) {
       if (!navGroup) return [];
       const matched = cards.filter((card) => {
@@ -767,9 +785,9 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
       section,
       cards: cards.filter((card) => card.routeKey !== "/dashboard/system-health" && getCardSection(card) === section),
     })).filter((group) => group.cards.length > 0);
-  }, [cards, groupSlug, navGroup]);
+  }, [cards, groupSlug, navGroup, switchboardOnly]);
   const extraGroupLinks = useMemo(() => {
-    if (!navGroup) return [];
+    if (!navGroup || switchboardOnly) return [];
     const seen = new Set<string>();
     return navGroup.items.filter((item) => {
       const matched = cards.some((card) => {
@@ -781,20 +799,31 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
       seen.add(item.href);
       return true;
     });
-  }, [cards, navGroup]);
+  }, [cards, navGroup, switchboardOnly]);
+
+  if (switchboardOnly && sessionLoading) {
+    return <section className="rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">Checking creator access…</section>;
+  }
+  if (switchboardOnly && !isPrimaryOwner) {
+    return <section role="alert" className="rounded-xl border border-red-800 bg-black/60 p-5 text-red-100">This switchboard is available only to the primary Possum creator account.</section>;
+  }
 
   return (
     <section className="space-y-5">
       <header className="rounded-xl border possum-divider bg-black/50 p-5 possum-border">
-        <p className="text-xs uppercase tracking-[0.22em] possum-soft">{navGroup ? "Group Overview" : "Possum Control"}</p>
-        <h2 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red possum-glow">{navGroup ? navGroup.label : "Guild Dashboard"}</h2>
-        {navGroup ? (
+        <p className="text-xs uppercase tracking-[0.22em] possum-soft">{switchboardOnly ? "Creator Controls" : navGroup ? "Group Overview" : "Possum Control"}</p>
+        <h2 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red possum-glow">{switchboardOnly ? "My Quick Switchboard" : navGroup ? navGroup.label : "Guild Dashboard"}</h2>
+        {switchboardOnly ? (
+          <p className="mt-2 text-sm text-red-200/80">
+            Instantly turn supported systems on or off for the active server from one page. This creator-only control panel is separate from Server Setup, which remains available to each server’s authorized owners.
+          </p>
+        ) : navGroup ? (
           <p className="mt-2 text-sm text-red-200/80">
             Live status for everything in {navGroup.label}. Use a toggle to switch a feature on or off, or open a card to view its settings.
           </p>
         ) : null}
         {groupSlug && !navGroup ? <p className="mt-2 text-sm text-red-200/80">That group does not exist.</p> : null}
-        <p className="mt-2 text-sm text-red-200/80" hidden={Boolean(groupSlug)}>
+        <p className="mt-2 text-sm text-red-200/80" hidden={Boolean(groupSlug || switchboardOnly)}>
           {guildId === SAVIORS_GUILD_ID
             ? "Saviors baseline stays intact until you explicitly toggle something."
             : "Cards are grouped by live engine category. Use toggles here to turn engines on or off for the active guild without leaving the dashboard. Open a card to view its settings."}
@@ -818,10 +847,17 @@ export default function DashboardClient({ groupSlug }: { groupSlug?: string } = 
                 className="rounded-xl border possum-divider bg-black/45 p-4 transition hover:bg-black/65 possum-border"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <Link href={card.href} prefetch={false} className="min-w-0 flex-1">
-                    <h3 className="text-base font-extrabold uppercase tracking-[0.06em] possum-red">{card.title}</h3>
-                    <p className="mt-1 text-sm text-red-200/75">{card.description}</p>
-                  </Link>
+                  {switchboardOnly ? (
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-extrabold uppercase tracking-[0.06em] possum-red">{card.title}</h3>
+                      <p className="mt-1 text-sm text-red-200/75">{card.description}</p>
+                    </div>
+                  ) : (
+                    <Link href={card.href} prefetch={false} className="min-w-0 flex-1">
+                      <h3 className="text-base font-extrabold uppercase tracking-[0.06em] possum-red">{card.title}</h3>
+                      <p className="mt-1 text-sm text-red-200/75">{card.description}</p>
+                    </Link>
+                  )}
                 </div>
               </div>
             ))}

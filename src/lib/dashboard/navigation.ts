@@ -26,14 +26,17 @@ export function getSectionHref(label: string): string {
   return `/dashboard/group/${getSectionSlug(label)}`;
 }
 
-export function getDashboardNavTopLinks(isMasterOwner = false): DashboardNavTopLink[] {
+export function getDashboardNavTopLinks(isMasterOwner = false, isPrimaryOwner = false): DashboardNavTopLink[] {
   const topLinks: DashboardNavTopLink[] = [
     { href: "/dashboard/system-health", label: "System Health" },
+    { href: "/dashboard/switchboard", label: "My Quick Switchboard", primaryOwnerOnly: true },
     { href: "/dashboard/operations", label: "Operations", creatorOnly: true },
     { href: "/dashboard/master", label: "Master Control", creatorOnly: true }
   ];
   return topLinks.filter(
-    (item) => !item.creatorOnly || isMasterOwner
+    (item) =>
+      (!item.creatorOnly || isMasterOwner) &&
+      (!item.primaryOwnerOnly || isPrimaryOwner)
   );
 }
 
@@ -48,7 +51,6 @@ export function getDashboardNavSections(
       defaultOpen: true,
       items: [
         { href: "/dashboard/server-setup", label: "Server Setup" },
-        { href: "/dashboard/switchboard", label: "My Quick Switchboard", primaryOwnerOnly: true },
         { href: "/dashboard/bot-personalizer", label: "Bot Personalizer" },
         { href: "/dashboard/bot-masters", label: "Bot Masters / Dashboard Access" },
         { href: "/dashboard/channels", label: "Channels" },

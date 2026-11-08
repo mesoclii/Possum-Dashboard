@@ -34,22 +34,22 @@ export default function PossumSidebar() {
   const router = useRouter();
   const { isMasterOwner, isPrimaryOwner } = useDashboardSessionState();
   const featureVisibility = usePublicFeatureVisibility();
-  const topLinks = useMemo(() => getDashboardNavTopLinks(isMasterOwner), [isMasterOwner]);
+  const topLinks = useMemo(
+    () => getDashboardNavTopLinks(isMasterOwner, isPrimaryOwner),
+    [isMasterOwner, isPrimaryOwner]
+  );
   const sections = useMemo(
     () => getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner),
     [featureVisibility, isMasterOwner, isPrimaryOwner]
   );
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [sectionOverride, setSectionOverride] = useState<{ pathname: string | null; label: string | null } | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const prefetchedHrefsRef = useRef<Set<string>>(new Set());
-
-  function isSectionOpen(label: string, defaultOpen: boolean) {
-    return typeof openSections[label] === "boolean" ? openSections[label] : defaultOpen;
-  }
-
-  function toggleSection(label: string, defaultOpen: boolean) {
-    setOpenSections((prev) => ({ ...prev, [label]: !isSectionOpen(label, defaultOpen) }));
-  }
+  const routeSection = sections.find((section) =>
+    isItemActive(pathname, getSectionHref(section.label)) ||
+    section.items.some((item) => isItemActive(pathname, item.href))
+  ) ?? sections.find((section) => section.defaultOpen);
+  const openSection = sectionOverride?.pathname === pathname ? sectionOverride.label : routeSection?.label ?? null;
 
   function navigateTo(href: string) {
     setMobileMenuOpen(false);
@@ -118,8 +118,7 @@ export default function PossumSidebar() {
 
         <nav className="space-y-4">
           {sections.map((section) => {
-            const defaultOpen = Boolean(section.defaultOpen || section.items.some((item) => isItemActive(pathname, item.href)));
-            const open = isSectionOpen(section.label, defaultOpen);
+            const open = openSection === section.label;
             return (
               <div key={section.label} className="rounded-lg border border-pink-900/50 bg-black/30 possum-nav-section">
                 <div className="flex items-stretch">
@@ -136,7 +135,10 @@ export default function PossumSidebar() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => toggleSection(section.label, defaultOpen)}
+                    onClick={() => setSectionOverride({
+                      pathname,
+                      label: openSection === section.label ? null : section.label
+                    })}
                     aria-expanded={open}
                     aria-label={`${open ? "Collapse" : "Expand"} ${section.label}`}
                     title={open ? "Collapse" : "Expand"}

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { buildDashboardHref } from "@/lib/dashboardContext";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { usePublicFeatureVisibility } from "@/components/possum/usePublicFeatureVisibility";
-import { getDashboardNavSections, getDashboardNavTopLinks } from "@/lib/dashboard/navigation";
+import { getDashboardNavSections, getDashboardNavTopLinks, getSectionHref } from "@/lib/dashboard/navigation";
 
 function isItemActive(pathname: string | null, href: string) {
   const baseHref = href.split("?")[0].split("#")[0];
@@ -17,20 +17,20 @@ export default function GlobalSidebar() {
   const router = useRouter();
   const { isMasterOwner, isPrimaryOwner } = useDashboardSessionState();
   const featureVisibility = usePublicFeatureVisibility();
-  const topLinks = useMemo(() => getDashboardNavTopLinks(isMasterOwner), [isMasterOwner]);
+  const topLinks = useMemo(
+    () => getDashboardNavTopLinks(isMasterOwner, isPrimaryOwner),
+    [isMasterOwner, isPrimaryOwner]
+  );
   const sections = useMemo(
     () => getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner),
     [featureVisibility, isMasterOwner, isPrimaryOwner]
   );
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-
-  function isSectionOpen(label: string, defaultOpen: boolean) {
-    return typeof openSections[label] === "boolean" ? openSections[label] : defaultOpen;
-  }
-
-  function toggleSection(label: string, defaultOpen: boolean) {
-    setOpenSections((prev) => ({ ...prev, [label]: !isSectionOpen(label, defaultOpen) }));
-  }
+  const [sectionOverride, setSectionOverride] = useState<{ pathname: string | null; label: string | null } | null>(null);
+  const routeSection = sections.find((section) =>
+    isItemActive(pathname, getSectionHref(section.label)) ||
+    section.items.some((item) => isItemActive(pathname, item.href))
+  ) ?? sections.find((section) => section.defaultOpen);
+  const openSection = sectionOverride?.pathname === pathname ? sectionOverride.label : routeSection?.label ?? null;
 
   function navigateTo(href: string) {
     router.push(buildDashboardHref(href));
@@ -71,13 +71,15 @@ export default function GlobalSidebar() {
       </div>
       <nav className="space-y-4">
         {sections.map((section) => {
-          const defaultOpen = Boolean(section.defaultOpen || section.items.some((item) => isItemActive(pathname, item.href)));
-          const open = isSectionOpen(section.label, defaultOpen);
+          const open = openSection === section.label;
           return (
             <div key={section.label} className="rounded-lg border border-pink-500/40 bg-black/50 possum-border">
               <button
                 type="button"
-                onClick={() => toggleSection(section.label, defaultOpen)}
+                onClick={() => setSectionOverride({
+                  pathname,
+                  label: openSection === section.label ? null : section.label
+                })}
                 className="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] font-black uppercase tracking-[0.14em] text-pink-200"
               >
                 {section.label}

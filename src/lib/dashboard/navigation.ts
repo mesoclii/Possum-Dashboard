@@ -1,7 +1,10 @@
+import { PREMIUM_FEATURES } from "@/lib/premiumCatalog";
+
 export type DashboardNavItem = {
   href: string;
   label: string;
   creatorOnly?: boolean;
+  primaryOwnerOnly?: boolean;
 };
 
 export type DashboardNavTopLink = DashboardNavItem;
@@ -23,18 +26,25 @@ export function getSectionHref(label: string): string {
   return `/dashboard/group/${getSectionSlug(label)}`;
 }
 
-export function getDashboardNavTopLinks(isMasterOwner = false): DashboardNavTopLink[] {
+export function getDashboardNavTopLinks(isMasterOwner = false, isPrimaryOwner = false): DashboardNavTopLink[] {
   const topLinks: DashboardNavTopLink[] = [
     { href: "/dashboard/system-health", label: "System Health" },
+    { href: "/dashboard/switchboard", label: "My Quick Switchboard", primaryOwnerOnly: true },
     { href: "/dashboard/operations", label: "Operations", creatorOnly: true },
     { href: "/dashboard/master", label: "Master Control", creatorOnly: true }
   ];
   return topLinks.filter(
-    (item) => !item.creatorOnly || isMasterOwner
+    (item) =>
+      (!item.creatorOnly || isMasterOwner) &&
+      (!item.primaryOwnerOnly || isPrimaryOwner)
   );
 }
 
-export function getDashboardNavSections(isMasterOwner = false): DashboardNavSection[] {
+export function getDashboardNavSections(
+  isMasterOwner = false,
+  featureVisibility?: Record<string, boolean> | null,
+  isPrimaryOwner = false
+): DashboardNavSection[] {
   const sections: DashboardNavSection[] = [
     {
       label: "Guild Control",
@@ -144,9 +154,9 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
         { href: "/dashboard/rarespawn", label: "Rare Spawn" },
         { href: "/dashboard/range", label: "Range" },
         { href: "/dashboard/truthdare", label: "Truth Dare" },
-        { href: "/dashboard/pokemon-catching", label: "Pokemon Catching" },
-        { href: "/dashboard/pokemon-battle", label: "Pokemon Battle" },
-        { href: "/dashboard/pokemon-trade", label: "Pokemon Trade" },
+        { href: "/dashboard/pokemon-catching", label: "Pokemon Catching", primaryOwnerOnly: true },
+        { href: "/dashboard/pokemon-battle", label: "Pokemon Battle", primaryOwnerOnly: true },
+        { href: "/dashboard/pokemon-trade", label: "Pokemon Trade", primaryOwnerOnly: true },
       ],
     },
     {
@@ -168,7 +178,15 @@ export function getDashboardNavSections(isMasterOwner = false): DashboardNavSect
   return sections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => !item.creatorOnly || isMasterOwner),
+      items: section.items.filter((item) => {
+        if (item.creatorOnly && !isMasterOwner) return false;
+        if (item.primaryOwnerOnly && !isPrimaryOwner) return false;
+        if (isMasterOwner || featureVisibility === undefined) return true;
+        const route = item.href.split("?")[0].split("#")[0];
+        const premiumFeature = PREMIUM_FEATURES.find((feature) => feature.route.split("?")[0].split("#")[0] === route);
+        if (!premiumFeature) return true;
+        return featureVisibility?.[premiumFeature.id] === true;
+      }),
     }))
     .filter((section) => section.items.length > 0);
 }

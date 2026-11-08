@@ -12,6 +12,8 @@ import {
   DASHBOARD_OAUTH_STATE_COOKIE,
   DASHBOARD_RETURN_TO_COOKIE,
   DASHBOARD_SESSION_COOKIE,
+  dashboardOAuthStateCookieName,
+  dashboardReturnToCookieName,
   isDashboardSessionConfigured,
   sanitizeDashboardReturnTo,
   shouldUseSecureCookies,
@@ -36,8 +38,10 @@ export async function GET(request: NextRequest) {
 
   const code = String(request.nextUrl.searchParams.get("code") || "").trim();
   const state = String(request.nextUrl.searchParams.get("state") || "").trim();
-  const storedState = String(request.cookies.get(DASHBOARD_OAUTH_STATE_COOKIE)?.value || "").trim();
-  const returnTo = sanitizeDashboardReturnTo(request.cookies.get(DASHBOARD_RETURN_TO_COOKIE)?.value);
+  const stateCookieName = dashboardOAuthStateCookieName(state);
+  const returnToCookieName = dashboardReturnToCookieName(state);
+  const storedState = String(request.cookies.get(stateCookieName)?.value || "").trim();
+  const returnTo = sanitizeDashboardReturnTo(request.cookies.get(returnToCookieName)?.value);
 
   if (!code) {
     return NextResponse.json({ success: false, error: "Missing OAuth code." }, { status: 400 });
@@ -76,6 +80,7 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.redirect(redirectUrl);
+  response.headers.set("Cache-Control", "no-store, private");
   response.cookies.set(DASHBOARD_SESSION_COOKIE, sessionValue, {
     httpOnly: true,
     sameSite: "lax",
@@ -83,6 +88,8 @@ export async function GET(request: NextRequest) {
     path: "/",
     maxAge: Math.max(60, Number(token.expires_in || 604800)),
   });
+  response.cookies.delete(stateCookieName);
+  response.cookies.delete(returnToCookieName);
   response.cookies.delete(DASHBOARD_OAUTH_STATE_COOKIE);
   response.cookies.delete(DASHBOARD_RETURN_TO_COOKIE);
 

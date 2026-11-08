@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { buildDashboardHref } from "@/lib/dashboardContext";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
+import { usePublicFeatureVisibility } from "@/components/possum/usePublicFeatureVisibility";
 import { getDashboardNavSections, getDashboardNavTopLinks, getSectionHref } from "@/lib/dashboard/navigation";
 
 function itemClass(active: boolean): string {
@@ -31,21 +32,27 @@ function shouldPrefetchNavRoutes() {
 export default function PossumSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMasterOwner } = useDashboardSessionState();
-  const topLinks = useMemo(() => getDashboardNavTopLinks(isMasterOwner), [isMasterOwner]);
-  const sections = useMemo(() => getDashboardNavSections(isMasterOwner), [isMasterOwner]);
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const { isMasterOwner, isPrimaryOwner } = useDashboardSessionState();
+  const featureVisibility = usePublicFeatureVisibility();
+  const topLinks = useMemo(
+    () => getDashboardNavTopLinks(isMasterOwner, isPrimaryOwner),
+    [isMasterOwner, isPrimaryOwner]
+  );
+  const sections = useMemo(
+    () => getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner),
+    [featureVisibility, isMasterOwner, isPrimaryOwner]
+  );
+  const [sectionOverride, setSectionOverride] = useState<{ pathname: string | null; label: string | null } | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const prefetchedHrefsRef = useRef<Set<string>>(new Set());
-
-  function isSectionOpen(label: string, defaultOpen: boolean) {
-    return typeof openSections[label] === "boolean" ? openSections[label] : defaultOpen;
-  }
-
-  function toggleSection(label: string, defaultOpen: boolean) {
-    setOpenSections((prev) => ({ ...prev, [label]: !isSectionOpen(label, defaultOpen) }));
-  }
+  const routeSection = sections.find((section) =>
+    isItemActive(pathname, getSectionHref(section.label)) ||
+    section.items.some((item) => isItemActive(pathname, item.href))
+  ) ?? sections.find((section) => section.defaultOpen);
+  const openSection = sectionOverride?.pathname === pathname ? sectionOverride.label : routeSection?.label ?? null;
 
   function navigateTo(href: string) {
+    setMobileMenuOpen(false);
     router.push(buildDashboardHref(href));
   }
 
@@ -63,16 +70,35 @@ export default function PossumSidebar() {
 
   return (
     <div className="flex min-h-full flex-col rounded-xl border possum-divider bg-black/55 p-4 possum-border">
-      <div className="mb-4 border-b possum-divider pb-3">
-        <p className="text-[11px] uppercase tracking-[0.24em] possum-soft">Possum Bot</p>
+      <div className="mb-4 flex items-center justify-between gap-3 border-b possum-divider pb-3">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.24em] possum-soft">Possum Bot</p>
+          <button
+            type="button"
+            onClick={() => navigateTo("/dashboard")}
+            className="mt-1 block text-left text-lg font-black uppercase tracking-[0.08em] possum-red possum-glow-soft hover:text-red-200"
+          >
+            Dashboard
+          </button>
+        </div>
         <button
           type="button"
-          onClick={() => navigateTo("/dashboard")}
-          className="mt-1 block text-left text-lg font-black uppercase tracking-[0.08em] possum-red possum-glow-soft hover:text-red-200"
+          aria-expanded={mobileMenuOpen}
+          aria-controls="possum-sidebar-navigation"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          className="min-h-11 shrink-0 rounded-md border possum-divider px-3 text-xs font-black uppercase tracking-[0.08em] text-pink-100 lg:hidden"
         >
-          Dashboard
+          {mobileMenuOpen ? "Close menu" : "Menu"}
         </button>
-        <div className="mt-3 space-y-1">
+      </div>
+
+      <div
+        id="possum-sidebar-navigation"
+        className={mobileMenuOpen
+          ? "block max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain lg:max-h-none lg:overflow-visible"
+          : "hidden lg:block"}
+      >
+        <div className="mb-4 space-y-1 border-b possum-divider pb-3">
           {topLinks.map((item) => {
             const active = isItemActive(pathname, item.href);
             return (
@@ -89,62 +115,64 @@ export default function PossumSidebar() {
             );
           })}
         </div>
-      </div>
 
-      <nav className="space-y-4">
-        {sections.map((section) => {
-          const defaultOpen = Boolean(section.defaultOpen || section.items.some((item) => isItemActive(pathname, item.href)));
-          const open = isSectionOpen(section.label, defaultOpen);
-          return (
-            <div key={section.label} className="rounded-lg border border-pink-900/50 bg-black/30 possum-nav-section">
-              <div className="flex items-stretch">
-                <button
-                  type="button"
-                  onClick={() => navigateTo(getSectionHref(section.label))}
-                  onMouseEnter={() => prefetchHref(getSectionHref(section.label))}
-                  title={`Open ${section.label} overview`}
-                  className={`min-w-0 flex-1 px-3 py-2 text-left text-xs font-black uppercase tracking-[0.16em] hover:text-pink-200 ${
-                    isItemActive(pathname, getSectionHref(section.label)) ? "text-pink-200" : "text-pink-300/90"
-                  }`}
-                >
-                  {section.label}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleSection(section.label, defaultOpen)}
-                  aria-expanded={open}
-                  aria-label={`${open ? "Collapse" : "Expand"} ${section.label}`}
-                  title={open ? "Collapse" : "Expand"}
-                  className="possum-chevron flex w-10 items-center justify-center border-l border-pink-400/40 text-pink-200 hover:bg-pink-500/15"
-                >
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }}>
-                    <path d="M4 7l6 6 6-6" />
-                  </svg>
-                </button>
-              </div>
-              {open ? (
-                <div className="relative z-10 space-y-1 px-2 pb-2">
-                  {section.items.map((item) => {
-                    const active = isItemActive(pathname, item.href);
-                    return (
-                      <button
-                        key={item.href}
-                        type="button"
-                        onClick={() => navigateTo(item.href)}
-                        onMouseEnter={() => prefetchHref(item.href)}
-                        onFocus={() => prefetchHref(item.href)}
-                        className={`${itemClass(Boolean(active))} relative z-10 cursor-pointer`}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
+        <nav className="space-y-4">
+          {sections.map((section) => {
+            const open = openSection === section.label;
+            return (
+              <div key={section.label} className="rounded-lg border border-pink-900/50 bg-black/30 possum-nav-section">
+                <div className="flex items-stretch">
+                  <button
+                    type="button"
+                    onClick={() => navigateTo(getSectionHref(section.label))}
+                    onMouseEnter={() => prefetchHref(getSectionHref(section.label))}
+                    title={`Open ${section.label} overview`}
+                    className={`min-w-0 flex-1 px-3 py-2 text-left text-xs font-black uppercase tracking-[0.16em] hover:text-pink-200 ${
+                      isItemActive(pathname, getSectionHref(section.label)) ? "text-pink-200" : "text-pink-300/90"
+                    }`}
+                  >
+                    {section.label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSectionOverride({
+                      pathname,
+                      label: openSection === section.label ? null : section.label
+                    })}
+                    aria-expanded={open}
+                    aria-label={`${open ? "Collapse" : "Expand"} ${section.label}`}
+                    title={open ? "Collapse" : "Expand"}
+                    className="possum-chevron flex w-10 items-center justify-center border-l border-pink-400/40 text-pink-200 hover:bg-pink-500/15"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }}>
+                      <path d="M4 7l6 6 6-6" />
+                    </svg>
+                  </button>
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
-      </nav>
+                {open ? (
+                  <div className="relative z-10 space-y-1 px-2 pb-2">
+                    {section.items.map((item) => {
+                      const active = isItemActive(pathname, item.href);
+                      return (
+                        <button
+                          key={item.href}
+                          type="button"
+                          onClick={() => navigateTo(item.href)}
+                          onMouseEnter={() => prefetchHref(item.href)}
+                          onFocus={() => prefetchHref(item.href)}
+                          className={`${itemClass(Boolean(active))} relative z-10 cursor-pointer`}
+                        >
+                          {item.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }

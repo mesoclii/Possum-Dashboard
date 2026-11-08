@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import PlanTierPicker from "@/components/possum/PlanTierPicker";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 import { PRICING_FOOTNOTE, PREMIUM_FEATURES, STANDARD_FEATURES } from "@/lib/premiumCatalog";
+import { usePublicFeatureVisibility } from "@/components/possum/usePublicFeatureVisibility";
 
 type SessionState = {
   loggedIn: boolean;
@@ -43,6 +44,10 @@ const action: CSSProperties = {
 
 export default function FeaturesPage() {
   const [session, setSession] = useState<SessionState>({ loggedIn: false, canEnterDashboard: false });
+  const featureVisibility = usePublicFeatureVisibility();
+  const publicPremiumFeatures = PREMIUM_FEATURES.filter((feature) =>
+    !feature.creatorOnly && featureVisibility?.[feature.id] === true
+  );
 
   useEffect(() => {
     (async () => {
@@ -158,7 +163,7 @@ export default function FeaturesPage() {
             Premium Features
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
-            {PREMIUM_FEATURES.map((feature) => (
+            {publicPremiumFeatures.map((feature) => (
               <div key={feature.id} style={{ ...card, margin: 0 }}>
                 <div style={{ color: "#ffd49a", fontSize: 11, letterSpacing: "0.10em", textTransform: "uppercase" }}>
                   {feature.premiumLabel}

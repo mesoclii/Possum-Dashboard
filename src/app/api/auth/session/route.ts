@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
       oauthConfigured,
       loggedIn: false,
       isMasterOwner: false,
+      isPrimaryOwner: false,
       canEnterDashboard: false,
       accessibleGuildCount: 0,
       user: null,
@@ -23,6 +24,7 @@ export async function GET(request: NextRequest) {
 
   const actorUserId = String(session.user.id || MASTER_OWNER_USER_ID).trim() || MASTER_OWNER_USER_ID;
   const isMasterOwner = isDashboardControlOwner(actorUserId);
+  const isPrimaryOwner = actorUserId === MASTER_OWNER_USER_ID;
 
   if (brief) {
     return NextResponse.json({
@@ -30,6 +32,7 @@ export async function GET(request: NextRequest) {
       oauthConfigured,
       loggedIn: true,
       isMasterOwner,
+      isPrimaryOwner,
       canEnterDashboard: true,
       accessibleGuildCount: null,
       counts: null,
@@ -67,6 +70,7 @@ export async function GET(request: NextRequest) {
     oauthConfigured,
     loggedIn: true,
     isMasterOwner,
+    isPrimaryOwner,
     canEnterDashboard: isMasterOwner || accessibleGuildCount > 0,
     accessibleGuildCount,
     counts: {

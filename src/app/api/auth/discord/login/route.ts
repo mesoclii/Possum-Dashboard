@@ -3,9 +3,9 @@ import { buildDiscordOauthUrl, getDiscordOauthConfigurationIssue } from "@/lib/d
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import {
-  DASHBOARD_OAUTH_STATE_COOKIE,
-  DASHBOARD_RETURN_TO_COOKIE,
   createOauthState,
+  dashboardOAuthStateCookieName,
+  dashboardReturnToCookieName,
   isDashboardSessionConfigured,
   sanitizeDashboardReturnTo,
   shouldUseSecureCookies,
@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
   }
 
   const state = createOauthState();
+  const response = NextResponse.redirect(buildDiscordOauthUrl(state));
+  response.headers.set("Cache-Control", "no-store, private");
   const referer = String(request.headers.get("referer") || "").trim();
   let inferredReturnTo = request.nextUrl.searchParams.get("returnTo") || "";
   if (!inferredReturnTo && referer) {
@@ -47,16 +49,15 @@ export async function GET(request: NextRequest) {
     } catch {}
   }
   const returnTo = sanitizeDashboardReturnTo(inferredReturnTo);
-  const response = NextResponse.redirect(buildDiscordOauthUrl(state));
 
-  response.cookies.set(DASHBOARD_OAUTH_STATE_COOKIE, state, {
+  response.cookies.set(dashboardOAuthStateCookieName(state), state, {
     httpOnly: true,
     sameSite: "lax",
     secure: shouldUseSecureCookies(),
     path: "/",
     maxAge: 60 * 10,
   });
-  response.cookies.set(DASHBOARD_RETURN_TO_COOKIE, returnTo, {
+  response.cookies.set(dashboardReturnToCookieName(state), returnTo, {
     httpOnly: true,
     sameSite: "lax",
     secure: shouldUseSecureCookies(),

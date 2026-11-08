@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
+import InfrastructureSetupWizard from "./InfrastructureSetupWizard";
 
 type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string; botPermissions?: { status?: string; flags?: string[] } };
 type FeatureOption = { id: string; name: string; group: string; description: string; protected: boolean; selectable: boolean };
@@ -75,7 +76,7 @@ type ApiJson = {
 
 type Notice = { id: number; tone: "ok" | "err"; title: string; detail?: string };
 type PendingWrite = { title: string; detail: string; confirmLabel: string; body: Record<string, unknown> };
-type DialogKind = "setup" | "repair" | "adapt" | "";
+type DialogKind = "repair" | "adapt" | "";
 
 async function readJson(response: Response): Promise<ApiJson> {
   try {
@@ -335,13 +336,7 @@ export default function InfrastructureClient() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<Report | null>(null);
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-  const [featuresDirty, setFeaturesDirty] = useState(false);
-  const [namesDirty, setNamesDirty] = useState(false);
-  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
-  const [featureQuery, setFeatureQuery] = useState("");
-  const [featureDraft, setFeatureDraft] = useState<string[] | null>(null);
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [busyAction, setBusyAction] = useState("");
@@ -382,8 +377,6 @@ export default function InfrastructureClient() {
         const json = await readJson(response);
         if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
         setReport(json.report || null);
-        setSelectedFeatures(json.report?.settings?.trackedEngines || []);
-        setNameOverrides(json.report?.settings?.resourceNameOverrides || {});
       })
       .catch((error: unknown) => notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed"));
   }, []);
@@ -430,13 +423,6 @@ export default function InfrastructureClient() {
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
       setReport(nextReport);
-      if (body.action === "settings" && (Object.prototype.hasOwnProperty.call(body, "trackedEngines") || Object.prototype.hasOwnProperty.call(body, "resourceNameOverrides"))) {
-        if (nextReport?.settings?.trackedEnginesConfigured) setSelectedFeatures(nextReport.settings.trackedEngines || []);
-        setNameOverrides(nextReport?.settings?.resourceNameOverrides || {});
-        setFeaturesDirty(false);
-        setNamesDirty(false);
-      }
-      if (Object.prototype.hasOwnProperty.call(body, "trackedEngines")) setFeatureDraft(null);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
       const delta = typeof before === "number" && typeof after === "number" && before !== after
@@ -451,20 +437,6 @@ export default function InfrastructureClient() {
     }
   }
 
-  const allEngines = useMemo(() => report?.allEngines || [], [report]);
-  const trackedSet = useMemo(() => {
-    if (featureDraft) return new Set(featureDraft);
-    const configured = report?.settings?.trackedEngines;
-    if (Array.isArray(configured)) return new Set(configured);
-    return new Set(allEngines.map((row) => row.engine));
-  }, [allEngines, featureDraft, report?.settings?.trackedEngines]);
-  const featureRows = useMemo(() => {
-    const needle = featureQuery.trim().toLowerCase();
-    const rows = allEngines.filter((row) => !needle || `${row.label} ${row.engine}`.toLowerCase().includes(needle));
-    return rows;
-  }, [allEngines, featureQuery]);
-  const trackedConfigured = Array.isArray(report?.settings?.trackedEngines) || Boolean(featureDraft);
-  const featureDirty = featureDraft !== null;
 
   function ask(next: PendingWrite) {
     if (inFlight.current) {
@@ -523,7 +495,6 @@ export default function InfrastructureClient() {
   }
 
   const locked = Boolean(busyAction);
-  const featureSelectionRequired = !report?.settings?.trackedEnginesConfigured || featuresDirty || namesDirty;
   const busyLabel = busyAction ? `Running ${busyAction.replace(/-/g, " ")}` : "";
 
   const rows = useMemo(() => {
@@ -539,6 +510,7 @@ export default function InfrastructureClient() {
 
   return (
     <div className="space-y-4">
+      <InfrastructureSetupWizard embedded />
       <div aria-live="polite" className="sr-only">{locked ? `${busyLabel}. Other actions are temporarily disabled.` : "No infrastructure action is running."}</div>
 
       <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2">
@@ -560,100 +532,25 @@ export default function InfrastructureClient() {
         ))}
       </div>
 
-            <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-black uppercase text-red-200">Server feature selection</h2>
-            <p className="mt-1 max-w-3xl text-sm text-red-100/80">Choose the Possum systems this guild actually uses. Infrastructure will only discover, recommend, provision and monitor requirements belonging to selected systems. This does not switch bot engines on or off. You can change it later.</p>
-          </div>
-          <span className="rounded-md border border-pink-800/60 px-2 py-1 text-xs text-pink-100">{selectedFeatures.length} selected</span>
-        </div>
-        {!report?.settings?.trackedEnginesConfigured ? <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-sm text-amber-100">Choose and save this guild’s feature set before Auto-Adapt, Full Setup or Repair can run. Scanning remains read-only.</p> : <p className="mt-3 text-xs text-pink-100/70">Feature selection saved. Unselected systems are excluded from infrastructure requirements. Existing configuration and Discord resources are never deleted when a feature is turned off.</p>}
-        {featuresDirty || namesDirty ? <p className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-100">You have unsaved feature or naming changes. Save them before running setup, Auto-Adapt or Repair.</p> : null}
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {(["community", "moderation", "engagement", "support"] as const).map((group) => {
-            const options = (report?.featureCatalog || []).filter((feature) => feature.group === group);
-            if (!options.length) return null;
-            const title = group === "community" ? "Community" : group === "moderation" ? "Moderation & security" : group === "engagement" ? "Engagement" : "Support & administration";
-            return <div key={group} className="rounded-lg border border-red-900/40 p-3">
-              <h3 className="text-sm font-black uppercase text-pink-100">{title}</h3>
-              <div className="mt-2 space-y-2">
-                {options.map((feature) => <label key={feature.id} className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm text-red-100">
-                  <input type="checkbox" checked={selectedFeatures.includes(feature.id)} disabled={!feature.selectable || locked} onChange={(event) => { setFeaturesDirty(true); setSelectedFeatures((current) => event.target.checked ? [...new Set([...current, feature.id])] : current.filter((id) => id !== feature.id)); }} className="mt-1 accent-red-500" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-bold">{feature.name}{feature.protected ? <span className="ml-2 text-[10px] font-normal uppercase text-amber-200">Protected flow</span> : null}</span>
-                    <span className="block text-xs text-red-100/60">{feature.description}</span>
-                  </span>
-                </label>)}
-              </div>
-            </div>;
-          })}
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <ActionButton label="Save features & names" tip="Save this guild’s feature selection. This changes tracking scope only and does not create or modify Discord resources." busy={busyAction === "feature-settings"} busyLabel="Saving…" locked={locked} onClick={() => post("feature-settings", { action: "settings", trackedEngines: selectedFeatures, resourceNameOverrides: nameOverrides })} />
-          <span className="text-xs text-red-100/60">Protected systems remain suggestion-only. Their existing runtime and verification flows are not changed.</span>
-        </div>
-      </section>
-
 <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
         <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
         <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0} · Tracking {report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)} feature{(report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)) === 1 ? "" : "s"}</p>
         {report?.onboarding?.status === "needs-choice" ? (
-          <p className="mt-2 text-sm text-pink-100">This server was just discovered. Choose Auto-Adapt to use channels that already exist, or Full Setup and then confirm before Possum creates anything.</p>
+          <p className="mt-2 text-sm text-pink-100">This server was just discovered. Use Setup & Infrastructure above to review existing mappings or approve resource creation.</p>
         ) : null}
         <p className="mt-2 text-sm text-pink-100/80">{report?.ready ? "Observed by the saved scan." : report?.reason || "Scan the server to build a read-only directory."}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
-          <ActionButton label="Discovery" tip="Set the mode to discovery. Nothing is created." busy={busyAction === "discovery"} busyLabel="Saving…" locked={locked} onClick={() => post("discovery", { action: "settings", mode: "discovery" })} />
-          <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked || featureSelectionRequired} onClick={() => post("adapt-preview", { action: "adapt" })} />
-          <ActionButton label="Full Setup" tip="Select full-setup mode. Resources are created only after the confirmation below." busy={busyAction === "full-setup"} busyLabel="Saving…" locked={locked || featureSelectionRequired} onClick={() => post("full-setup", { action: "settings", mode: "full-setup" })} />
-          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked || featureSelectionRequired} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
-          <ActionButton label="Confirm Full Setup" tip="Open the confirmation for creating at most five missing categories or channels for tracked features." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("setup")} />
-          <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked || featureSelectionRequired} onClick={() => setConfirm("repair")} />
+          <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked} onClick={() => post("adapt-preview", { action: "adapt" })} />
+          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
+          <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked} onClick={() => setConfirm("repair")} />
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
           <ActionButton label="TXT" tip="Download the directory as text." busy={busyAction === "export-txt"} busyLabel="Exporting…" locked={locked} onClick={() => download("txt")} />
         </div>
-        <p className="mt-2 text-xs text-red-200/70">Mode {report?.settings?.mode || "discovery"}. Tracked features control what health/adapt/create will consider. Protected onboarding, verification, pre-onboarding, and heist fields stay suggestion-only.</p>
-      </section>
-
-      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <h2 className="text-lg font-black uppercase text-red-200">Server Features To Track</h2>
-        <p className="mt-2 text-sm text-red-100/80">Check the features this server actually uses. Infrastructure will only scan, adapt, and create resources for checked features. Unchecked features are ignored (useful when a server does not have every engine enabled).</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <ActionButton label="Select all" tip="Track every available feature." busy={false} locked={locked || !allEngines.length} onClick={() => setFeatureDraft(allEngines.map((row) => row.engine))} />
-          <ActionButton label="Clear all" tip="Uncheck every feature (then pick only what this server uses)." busy={false} locked={locked || !allEngines.length} onClick={() => setFeatureDraft([])} />
-          <ActionButton label="Use all features" tip="Remove the custom selection so all features are tracked." busy={busyAction === "tracked-all"} busyLabel="Saving…" locked={locked || !trackedConfigured} onClick={() => ask({ title: "Track all features", detail: "This removes the custom feature selection for this server. Infrastructure will consider all features again.", confirmLabel: "Track all", body: { action: "settings", trackedEngines: null } })} />
-          <ActionButton label="Save tracked features" tip="Save the checked features for this server." busy={busyAction === "tracked-save"} busyLabel="Saving…" locked={locked || !featureDirty} onClick={() => ask({ title: "Save tracked features", detail: `Infrastructure will track ${trackedSet.size} feature${trackedSet.size === 1 ? "" : "s"} for this server. Unchecked features will not be created or flagged.`, confirmLabel: "Save", body: { action: "settings", trackedEngines: [...trackedSet] } })} />
-        </div>
-        <input value={featureQuery} onChange={(event) => setFeatureQuery(event.target.value)} placeholder="Search features/engines" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
-        <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
-          {featureRows.map((row) => {
-            const checked = trackedSet.has(row.engine);
-            return (
-              <label key={row.engine} className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${checked ? "border-pink-700/60 bg-pink-950/20" : "border-red-900/40"}`}>
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={checked}
-                  disabled={locked}
-                  onChange={() => {
-                    const base = featureDraft ? new Set(featureDraft) : new Set(Array.isArray(report?.settings?.trackedEngines) ? report!.settings!.trackedEngines! : allEngines.map((e) => e.engine));
-                    if (base.has(row.engine)) base.delete(row.engine); else base.add(row.engine);
-                    setFeatureDraft([...base]);
-                  }}
-                />
-                <span>
-                  <span className="block text-sm font-bold text-red-100">{row.label}</span>
-                  <span className="block text-xs text-pink-100/70">{row.engine} · {row.requirements} mapping{row.requirements === 1 ? "" : "s"}</span>
-                </span>
-              </label>
-            );
-          })}
-          {!allEngines.length ? <p className="text-xs text-pink-100/70">Scan the server to load available features.</p> : null}
-        </div>
+        <p className="mt-2 text-xs text-red-200/70">Mode {report?.settings?.mode || "discovery"}. Selected system groups control what health and Auto-Adapt consider. Protected onboarding, verification, pre-onboarding, and heist fields stay suggestion-only.</p>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
@@ -752,7 +649,6 @@ export default function InfrastructureClient() {
               <p className="text-sm font-bold text-red-100">{proposal.engineLabel || proposal.engine}.{proposal.field}</p>
               {proposal.intendedName ? <p className="text-xs text-pink-100/70">Intended destination: {proposal.intendedName}</p> : null}
               <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
-              {proposal.status === "missing" && !proposal.protectedFlow ? <label className="mt-2 block text-xs text-pink-100/70">Proposed resource name<input value={nameOverrides[proposal.id] ?? proposal.proposedName ?? ""} onChange={(event) => { setNamesDirty(true); setNameOverrides((current) => ({ ...current, [proposal.id]: event.target.value })); }} maxLength={90} className="mt-1 w-full rounded-md border border-red-900/50 bg-black px-2 py-1 text-sm text-red-50" /></label> : null}
               {proposal.status === "ready" ? (
                 <ActionButton label="Approve empty field" tip="Write the suggested resource into this empty field. A populated id is not overwritten." busy={false} locked={locked} onClick={() => ask({ title: "Approve empty field", detail: `${proposal.engine}.${proposal.field} will be filled only if it is still empty.`, confirmLabel: "Approve", body: { action: "approve", proposalIds: [proposal.id] } })} />
               ) : null}
@@ -796,23 +692,6 @@ export default function InfrastructureClient() {
             <p key={row.id} className="text-xs text-red-100">{row.engine}.{row.field} → {row.resourceName} ({row.resourceId})</p>
           ))}
           {(preview?.planned?.length || 0) > 40 ? <p className="text-xs text-pink-100/70">+{(preview?.planned?.length || 0) - 40} more.</p> : null}
-        </div>
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        open={confirm === "setup"}
-        title="Create approved resources"
-        detail={`Full setup creates at most five missing categories or channels. ${report?.setup?.missing ?? 0} field${(report?.setup?.missing ?? 0) === 1 ? "" : "s"} currently have no matching resource. Staff and security logs are private. Protected engines are skipped. Nothing is deleted.`}
-        confirmLabel="Create approved resources"
-        busy={busyAction === "provision"}
-        locked={locked && busyAction !== "provision"}
-        onConfirm={() => void post("provision", { action: "provision", confirmed: true })}
-        onCancel={() => setConfirm("")}
-      >
-        <div className="max-h-60 space-y-1 overflow-y-auto">
-          {(report?.proposals || []).filter((proposal) => proposal.status === "missing" && !proposal.protectedFlow).slice(0, 30).map((proposal) => (
-            <p key={proposal.id} className="text-xs text-red-100">{proposal.resourceType || "resource"} · {proposal.engine}.{proposal.field} → <strong>{proposal.proposedName || proposal.field}</strong></p>
-          ))}
         </div>
       </ConfirmDialog>
 

@@ -48,7 +48,9 @@ type SetupReport = {
     trackedEngines?: string[] | null;
     trackedEnginesConfigured?: boolean;
     resourceNameOverrides?: Record<string, string>;
+    categoryNameOverrides?: Record<string, string>;
   };
+  setupCategories?: { group: string; name: string }[];
 };
 
 type ApiResponse = {
@@ -71,6 +73,7 @@ type ApiResponse = {
 type PreviewSnapshot = {
   features: string[];
   names: Record<string, string>;
+  categoryNames: Record<string, string>;
   report: SetupReport;
   mappings: AdaptRow[];
   skippedMappings: { id: string; reason: string }[];
@@ -79,12 +82,21 @@ type PreviewSnapshot = {
 const GROUPS = [
   { id: "community", label: "Community" },
   { id: "moderation", label: "Moderation & Security" },
-  { id: "engagement", label: "Engagement" },
+  { id: "economy", label: "Economy" },
+  { id: "gaming", label: "Gaming" },
+  { id: "fun", label: "Fun & Games" },
+  { id: "social", label: "Social Alerts" },
+  { id: "automation", label: "Automation" },
   { id: "support", label: "Support & Administration" },
 ];
 
 function sorted(values: string[]) {
   return [...new Set(values)].sort();
+}
+
+function savedFeatureSelection(report: SetupReport | null) {
+  const configured = report?.settings?.trackedEngines;
+  return sorted(Array.isArray(configured) ? configured : (report?.featureCatalog || []).map((feature) => feature.id));
 }
 
 function sameNames(left: Record<string, string>, right: Record<string, string>) {
@@ -118,13 +130,15 @@ function resourceName(proposal: Proposal, overrides: Record<string, string>) {
   );
 }
 
-export default function ServerSetupClient() {
+export default function InfrastructureSetupWizard({ embedded = false }: { embedded?: boolean }) {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<SetupReport | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [savedSelection, setSavedSelection] = useState<string[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
+  const [activeGroup, setActiveGroup] = useState(GROUPS[0].id);
   const [previewSnapshot, setPreviewSnapshot] = useState<PreviewSnapshot | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -133,6 +147,7 @@ export default function ServerSetupClient() {
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ id?: string; name?: string; engine?: string; field?: string }[]>([]);
   const [batchProgress, setBatchProgress] = useState("");
+  const Root = embedded ? "section" : "main";
 
   const callApi = useCallback(async (body: Record<string, unknown>) => {
     const response = await fetch("/api/bot/infrastructure", {
@@ -154,10 +169,11 @@ export default function ServerSetupClient() {
     const next = data.report || null;
     if (next) {
       setReport(next);
-      const saved = sorted(next.settings?.trackedEngines || []);
+      const saved = savedFeatureSelection(next);
       setSelected(saved);
       setSavedSelection(saved);
       setNames(next.settings?.resourceNameOverrides || {});
+      setCategoryNames(next.settings?.categoryNameOverrides || {});
     }
     return next;
   }, [guildId, userId]);
@@ -177,10 +193,11 @@ export default function ServerSetupClient() {
       .then((data) => {
         const next = data.report || null;
         setReport(next);
-        const saved = sorted(next?.settings?.trackedEngines || []);
+        const saved = savedFeatureSelection(next);
         setSelected(saved);
         setSavedSelection(saved);
         setNames(next?.settings?.resourceNameOverrides || {});
+        setCategoryNames(next?.settings?.categoryNameOverrides || {});
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load this server's setup options."))
       .finally(() => setLoading(false));
@@ -203,12 +220,18 @@ export default function ServerSetupClient() {
   const mappingCount = previewSnapshot?.mappings.length || 0;
   const skippedMappingCount = previewSnapshot?.skippedMappings.length || 0;
   const namesDirty = Boolean(previewSnapshot && !sameNames(names, previewSnapshot.names));
+  const categoryNamesDirty = Boolean(previewSnapshot && !sameNames(categoryNames, previewSnapshot.categoryNames));
   const previewDirty = Boolean(previewSnapshot && (
     selectionDirty ||
     selectedFeatures.join("\n") !== previewSnapshot.features.join("\n") ||
-    namesDirty
+    namesDirty ||
+    categoryNamesDirty
   ));
   const selectedProtected = features.filter((feature) => selected.includes(feature.id) && feature.protected);
+  const activeFeatureGroup = GROUPS.find((group) => group.id === activeGroup) || GROUPS[0];
+  const activeFeatures = features.filter((feature) => feature.group === activeFeatureGroup.id);
+  const activeSelectable = activeFeatures.filter((feature) => feature.selectable);
+  const activeGroupAllOn = activeSelectable.length > 0 && activeSelectable.every((feature) => selected.includes(feature.id));
   const reviewOnly = proposals.filter((proposal) =>
     selected.includes(proposal.engine) &&
     (proposal.protectedFlow || proposal.many) &&
@@ -239,24 +262,28 @@ export default function ServerSetupClient() {
     setPreviewSnapshot(null);
     setPreviewOpen(false);
     try {
+      await callApi({ action: "scan" });
       await callApi({
         action: "settings",
         mode: "discovery",
         trackedEngines: selectedFeatures,
         resourceNameOverrides: names,
+        categoryNameOverrides: categoryNames,
       });
-      const scan = await callApi({ action: "scan" });
-      const next = scan.report || await loadReport();
-      if (!next) throw new Error("The scan completed without returning a setup report.");
       const adapt = await callApi({ action: "adapt" });
+      const next = adapt.report || await loadReport();
+      if (!next) throw new Error("The scan completed without returning a setup report.");
       const normalizedNames = next.settings?.resourceNameOverrides || names;
+      const normalizedCategoryNames = next.settings?.categoryNameOverrides || categoryNames;
       setReport(next);
       setSelected(sorted(next.settings?.trackedEngines || selectedFeatures));
       setSavedSelection(sorted(next.settings?.trackedEngines || selectedFeatures));
       setNames(normalizedNames);
+      setCategoryNames(normalizedCategoryNames);
       setPreviewSnapshot({
         features: sorted(next.settings?.trackedEngines || selectedFeatures),
         names: normalizedNames,
+        categoryNames: normalizedCategoryNames,
         report: next,
         mappings: adapt.preview?.planned || [],
         skippedMappings: adapt.preview?.skipped || [],
@@ -283,6 +310,7 @@ export default function ServerSetupClient() {
         mode: "discovery",
         trackedEngines: previewSnapshot.features,
         resourceNameOverrides: previewSnapshot.names,
+        categoryNameOverrides: previewSnapshot.categoryNames,
       });
 
       if (previewSnapshot.mappings.length) {
@@ -302,6 +330,7 @@ export default function ServerSetupClient() {
         mode: "full-setup",
         trackedEngines: previewSnapshot.features,
         resourceNameOverrides: previewSnapshot.names,
+        categoryNameOverrides: previewSnapshot.categoryNames,
       });
 
       const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
@@ -353,6 +382,11 @@ export default function ServerSetupClient() {
     setMessage("");
   }
 
+  function updateCategoryName(id: string, value: string) {
+    setCategoryNames((current) => ({ ...current, [id]: value }));
+    setMessage("");
+  }
+
   function toggleGroup(group: string, enabled: boolean) {
     const ids = features.filter((feature) => feature.group === group && feature.selectable).map((feature) => feature.id);
     setSelected((current) => sorted(enabled
@@ -363,26 +397,26 @@ export default function ServerSetupClient() {
   }
 
   if (loading) {
-    return <main className="mx-auto max-w-5xl rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">Loading server setup…</main>;
+    return <Root className="rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">Loading infrastructure setup…</Root>;
   }
 
   if (!guildId) {
     return (
-      <main className="mx-auto max-w-5xl space-y-3 rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">
-        <h1 className="text-2xl font-black uppercase">Server Setup</h1>
+      <Root className="space-y-3 rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">
+        <h1 className="text-2xl font-black uppercase">Infrastructure Setup</h1>
         <p>Choose a server from the dashboard before configuring its setup.</p>
         <a href="/guilds" className="inline-flex min-h-11 items-center rounded-lg border possum-divider px-4 font-bold">Choose a server</a>
-      </main>
+      </Root>
     );
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-4 text-red-100">
+    <Root className="space-y-4 text-red-100">
       <section className="rounded-xl border possum-divider bg-black/55 p-4 possum-border sm:p-6">
-        <p className="text-xs uppercase tracking-[0.2em] possum-soft">Guild-aware setup</p>
-        <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Server Setup</h1>
+        <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
+        <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Setup & Infrastructure</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed">
-          Choose the Possum systems this server plans to use. Review and rename every proposed resource, then approve one combined setup. Selecting systems only scopes Infrastructure; it does not switch runtime features on or off.
+          Choose systems by category, review channel, category, and role names, then approve one setup. This only scopes infrastructure tracking; it does not switch runtime features on or off.
         </p>
         <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
           Setup creates only missing, eligible channels, categories, and roles. Existing server resources are never deleted. Protected flows such as welcome, verification, pre-onboarding, and GTA Heist remain manual/suggestion-only. The bot needs the appropriate Discord permissions.
@@ -401,47 +435,55 @@ export default function ServerSetupClient() {
           </div>
           <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div role="tablist" aria-label="Setup feature categories" className="mt-4 flex flex-wrap gap-2">
           {GROUPS.map((group) => {
-            const rows = features.filter((feature) => feature.group === group.id);
-            if (!rows.length) return null;
-            const allOn = rows.filter((feature) => feature.selectable).every((feature) => selected.includes(feature.id));
-            return (
-              <fieldset key={group.id} className="min-w-0 rounded-lg border border-pink-900/50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <legend className="px-1 text-sm font-black uppercase text-pink-100">{group.label}</legend>
-                  <button type="button" disabled={busy} onClick={() => toggleGroup(group.id, !allOn)} className="min-h-10 rounded-md border possum-divider px-3 text-xs font-bold disabled:opacity-50">
-                    {allOn ? "Turn group off" : "Turn group on"}
-                  </button>
-                </div>
-                <div className="mt-2 space-y-1">
-                  {rows.map((feature) => (
-                    <label key={feature.id} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-pink-950/20">
-                      <input
-                        type="checkbox"
-                        role="switch"
-                        aria-checked={selected.includes(feature.id)}
-                        checked={selected.includes(feature.id)}
-                        disabled={busy || !feature.selectable}
-                        onChange={(event) => setFeatureEnabled(feature.id, event.target.checked)}
-                        className="mt-1 h-4 w-4 shrink-0 accent-pink-500"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-bold">{feature.name}{feature.protected ? <span className="ml-2 text-[10px] uppercase text-amber-200">Manual setup</span> : null}</span>
-                        <span className="block text-xs leading-relaxed text-pink-100/60">{feature.description}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-            );
+            const count = features.filter((feature) => feature.group === group.id).length;
+            if (!count) return null;
+            const chosen = features.filter((feature) => feature.group === group.id && selected.includes(feature.id)).length;
+            return <button
+              key={group.id}
+              type="button"
+              role="tab"
+              aria-selected={activeGroup === group.id}
+              aria-controls="setup-feature-panel"
+              onClick={() => setActiveGroup(group.id)}
+              className={`min-h-10 rounded-md border px-3 text-xs font-bold ${activeGroup === group.id ? "border-pink-500 bg-pink-950/40 text-pink-100" : "border-pink-900/50 text-pink-100/70"}`}
+            >{group.label} <span className="ml-1 opacity-70">{chosen}/{count}</span></button>;
           })}
         </div>
+        <fieldset id="setup-feature-panel" role="tabpanel" className="mt-3 rounded-lg border border-pink-900/50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <legend className="px-1 text-sm font-black uppercase text-pink-100">{activeFeatureGroup.label}</legend>
+            <button type="button" disabled={busy || !activeSelectable.length} onClick={() => toggleGroup(activeGroup, !activeGroupAllOn)} className="min-h-10 rounded-md border possum-divider px-3 text-xs font-bold disabled:opacity-50">
+              {activeGroupAllOn ? "Clear this category" : "Select this category"}
+            </button>
+          </div>
+          <div className="mt-2 grid gap-1 md:grid-cols-2">
+            {activeFeatures.map((feature) => (
+              <label key={feature.id} className="flex min-h-12 cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-pink-950/20">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-checked={selected.includes(feature.id)}
+                  checked={selected.includes(feature.id)}
+                  disabled={busy || !feature.selectable}
+                  onChange={(event) => setFeatureEnabled(feature.id, event.target.checked)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-pink-500"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{feature.name}{feature.protected ? <span className="ml-2 text-[10px] uppercase text-amber-200">Manual setup</span> : null}</span>
+                  <span className="block text-xs leading-relaxed text-pink-100/60">{feature.description}</span>
+                </span>
+              </label>
+            ))}
+            {!activeFeatures.length ? <p className="px-2 py-3 text-sm text-pink-100/60">No setup systems are listed in this category.</p> : null}
+          </div>
+        </fieldset>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button type="button" disabled={busy || selectedFeatures.length === 0} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? "Preparing…" : "Preview selected setup"}
           </button>
-          <span className="text-xs text-pink-100/60">Preview scans are read-only; nothing is created until final approval.</span>
+          <span className="text-xs text-pink-100/60">Scanning is read-only. Your feature selection saves tracking scope; Discord resources and mappings change only after approval.</span>
         </div>
       </section>
 
@@ -450,9 +492,9 @@ export default function ServerSetupClient() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Edit proposed names before approval. Discord channel names are saved as lowercase words joined by hyphens.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Review and rename the proposed channels, categories, and roles before approval.</p>
             </div>
-            <span className="rounded-md border possum-divider px-2 py-1 text-xs">{createProposals.length} to create · {mappingCount} existing mappings to fill</span>
+            <span className="rounded-md border possum-divider px-2 py-1 text-xs">{createProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} resources to create · {mappingCount} existing mappings to fill</span>
           </div>
 
           {selectedProtected.length ? (
@@ -473,7 +515,7 @@ export default function ServerSetupClient() {
                   <input
                     value={resourceName(proposal, names)}
                     onChange={(event) => updateResourceName(proposal.id, event.target.value)}
-                    maxLength={90}
+                    maxLength={100}
                     aria-label={`Name for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
                     className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
                   />
@@ -483,6 +525,28 @@ export default function ServerSetupClient() {
           ) : (
             <p className="rounded-lg border border-pink-900/40 p-3 text-sm text-pink-100/75">No eligible missing resources need creation for this selection.</p>
           )}
+
+          {previewSnapshot.report.setupCategories?.length ? (
+            <div className="space-y-3 rounded-lg border border-pink-900/40 p-3">
+              <div>
+                <h3 className="text-sm font-black uppercase text-pink-100">Categories for these systems</h3>
+                <p className="mt-1 text-xs text-pink-100/65">New channels will be placed under their matching category. Existing matching categories are reused.</p>
+              </div>
+              {previewSnapshot.report.setupCategories.map((category) => {
+                const label = GROUPS.find((group) => group.id === category.group)?.label || category.group;
+                return <label key={category.group} className="grid gap-1 rounded-md sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
+                  <span className="text-sm font-bold">{label}</span>
+                  <input
+                    value={categoryNames[category.group] || category.name}
+                    onChange={(event) => updateCategoryName(category.group, event.target.value)}
+                    maxLength={100}
+                    aria-label={`Name for ${label} category`}
+                    className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                  />
+                </label>;
+              })}
+            </div>
+          ) : null}
 
           {previewSnapshot.mappings.length ? (
             <div className="rounded-lg border border-pink-900/40 p-3">
@@ -507,7 +571,7 @@ export default function ServerSetupClient() {
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
-            <button type="button" disabled={busy || previewDirty || (createProposals.length === 0 && mappingCount === 0)} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
+            <button type="button" disabled={busy || previewDirty || (createProposals.length === 0 && !(previewSnapshot.report.setupCategories?.length) && mappingCount === 0)} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
           </div>
         </section>
       ) : null}
@@ -516,9 +580,10 @@ export default function ServerSetupClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
-            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create up to {createProposals.length} missing channel(s), category resources, or roles for this server. Creation runs in small batches. Nothing will be deleted.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create up to {createProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} missing channels, categories, or roles for this server. New channels are grouped by system category. Nothing will be deleted.</p>
             <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-pink-900/40 p-3 text-sm">
               {createProposals.map((proposal) => <li key={proposal.id}>{proposal.resourceType || "channel"}: <strong>{resourceName(proposal, names)}</strong></li>)}
+              {(previewSnapshot.report.setupCategories || []).map((category) => <li key={`category-${category.group}`}>category: <strong>{categoryNames[category.group] || category.name}</strong></li>)}
               {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}
             </ul>
             <p className="mt-3 text-xs text-amber-100/80">Protected onboarding, verification, pre-onboarding, and Heist flows remain suggestion-only. Runtime features are not switched on or off by this setup.</p>
@@ -529,6 +594,6 @@ export default function ServerSetupClient() {
           </section>
         </div>
       ) : null}
-    </main>
+    </Root>
   );
 }

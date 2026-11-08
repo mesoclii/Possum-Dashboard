@@ -1,5 +1,5 @@
-import ServerSetupClient from "./ServerSetupClient";
+import { redirect } from "next/navigation";
 
 export default function ServerSetupPage() {
-  return <ServerSetupClient />;
+  redirect("/dashboard/infrastructure");
 }

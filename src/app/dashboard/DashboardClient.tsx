@@ -12,7 +12,7 @@ import { PREMIUM_FEATURES } from "@/lib/premiumCatalog";
 
 type ToggleController = {
   read: (guildId: string, userId?: string) => Promise<boolean>;
-  write: (guildId: string, next: boolean, userId?: string) => Promise<void>;
+  write: (guildId: string, next: boolean, userId?: string) => Promise<unknown>;
   readLocal?: (dashboardConfig: any, engineConfigs: Record<string, any>) => boolean;
 };
 
@@ -219,7 +219,7 @@ async function getAllEngineConfigs(guildId: string, userId = "") {
 }
 
 async function saveEngineConfig(guildId: string, engine: string, patch: Record<string, unknown>, userId = "") {
-  await fetchJsonOrThrow("/api/runtime/engine", {
+  const result = await fetchJsonOrThrow("/api/runtime/engine", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ guildId, engine, patch, userId }),
@@ -235,6 +235,7 @@ async function saveEngineConfig(guildId: string, engine: string, patch: Record<s
       allEngineConfigCache.delete(cacheKey);
     }
   }
+  return result;
 }
 
 async function getSubscriptionStatus(guildId: string) {
@@ -307,7 +308,7 @@ function engineController(engine: string, fieldPath: string[] = ["enabled"]): To
         patch.active = next;
         patch.enabled = next;
       }
-      await saveEngineConfig(guildId, engine, patch, userId);
+      return saveEngineConfig(guildId, engine, patch, userId);
     },
     readLocal(_dashboardConfig, engineConfigs) {
       return readBoolPath(engineConfigs?.[engine] || {}, fieldPath, false);
@@ -718,8 +719,22 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
     }));
 
     try {
-      await card.toggle.write(guildId, next, viewerUserId);
+      const result = await card.toggle.write(guildId, next, viewerUserId) as {
+        infrastructureBootstrap?: { ok?: boolean; error?: string };
+      } | undefined;
       await loadStates(guildId);
+      const bootstrapFailure = result?.infrastructureBootstrap;
+      if (bootstrapFailure?.ok === false) {
+        setStates((prev) => ({
+          ...prev,
+          [card.routeKey as string]: {
+            ...(prev[card.routeKey as string] || { value: next }),
+            value: next,
+            saving: false,
+            error: `Setting saved, but infrastructure could not initialize: ${bootstrapFailure.error || "unknown error"}`,
+          },
+        }));
+      }
     } catch (err: any) {
       setStates((prev) => ({
         ...prev,

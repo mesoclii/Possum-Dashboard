@@ -27,6 +27,21 @@ type Proposal = {
   suggestedName?: string;
   suggestedId?: string;
   matches?: { id: string; name: string }[];
+  currentValue?: unknown;
+};
+
+type SetupTuning = {
+  id: string;
+  engine: string;
+  field: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  currentValue: number;
+  defaultValue: number;
+  preserved: boolean;
 };
 
 type AdaptRow = {
@@ -43,12 +58,16 @@ type SetupReport = {
   reason?: string;
   featureCatalog?: Feature[];
   proposals?: Proposal[];
+  setupTuning?: SetupTuning[];
   settings?: {
     mode?: string;
+    autopilotEnabled?: boolean;
+    automaticProvisioningEnabled?: boolean;
     trackedEngines?: string[] | null;
     trackedEnginesConfigured?: boolean;
     resourceNameOverrides?: Record<string, string>;
     categoryNameOverrides?: Record<string, string>;
+    resourceCounts?: Record<string, number>;
   };
   setupCategories?: { group: string; name: string }[];
 };
@@ -64,16 +83,24 @@ type ApiResponse = {
     duplicate?: boolean;
     applied?: string[];
     created?: { id?: string; name?: string; engine?: string; field?: string }[];
-    failed?: { name?: string; error?: string; reason?: string }[];
+    failed?: { id?: string; engine?: string; field?: string; name?: string; error?: string; reason?: string }[];
     deferred?: number;
     message?: string;
   };
+};
+
+type CreationFailure = {
+  id: string;
+  name: string;
+  error: string;
 };
 
 type PreviewSnapshot = {
   features: string[];
   names: Record<string, string>;
   categoryNames: Record<string, string>;
+  resourceCounts: Record<string, number>;
+  setupTuning: Record<string, number>;
   report: SetupReport;
   mappings: AdaptRow[];
   skippedMappings: { id: string; reason: string }[];
@@ -130,6 +157,32 @@ function resourceName(proposal: Proposal, overrides: Record<string, string>) {
   );
 }
 
+function sameCounts(left: Record<string, number>, right: Record<string, number>) {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (Number(left[key] || 1) !== Number(right[key] || 1)) return false;
+  }
+  return true;
+}
+
+function sameNumbers(left: Record<string, number>, right: Record<string, number>) {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (Number(left[key] ?? 0) !== Number(right[key] ?? 0)) return false;
+  }
+  return true;
+}
+
+function existingRoleCount(proposal: Proposal) {
+  return Array.isArray(proposal.currentValue)
+    ? proposal.currentValue.filter((value) => String(value || "").trim()).length
+    : 0;
+}
+
+function targetRoleCount(proposal: Proposal, counts: Record<string, number>) {
+  return Math.max(Number(counts[proposal.id] || 1), existingRoleCount(proposal));
+}
+
 export default function InfrastructureSetupWizard() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
@@ -138,6 +191,10 @@ export default function InfrastructureSetupWizard() {
   const [savedSelection, setSavedSelection] = useState<string[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
+  const [resourceCounts, setResourceCounts] = useState<Record<string, number>>({});
+  const [setupTuning, setSetupTuning] = useState<Record<string, number>>({});
+  const [autopilotEnabled, setAutopilotEnabled] = useState(false);
+  const [automaticProvisioningEnabled, setAutomaticProvisioningEnabled] = useState(false);
   const [activeGroup, setActiveGroup] = useState(GROUPS[0].id);
   const [previewSnapshot, setPreviewSnapshot] = useState<PreviewSnapshot | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -146,6 +203,7 @@ export default function InfrastructureSetupWizard() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ id?: string; name?: string; engine?: string; field?: string }[]>([]);
+  const [creationFailures, setCreationFailures] = useState<CreationFailure[]>([]);
   const [batchProgress, setBatchProgress] = useState("");
 
   const callApi = useCallback(async (body: Record<string, unknown>) => {
@@ -173,6 +231,10 @@ export default function InfrastructureSetupWizard() {
       setSavedSelection(saved);
       setNames(next.settings?.resourceNameOverrides || {});
       setCategoryNames(next.settings?.categoryNameOverrides || {});
+      setResourceCounts(next.settings?.resourceCounts || {});
+      setSetupTuning(Object.fromEntries((next.setupTuning || []).map((setting) => [setting.id, setting.value])));
+      setAutopilotEnabled(next.settings?.autopilotEnabled === true);
+      setAutomaticProvisioningEnabled(next.settings?.automaticProvisioningEnabled === true);
     }
     return next;
   }, [guildId, userId]);
@@ -197,6 +259,8 @@ export default function InfrastructureSetupWizard() {
         setSavedSelection(saved);
         setNames(next?.settings?.resourceNameOverrides || {});
         setCategoryNames(next?.settings?.categoryNameOverrides || {});
+        setResourceCounts(next?.settings?.resourceCounts || {});
+        setSetupTuning(Object.fromEntries((next?.setupTuning || []).map((setting) => [setting.id, setting.value])));
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load this server's setup options."))
       .finally(() => setLoading(false));
@@ -210,21 +274,44 @@ export default function InfrastructureSetupWizard() {
   const createProposals = useMemo(
     () => proposals.filter((proposal) =>
       selected.includes(proposal.engine) &&
-      proposal.status === "missing" &&
       !proposal.protectedFlow &&
-      !proposal.many
+      (
+        proposal.status !== "populated" ||
+        (proposal.many && proposal.resourceType === "role")
+      )
     ),
     [proposals, selected]
   );
+  const roleProposals = useMemo(
+    () => createProposals.filter((proposal) => proposal.resourceType === "role"),
+    [createProposals]
+  );
+  const channelProposals = useMemo(
+    () => createProposals.filter((proposal) => proposal.resourceType !== "role" && proposal.resourceType !== "category"),
+    [createProposals]
+  );
+  const explicitCategoryProposals = useMemo(
+    () => createProposals.filter((proposal) => proposal.resourceType === "category"),
+    [createProposals]
+  );
+  const resourcesToCreate = createProposals.reduce((count, proposal) => count + (
+    proposal.many && proposal.resourceType === "role"
+      ? Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))
+      : 1
+  ), 0) + (previewSnapshot?.report.setupCategories?.length || 0);
   const mappingCount = previewSnapshot?.mappings.length || 0;
   const skippedMappingCount = previewSnapshot?.skippedMappings.length || 0;
   const namesDirty = Boolean(previewSnapshot && !sameNames(names, previewSnapshot.names));
   const categoryNamesDirty = Boolean(previewSnapshot && !sameNames(categoryNames, previewSnapshot.categoryNames));
+  const resourceCountsDirty = Boolean(previewSnapshot && !sameCounts(resourceCounts, previewSnapshot.resourceCounts));
+  const setupTuningDirty = Boolean(previewSnapshot && !sameNumbers(setupTuning, previewSnapshot.setupTuning));
   const previewDirty = Boolean(previewSnapshot && (
     selectionDirty ||
     selectedFeatures.join("\n") !== previewSnapshot.features.join("\n") ||
     namesDirty ||
-    categoryNamesDirty
+    categoryNamesDirty ||
+    resourceCountsDirty ||
+    setupTuningDirty
   ));
   const selectedProtected = features.filter((feature) => selected.includes(feature.id) && feature.protected);
   const activeFeatureGroup = GROUPS.find((group) => group.id === activeGroup) || GROUPS[0];
@@ -233,7 +320,7 @@ export default function InfrastructureSetupWizard() {
   const activeGroupAllOn = activeSelectable.length > 0 && activeSelectable.every((feature) => selected.includes(feature.id));
   const reviewOnly = proposals.filter((proposal) =>
     selected.includes(proposal.engine) &&
-    (proposal.protectedFlow || proposal.many) &&
+    proposal.protectedFlow &&
     proposal.status !== "populated"
   );
 
@@ -258,6 +345,7 @@ export default function InfrastructureSetupWizard() {
     setError("");
     setMessage("");
     setCreated([]);
+    setCreationFailures([]);
     setPreviewSnapshot(null);
     setPreviewOpen(false);
     try {
@@ -268,21 +356,29 @@ export default function InfrastructureSetupWizard() {
         trackedEngines: selectedFeatures,
         resourceNameOverrides: names,
         categoryNameOverrides: categoryNames,
+        resourceCounts,
+        setupTuning,
       });
       const adapt = await callApi({ action: "adapt" });
       const next = adapt.report || await loadReport();
       if (!next) throw new Error("The scan completed without returning a setup report.");
       const normalizedNames = next.settings?.resourceNameOverrides || names;
       const normalizedCategoryNames = next.settings?.categoryNameOverrides || categoryNames;
+      const normalizedResourceCounts = next.settings?.resourceCounts || resourceCounts;
+      const normalizedSetupTuning = Object.fromEntries((next.setupTuning || []).map((setting) => [setting.id, setting.value]));
       setReport(next);
       setSelected(sorted(next.settings?.trackedEngines || selectedFeatures));
       setSavedSelection(sorted(next.settings?.trackedEngines || selectedFeatures));
       setNames(normalizedNames);
       setCategoryNames(normalizedCategoryNames);
+      setResourceCounts(normalizedResourceCounts);
+      setSetupTuning(normalizedSetupTuning);
       setPreviewSnapshot({
         features: sorted(next.settings?.trackedEngines || selectedFeatures),
         names: normalizedNames,
         categoryNames: normalizedCategoryNames,
+        resourceCounts: normalizedResourceCounts,
+        setupTuning: normalizedSetupTuning,
         report: next,
         mappings: adapt.preview?.planned || [],
         skippedMappings: adapt.preview?.skipped || [],
@@ -302,6 +398,7 @@ export default function InfrastructureSetupWizard() {
     setError("");
     setMessage("");
     setCreated([]);
+    setCreationFailures([]);
     setBatchProgress("Saving the approved feature and naming choices…");
     try {
       await callApi({
@@ -310,6 +407,8 @@ export default function InfrastructureSetupWizard() {
         trackedEngines: previewSnapshot.features,
         resourceNameOverrides: previewSnapshot.names,
         categoryNameOverrides: previewSnapshot.categoryNames,
+        resourceCounts: previewSnapshot.resourceCounts,
+        setupTuning: previewSnapshot.setupTuning,
       });
 
       if (previewSnapshot.mappings.length) {
@@ -330,9 +429,12 @@ export default function InfrastructureSetupWizard() {
         trackedEngines: previewSnapshot.features,
         resourceNameOverrides: previewSnapshot.names,
         categoryNameOverrides: previewSnapshot.categoryNames,
+        resourceCounts: previewSnapshot.resourceCounts,
+        setupTuning: previewSnapshot.setupTuning,
       });
 
       const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
+      const failuresById = new Map<string, CreationFailure>();
       const maxBatches = 100;
       let completed = false;
       for (let batch = 1; batch <= maxBatches; batch += 1) {
@@ -344,10 +446,13 @@ export default function InfrastructureSetupWizard() {
         setCreated([...allCreated]);
 
         const failures = result.failed || [];
-        if (failures.length) {
-          const first = failures[0];
-          const details = first.error || first.reason || "Discord refused a resource operation.";
-          throw new Error(`${allCreated.length} resource(s) were created before setup paused: ${details}`);
+        for (const failure of failures) {
+          const id = failure.id || `${failure.engine || "resource"}:${failure.field || failure.name || failuresById.size}`;
+          failuresById.set(id, {
+            id,
+            name: failure.name || failure.field || id,
+            error: failure.error || failure.reason || "Discord refused this resource operation.",
+          });
         }
         const deferred = Number(result.deferred || 0);
         if (deferred <= 0) {
@@ -355,16 +460,24 @@ export default function InfrastructureSetupWizard() {
           break;
         }
         if (!batchCreated.length) {
-          throw new Error(`${deferred} resource(s) remain, but the latest batch made no progress. Review the infrastructure report before retrying.`);
+          setCreationFailures([...failuresById.values()]);
+          const firstFailure = failuresById.values().next().value as CreationFailure | undefined;
+          const detail = firstFailure ? ` ${firstFailure.name}: ${firstFailure.error}` : "";
+          throw new Error(`${deferred} resource(s) remain, but the latest batch made no progress.${detail} Review Discord permissions and retry setup.`);
         }
       }
       if (!completed) {
         throw new Error("Setup reached the safety limit of 100 batches. Review the created resources and run another preview for anything remaining.");
       }
 
+      await callApi({ action: "settings", autopilotEnabled, automaticProvisioningEnabled });
       const refreshed = await loadReport();
       setPreviewSnapshot(null);
-      setMessage(`Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty.`);
+      const finalFailures = [...failuresById.values()];
+      setCreationFailures(finalFailures);
+      setMessage(finalFailures.length
+        ? `Setup created ${allCreated.length} resource(s), but ${finalFailures.length} resource(s) still need attention. See the failed resources below.`
+        : `Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty. Autopilot is ${autopilotEnabled ? "on" : "off"}; automatic resource creation is ${automaticProvisioningEnabled ? "on" : "off"}.`);
       setBatchProgress("");
       if (!refreshed) throw new Error("Setup finished, but the refreshed infrastructure report could not be loaded.");
     } catch (cause: unknown) {
@@ -383,6 +496,20 @@ export default function InfrastructureSetupWizard() {
 
   function updateCategoryName(id: string, value: string) {
     setCategoryNames((current) => ({ ...current, [id]: value }));
+    setMessage("");
+  }
+
+  function updateResourceCount(id: string, rawValue: string) {
+    const parsed = Number(rawValue);
+    if (!Number.isInteger(parsed)) return;
+    setResourceCounts((current) => ({ ...current, [id]: Math.min(10, Math.max(1, parsed)) }));
+    setMessage("");
+  }
+
+  function updateSetupTuning(id: string, rawValue: string) {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return;
+    setSetupTuning((current) => ({ ...current, [id]: parsed }));
     setMessage("");
   }
 
@@ -425,6 +552,14 @@ export default function InfrastructureSetupWizard() {
       {error ? <div role="alert" className="rounded-lg border border-red-700/60 bg-red-950/50 p-3 text-sm text-red-100">{error}</div> : null}
       {message ? <div role="status" className="rounded-lg border border-pink-700/60 bg-pink-950/40 p-3 text-sm text-pink-100">{message}</div> : null}
       {batchProgress ? <div role="status" aria-live="polite" className="rounded-lg border possum-divider bg-black/60 p-3 text-sm text-pink-100">{batchProgress}</div> : null}
+      {creationFailures.length ? (
+        <section role="alert" className="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-100">
+          <h2 className="font-black uppercase">Resources needing attention</h2>
+          <ul className="mt-2 space-y-2">
+            {creationFailures.map((failure) => <li key={failure.id}><strong>{failure.name}:</strong> {failure.error}</li>)}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -498,7 +633,13 @@ export default function InfrastructureSetupWizard() {
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
               <p className="mt-1 text-sm text-pink-100/75">Review and rename the proposed channels, categories, and roles before approval.</p>
             </div>
-            <span className="rounded-md border possum-divider px-2 py-1 text-xs">{createProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} resources to create · {mappingCount} existing mappings to fill</span>
+            <span className="rounded-md border possum-divider px-2 py-1 text-xs">
+              {resourcesToCreate} resources to create · {roleProposals.reduce((count, proposal) => count + (
+                proposal.many && proposal.resourceType === "role"
+                  ? Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))
+                  : 1
+              ), 0)} roles · {channelProposals.length} channels · {explicitCategoryProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} categories · {mappingCount} existing mappings to fill
+            </span>
           </div>
 
           {selectedProtected.length ? (
@@ -508,9 +649,15 @@ export default function InfrastructureSetupWizard() {
           ) : null}
 
           {createProposals.length ? (
-            <div className="space-y-3">
-              <h3 className="text-sm font-black uppercase text-pink-100">Resources to create</h3>
-              {createProposals.map((proposal) => (
+            <div className="space-y-4">
+              {[
+                { title: "Roles", rows: roleProposals },
+                { title: "Channels", rows: channelProposals },
+                { title: "Engine categories", rows: explicitCategoryProposals },
+              ].filter((group) => group.rows.length > 0).map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <h3 className="text-sm font-black uppercase text-pink-100">{group.title} ({group.rows.length})</h3>
+                  {group.rows.map((proposal) => (
                 <label key={proposal.id} className="grid gap-1 rounded-lg border border-pink-900/40 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
                   <span className="min-w-0">
                     <span className="block font-bold">{proposal.engineLabel || featureById.get(proposal.engine)?.name || proposal.engine}</span>
@@ -523,7 +670,24 @@ export default function InfrastructureSetupWizard() {
                     aria-label={`Name for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
                     className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
                   />
+                  {proposal.many && proposal.resourceType === "role" ? (
+                    <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
+                      Roles to create
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={targetRoleCount(proposal, resourceCounts)}
+                        onChange={(event) => updateResourceCount(proposal.id, event.target.value)}
+                        aria-label={`Number of roles for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
+                        className="min-h-10 w-24 rounded-md border border-pink-900/50 bg-black px-2 text-sm text-pink-50"
+                      />
+                      <span>Additional roles are named with a number suffix.</span>
+                    </label>
+                  ) : null}
                 </label>
+                  ))}
+                </div>
               ))}
             </div>
           ) : (
@@ -552,6 +716,34 @@ export default function InfrastructureSetupWizard() {
             </div>
           ) : null}
 
+          {previewSnapshot.report.setupTuning?.length ? (
+            <section className="space-y-3 rounded-lg border border-pink-900/40 p-3">
+              <div>
+                <h3 className="text-sm font-black uppercase text-pink-100">Game and reward defaults</h3>
+                <p className="mt-1 text-xs text-pink-100/65">Review spawn timing and rewards before approval. Existing customized values are preserved and shown read-only.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {previewSnapshot.report.setupTuning.map((setting) => (
+                  <label key={setting.id} className="grid gap-1 rounded-md border border-pink-900/30 p-3">
+                    <span className="text-xs font-bold">{featureById.get(setting.engine)?.name || setting.engine} · {setting.label}</span>
+                    <input
+                      type="number"
+                      min={setting.min}
+                      max={setting.max}
+                      step={setting.step}
+                      value={setupTuning[setting.id] ?? setting.value}
+                      disabled={setting.preserved}
+                      onChange={(event) => updateSetupTuning(setting.id, event.target.value)}
+                      aria-label={`${setting.engine} ${setting.label}`}
+                      className="min-h-10 rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50 disabled:opacity-60"
+                    />
+                    {setting.preserved ? <span className="text-[11px] text-amber-100/75">Saved value {setting.currentValue} is already customized; setup will leave it unchanged.</span> : null}
+                  </label>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           {previewSnapshot.mappings.length ? (
             <div className="rounded-lg border border-pink-900/40 p-3">
               <h3 className="text-sm font-black uppercase text-pink-100">Existing resources to connect</h3>
@@ -565,7 +757,7 @@ export default function InfrastructureSetupWizard() {
             <p className="text-xs text-amber-100/80">{skippedMappingCount} existing mapping suggestion(s) need manual review and will be left unchanged.</p>
           ) : null}
           {reviewOnly.length ? (
-            <p className="text-xs text-amber-100/80">{reviewOnly.length} protected or multi-resource field(s) are excluded from automatic creation.</p>
+            <p className="text-xs text-amber-100/80">{reviewOnly.length} protected field(s) are excluded from automatic creation.</p>
           ) : null}
           {previewDirty ? (
             <p className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Your feature or name edits changed after this preview. Refresh the preview before approving.</p>
@@ -575,7 +767,7 @@ export default function InfrastructureSetupWizard() {
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
-            <button type="button" disabled={busy || previewDirty || (createProposals.length === 0 && !(previewSnapshot.report.setupCategories?.length) && mappingCount === 0)} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
+            <button type="button" disabled={busy || previewDirty || (resourcesToCreate === 0 && mappingCount === 0)} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
           </div>
         </section>
       ) : null}
@@ -584,13 +776,42 @@ export default function InfrastructureSetupWizard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
-            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create up to {createProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} missing channels, categories, or roles for this server. New channels are grouped by system category. Nothing will be deleted.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create {resourcesToCreate} missing channels, categories, and roles for this server. New channels are grouped by system category. Nothing will be deleted.</p>
             <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-pink-900/40 p-3 text-sm">
-              {createProposals.map((proposal) => <li key={proposal.id}>{proposal.resourceType || "channel"}: <strong>{resourceName(proposal, names)}</strong></li>)}
+              {createProposals.map((proposal) => <li key={proposal.id}>{proposal.resourceType || "channel"}: <strong>{resourceName(proposal, names)}</strong>
+                {proposal.many && proposal.resourceType === "role" && targetRoleCount(proposal, resourceCounts) > 1
+                  ? ` (${Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))} to create)`
+                  : ""}
+              </li>)}
               {(previewSnapshot.report.setupCategories || []).map((category) => <li key={`category-${category.group}`}>category: <strong>{categoryNames[category.group] || category.name}</strong></li>)}
               {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}
             </ul>
             <p className="mt-3 text-xs text-amber-100/80">Protected onboarding, verification, pre-onboarding, and Heist flows remain suggestion-only. Runtime features are not switched on or off by this setup.</p>
+            <label className="mt-3 flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={autopilotEnabled}
+                onChange={(event) => setAutopilotEnabled(event.target.checked)}
+                className="mt-1 accent-pink-500"
+              />
+              <span>
+                <strong className="block">Enable Infrastructure Autopilot after setup</strong>
+                <span className="mt-1 block text-xs text-pink-100/70">It can repair channels Possum created and reroute a broken channel/category mapping only to one clear, unused existing match. It never deletes resources, changes permissions, recreates roles, overwrites healthy mappings, or changes protected flows. Unclear cases stay for owner review.</span>
+              </span>
+            </label>
+            <label className="mt-3 flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={automaticProvisioningEnabled}
+                onChange={(event) => setAutomaticProvisioningEnabled(event.target.checked)}
+                className="mt-1 accent-pink-500"
+              />
+              <span>
+                <strong className="block">Allow automatic creation of missing resources</strong>
+                <span className="mt-1 block text-xs text-pink-100/70">When enabled, infrastructure may create missing channels, categories, and roles for tracked systems after setup. This is separate from Autopilot; it never overwrites existing mappings or creates resources for protected onboarding, verification, pre-onboarding, or Heist flows.</span>
+              </span>
+            </label>
+            {previewSnapshot.report.setupTuning?.length ? <p className="mt-2 text-xs text-pink-100/70">Approved game and reward values are saved only after confirmation; existing customized settings are not overwritten.</p> : null}
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" disabled={busy} onClick={() => setPreviewOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
               <button type="button" disabled={busy || previewDirty} onClick={() => void approveSetup()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Yes, build selected setup</button>

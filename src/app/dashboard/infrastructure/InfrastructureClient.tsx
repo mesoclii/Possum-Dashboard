@@ -45,7 +45,7 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
-  settings?: { mode: string; repairEnabled: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
+  settings?: { mode: string; repairEnabled: boolean; autopilotEnabled?: boolean; automaticProvisioningEnabled?: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
   allEngines?: { engine: string; label: string; requirements: number }[];
   trackedEngineCount?: number;
@@ -69,7 +69,7 @@ type ApiJson = {
   report?: Report;
   result?: Record<string, unknown>;
   preview?: AdaptPreview;
-  record?: { settings?: { mode?: string; repairEnabled?: boolean; trackedEngines?: string[] | null } };
+  record?: { settings?: { mode?: string; repairEnabled?: boolean; autopilotEnabled?: boolean; automaticProvisioningEnabled?: boolean; trackedEngines?: string[] | null } };
   export?: { body?: string };
 };
 
@@ -115,6 +115,28 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     };
   }
   if (action === "settings") {
+    if (Object.prototype.hasOwnProperty.call(body, "automaticProvisioningEnabled")) {
+      return {
+        title: `Automatic resource creation ${body.automaticProvisioningEnabled ? "enabled" : "disabled"}`,
+        lines: [
+          body.automaticProvisioningEnabled
+            ? "Missing channels, categories, and roles may be created for tracked engines."
+            : "Missing Discord resources will be reported for owner review.",
+          "Existing mappings and protected onboarding, verification, pre-onboarding, and Heist flows stay unchanged.",
+        ],
+      };
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "autopilotEnabled")) {
+      return {
+        title: `Infrastructure Autopilot ${body.autopilotEnabled ? "enabled" : "disabled"}`,
+        lines: [
+          body.autopilotEnabled
+            ? "Safe repairs and unique, unambiguous channel/category reroutes may run automatically."
+            : "Infrastructure will monitor and report findings without automatic repairs.",
+          "Roles, permissions, protected flows, and healthy mappings are never changed automatically.",
+        ],
+      };
+    }
     if (Object.prototype.hasOwnProperty.call(body, "trackedEngines")) {
       return { title: "Server features saved", lines: [`Enabled ${Array.isArray(body.trackedEngines) ? body.trackedEngines.length : 0} feature systems. Infrastructure will only track selected systems.`, "No Discord resources were created or changed."] };
     }
@@ -542,6 +564,8 @@ export default function InfrastructureClient() {
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
           <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked} onClick={() => post("adapt-preview", { action: "adapt" })} />
+          <ActionButton label={`Autopilot ${report?.settings?.autopilotEnabled ? "On" : "Off"}`} tip="Opt in to safe automatic repair of Possum-created channels and rerouting only to a unique, unused existing channel/category. Roles, permissions, protected flows, healthy mappings, and deletions are never automated." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
+          <ActionButton label={`Auto-create ${report?.settings?.automaticProvisioningEnabled ? "On" : "Off"}`} tip="When enabled, infrastructure may create missing channels, categories, and roles for tracked engines. It never overwrites mappings or creates resources for protected onboarding, verification, pre-onboarding, or Heist flows." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
           <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
           <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked} onClick={() => setConfirm("repair")} />
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
@@ -592,7 +616,7 @@ export default function InfrastructureClient() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Continuous watch</h2>
         <p className="mt-2 text-sm text-red-100/80">Last check {report?.watch?.checkedAt ? new Date(report.watch.checkedAt).toLocaleString() : "—"} · Critical {report?.watch?.counts?.critical ?? 0} · Warning {report?.watch?.counts?.warning ?? 0} · Added {report?.watch?.added ?? 0} · Cleared {report?.watch?.resolved ?? 0}</p>
-        <p className="mt-1 text-xs text-pink-100/70">Read-only monitoring. Findings never change engine configuration; reroute and repair still need your approval.</p>
+        <p className="mt-1 text-xs text-pink-100/70">{report?.settings?.autopilotEnabled ? "Autopilot is on: it repairs eligible Possum-created channels and uses only unique, unused existing channel/category matches. Ambiguous changes, roles, permissions, protected flows, and deletion are left for owner review." : "Read-only monitoring. Findings never change engine configuration; reroute and repair still need your approval."} {report?.settings?.automaticProvisioningEnabled ? "Automatic creation is also on for missing resources in tracked engines." : "Missing resources are reported only; automatic creation is off."}</p>
         <div className="mt-3 space-y-2">
           {(report?.watch?.items || []).slice(0, 20).map((entry) => (
             <div key={entry.id} className="rounded-lg border border-red-900/40 px-3 py-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { resolveGuildContext } from "@/lib/liveRuntime";
@@ -15,9 +15,33 @@ const card: CSSProperties = {
 };
 
 export default function GamesClient() {
-  const [guildContext] = useState(() => resolveGuildContext());
+  const [guildContext, setGuildContext] = useState(() => resolveGuildContext());
   const guildId = guildContext.guildId;
   const guildName = guildContext.guildName;
+
+  // The guild picker stores the active guild in localStorage, so the hub has to
+  // re-resolve after mount (and on focus/guild switches) or it stays on the
+  // "Missing guildId" screen when opened without query parameters.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sync = () => {
+      const next = resolveGuildContext();
+      setGuildContext((prev) =>
+        prev.guildId === next.guildId && prev.guildName === next.guildName ? prev : next
+      );
+    };
+    sync();
+    window.addEventListener("popstate", sync);
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      window.removeEventListener("popstate", sync);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
+    };
+  }, []);
 
   if (!guildId) {
     return <div style={{ color: "#ff6b6b", padding: 24 }}>Missing guildId. Open from `/guilds` first.</div>;

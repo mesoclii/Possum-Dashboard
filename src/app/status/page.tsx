@@ -290,6 +290,7 @@ export default function StatusPage() {
           <section style={card}>Loading status board...</section>
         )}
       </div>
+      </div>
       <MarketingFooter />
     </>
   );

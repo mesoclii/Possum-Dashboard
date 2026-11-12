@@ -43,8 +43,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const actorUserId = await readActorUserId(req);
   const fallback = fallbackPath(req, actorUserId);
 
-  if (!providerKey || !origin || !actorUserId) {
-    return res.redirect(302, appendError(fallback, providerKey || "unknown", "A valid dashboard session, provider, and origin are required."));
+  // The single-use OAuth state is the credential here. Requiring a dashboard
+  // session too broke every login started from Discord, because the provider
+  // redirects in whatever browser the user happens to use. When a session does
+  // exist we still pass it through so the bot can cross-check the user.
+  if (!providerKey || !origin) {
+    return res.redirect(302, appendError(fallback, providerKey || "unknown", "This login link is missing its provider or dashboard origin."));
   }
 
   try {

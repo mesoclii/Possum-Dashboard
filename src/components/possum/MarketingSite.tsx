@@ -217,7 +217,7 @@ export function MarketingHome() {
           <div className="security-band-copy">
             <div className="eyebrow">PROTECTION WITH CONTEXT</div>
             <h2>More signal.<br /><span>Less guesswork.</span></h2>
-            <p>Possum's security direction goes beyond a single moderation command. Its layered suite brings together account integrity, link intelligence, threat signals, behavioral drift, trust weighting, risk escalation, governance and containment controls.</p>
+            <p>Possum&apos;s security direction goes beyond a single moderation command. Its layered suite brings together account integrity, link intelligence, threat signals, behavioral drift, trust weighting, risk escalation, governance and containment controls.</p>
             <p className="security-note">Basic moderation remains part of the core experience. Advanced security and governance capabilities are optional Pro features, with availability based on the live deployment.</p>
             <Link href="/security" className="site-button site-button-outline">Explore security <span>→</span></Link>
           </div>

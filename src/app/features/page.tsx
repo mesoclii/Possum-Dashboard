@@ -1,5 +1,7 @@
 "use client";
 
+import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
+
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
@@ -17,14 +19,14 @@ const shell: CSSProperties = {
   minHeight: "100vh",
   background:
     "transparent",
-  color: "#ffd7d7",
+  color: "#ffe0f8",
   padding: "32px 24px 60px",
 };
 
 const card: CSSProperties = {
-  border: "1px solid rgba(255,0,0,0.34)",
+  border: "1px solid rgba(255,43,214,0.34)",
   borderRadius: 18,
-  background: "linear-gradient(180deg, rgba(110,0,0,0.18), rgba(0,0,0,0.72))",
+  background: "linear-gradient(180deg, rgba(255,36,79,0.13), rgba(0,0,0,0.72))",
   padding: 18,
   boxShadow: "0 18px 50px rgba(0,0,0,0.32)",
 };
@@ -68,36 +70,38 @@ export default function FeaturesPage() {
       : { target: "_blank", rel: "noreferrer" };
 
   return (
-    <div style={shell}>
+    <>
+      <MarketingHeader />
+      <div style={shell}>
       <div style={{ maxWidth: 1480, margin: "0 auto" }}>
         <section style={{ ...card, padding: 28, marginBottom: 22 }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(320px,0.8fr)", gap: 20 }}>
             <div>
-              <div style={{ color: "#ff9494", fontSize: 14, letterSpacing: "0.24em", textTransform: "uppercase" }}>
+              <div style={{ color: "#ff8bea", fontSize: 14, letterSpacing: "0.24em", textTransform: "uppercase" }}>
                 Public Feature List
               </div>
               <h1
                 style={{
                   margin: "12px 0 10px",
-                  color: "#ff3e3e",
+                  color: "#ff2bd6",
                   fontSize: "clamp(2.8rem, 7vw, 5.6rem)",
                   lineHeight: 0.92,
                   letterSpacing: "0.12em",
                   textTransform: "uppercase",
-                  textShadow: "0 0 28px rgba(255,0,0,0.46)",
+                  textShadow: "0 0 28px rgba(255,43,214,0.42)",
                 }}
               >
                 Features
               </h1>
-              <p style={{ fontSize: 16, lineHeight: 1.8, maxWidth: 920, color: "#ffd3d3" }}>
+              <p style={{ fontSize: 16, lineHeight: 1.8, maxWidth: 920, color: "#ffe0f8" }}>
                 Public guilds start on the standard ready stack so owners only need to set channels, messages,
                 images, roles, webhooks, timers, and engine preferences. Premium features stay off until enabled by
                 plan or trial. Pokemon remains private and is never part of the public catalog. One plan covers every
                 server you own or staff in, and Possum Bot stays one of the most actively updated bots in active development.
               </p>
-              <div style={{ color: "#ffb0b0", fontSize: 13, marginTop: 10 }}>
+              <div style={{ color: "#ff9bea", fontSize: 13, marginTop: 10 }}>
                 Feature requests and fixes can be suggested in{" "}
-                <a href={buildSupportServerUrl()} target="_blank" rel="noopener noreferrer" style={{ color: "#ff9f9f", fontWeight: 700 }}>
+                <a href={buildSupportServerUrl()} target="_blank" rel="noopener noreferrer" style={{ color: "#ff70e2", fontWeight: 700 }}>
                   Join Possum Bot Support
                 </a>
                 .
@@ -124,8 +128,8 @@ export default function FeaturesPage() {
                   href="/"
                   style={{
                     ...action,
-                    color: "#ffd7d7",
-                    border: "1px solid rgba(255,0,0,0.45)",
+                    color: "#ffe0f8",
+                    border: "1px solid rgba(255,43,214,0.5)",
                     background: "#130707",
                   }}
                 >
@@ -137,42 +141,42 @@ export default function FeaturesPage() {
         </section>
 
         <section style={{ ...card, marginBottom: 22 }}>
-          <div style={{ color: "#8dffb9", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
+          <div style={{ color: "#ff65df", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
             Free Features (Included Standard Stack)
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>
             {STANDARD_FEATURES.map((feature) => (
               <div key={feature.id} style={{ ...card, margin: 0, padding: 14 }}>
-                <div style={{ color: "#ff5757", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                <div style={{ color: "#ff2bd6", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   {feature.label}
                 </div>
-                <div style={{ color: "#ffd0d0", fontSize: 13, lineHeight: 1.65, marginTop: 8 }}>{feature.summary}</div>
+                <div style={{ color: "#ffe0f8", fontSize: 13, lineHeight: 1.65, marginTop: 8 }}>{feature.summary}</div>
               </div>
             ))}
           </div>
           <a
             href="#pro-features"
-            style={{ ...action, marginTop: 18, color: "#fff1c7", border: "1px solid rgba(255,200,120,0.55)", background: "rgba(120,0,0,0.35)" }}
+            style={{ ...action, marginTop: 18, color: " #ffe0f8", border: "1px solid rgba(255,43,214,0.55)", background: "rgba(255,36,79,0.16)" }}
           >
             See Pro features ↓
           </a>
         </section>
 
         <section id="pro-features" style={{ ...card, marginBottom: 22 }}>
-          <div style={{ color: "#ffd39a", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
+          <div style={{ color: "#ff8bea", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
             Premium Features
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
             {publicPremiumFeatures.map((feature) => (
               <div key={feature.id} style={{ ...card, margin: 0 }}>
-                <div style={{ color: "#ffd49a", fontSize: 11, letterSpacing: "0.10em", textTransform: "uppercase" }}>
+                <div style={{ color: "#ff8bea", fontSize: 11, letterSpacing: "0.10em", textTransform: "uppercase" }}>
                   {feature.premiumLabel}
                 </div>
-                <div style={{ color: "#ff5a5a", fontSize: 24, fontWeight: 900, textTransform: "uppercase", marginTop: 10 }}>
+                <div style={{ color: "#ff244f", fontSize: 24, fontWeight: 900, textTransform: "uppercase", marginTop: 10 }}>
                   {feature.label}
                 </div>
-                <div style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 10 }}>{feature.summary}</div>
-                <div style={{ color: "#ffb9b9", fontSize: 12, marginTop: 12 }}>
+                <div style={{ color: "#ffe0f8", lineHeight: 1.7, marginTop: 10 }}>{feature.summary}</div>
+                <div style={{ color: "#ffb0f2", fontSize: 12, marginTop: 12 }}>
                   Included in: {feature.includedIn.join(", ")}
                 </div>
               </div>
@@ -181,25 +185,27 @@ export default function FeaturesPage() {
         </section>
 
         <section style={{ ...card, marginBottom: 22 }}>
-          <div style={{ color: "#ff9a9a", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
+          <div style={{ color: "#ff8bea", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
             Premium Plans
           </div>
           <div style={{ marginBottom: 6 }}>
             <PlanTierPicker buyHref={primaryActionHref} buyLabel={primaryActionLabel} />
           </div>
-          <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 14 }}>{PRICING_FOOTNOTE}</div>
+          <div style={{ color: "#ffb0f2", fontSize: 12, marginTop: 14 }}>{PRICING_FOOTNOTE}</div>
         </section>
 
         <section style={card}>
-          <div style={{ color: "#ff9a9a", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 12 }}>
+          <div style={{ color: "#ff8bea", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 12 }}>
             Availability
           </div>
-          <div style={{ color: "#ffd7d7", lineHeight: 1.8 }}>
-            Pokemon is private and not sold publicly. Saviors keeps its original baseline untouched. Public guilds get
-            the standard ready stack with premium features off until the guild owner buys a plan or you grant a trial.
+          <div style={{ color: "#ffe0f8", lineHeight: 1.8 }}>
+            Private and experimental modules are not included in the public feature catalog. Public guilds start with
+            the standard ready stack, with optional Pro features enabled only through the appropriate plan or trial.
           </div>
         </section>
       </div>
-    </div>
+      </div>
+      <MarketingFooter />
+    </>
   );
 }

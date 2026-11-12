@@ -1,3 +1,4 @@
+import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
 import LegalDocument from "@/components/possum/LegalDocument";
 
 export const metadata = { title: "Terms of Service | Possum Bot" };
@@ -6,7 +7,9 @@ const list = { margin: "6px 0 0 20px", padding: 0 } as const;
 
 export default function TermsPage() {
   return (
-    <LegalDocument
+    <>
+      <MarketingHeader />
+      <LegalDocument
       title="Terms of Service"
       updated="November 5, 2026"
       intro="These terms apply when you add Possum Bot to a Discord server, use the Possum dashboard, or buy a Possum Pro plan. By doing any of these you agree to them. If you do not agree, remove the bot and stop using the dashboard."
@@ -64,6 +67,8 @@ export default function TermsPage() {
           body: "We may update these terms; the date at the top shows the latest version, and continuing to use the bot means you accept the update. For questions, contact us through the Possum Support server on Discord, linked from possumbot.com.",
         },
       ]}
-    />
+      />
+      <MarketingFooter />
+    </>
   );
 }

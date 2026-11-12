@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import LanguageProvider from "@/components/possum/LanguageProvider";
 
 export const metadata = {
-  title: "Possum Control Room",
-  description: "Engine Governance • Security Oversight • System Control",
+  title: "Possum Bot | The Discord Community Toolkit",
+  description: "Moderation, onboarding, security, community progression and server operations in one modular Discord bot platform.",
 };
 
 export default function RootLayout({

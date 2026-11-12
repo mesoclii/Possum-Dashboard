@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 

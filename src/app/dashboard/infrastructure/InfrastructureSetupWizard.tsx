@@ -12,6 +12,10 @@ type Feature = {
   selectable: boolean;
 };
 
+type ProtectedFlow = "onboarding" | "verification" | "preOnboarding";
+type FlowChoice = "keep" | "enable" | "disable";
+type FlowChoices = Record<ProtectedFlow, FlowChoice>;
+
 type Proposal = {
   id: string;
   engine: string;
@@ -52,12 +56,32 @@ type AdaptRow = {
   resourceName: string;
 };
 
+type DirectoryResource = {
+  id: string;
+  name: string;
+  kind: string;
+  parentId?: string;
+};
+
+type RewardRoleOption = {
+  id: string;
+  kind: "achievement" | "progression" | "prestige";
+  label: string;
+  proposedName: string;
+};
+
 type SetupReport = {
   guildId?: string;
   ready?: boolean;
   reason?: string;
   featureCatalog?: Feature[];
   proposals?: Proposal[];
+  rewardRoleOptions?: RewardRoleOption[];
+  vipRole?: { id: string; name: string } | null;
+  directory?: {
+    categories?: DirectoryResource[];
+    channels?: DirectoryResource[];
+  };
   setupTuning?: SetupTuning[];
   settings?: {
     mode?: string;
@@ -65,9 +89,13 @@ type SetupReport = {
     automaticProvisioningEnabled?: boolean;
     trackedEngines?: string[] | null;
     trackedEnginesConfigured?: boolean;
+    selectedRoleMappings?: string[];
+    vipPrivateResourceKeys?: string[];
     resourceNameOverrides?: Record<string, string>;
     categoryNameOverrides?: Record<string, string>;
     resourceCounts?: Record<string, number>;
+    rewardRoleSelections?: string[];
+    customRoleNames?: string[];
   };
   setupCategories?: { group: string; name: string }[];
 };
@@ -84,6 +112,8 @@ type ApiResponse = {
     applied?: string[];
     created?: { id?: string; name?: string; engine?: string; field?: string }[];
     failed?: { id?: string; engine?: string; field?: string; name?: string; error?: string; reason?: string }[];
+    loggingWarnings?: string[];
+    role?: { id: string; name: string };
     deferred?: number;
     message?: string;
   };
@@ -100,6 +130,11 @@ type PreviewSnapshot = {
   names: Record<string, string>;
   categoryNames: Record<string, string>;
   resourceCounts: Record<string, number>;
+  selectedRoleMappings: string[];
+  rewardRoleSelections: string[];
+  customRoleNames: string[];
+  vipPrivateResourceKeys: string[];
+  flowChoices: FlowChoices;
   setupTuning: Record<string, number>;
   report: SetupReport;
   mappings: AdaptRow[];
@@ -116,6 +151,12 @@ const GROUPS = [
   { id: "automation", label: "Automation" },
   { id: "support", label: "Support & Administration" },
 ];
+
+const DEFAULT_FLOW_CHOICES: FlowChoices = {
+  onboarding: "keep",
+  verification: "keep",
+  preOnboarding: "keep",
+};
 
 function sorted(values: string[]) {
   return [...new Set(values)].sort();
@@ -189,6 +230,11 @@ export default function InfrastructureSetupWizard() {
   const [report, setReport] = useState<SetupReport | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [savedSelection, setSavedSelection] = useState<string[]>([]);
+  const [selectedRoleMappings, setSelectedRoleMappings] = useState<string[]>([]);
+  const [rewardRoleSelections, setRewardRoleSelections] = useState<string[]>([]);
+  const [customRoleText, setCustomRoleText] = useState("");
+  const [vipPrivateSetupKeys, setVipPrivateSetupKeys] = useState<string[]>([]);
+  const [flowChoices, setFlowChoices] = useState<FlowChoices>(DEFAULT_FLOW_CHOICES);
   const [names, setNames] = useState<Record<string, string>>({});
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
   const [resourceCounts, setResourceCounts] = useState<Record<string, number>>({});
@@ -198,6 +244,8 @@ export default function InfrastructureSetupWizard() {
   const [activeGroup, setActiveGroup] = useState(GROUPS[0].id);
   const [previewSnapshot, setPreviewSnapshot] = useState<PreviewSnapshot | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [selectedVipResourceIds, setSelectedVipResourceIds] = useState<string[]>([]);
+  const [vipConfirmationOpen, setVipConfirmationOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -229,6 +277,10 @@ export default function InfrastructureSetupWizard() {
       const saved = savedFeatureSelection(next);
       setSelected(saved);
       setSavedSelection(saved);
+      setSelectedRoleMappings(sorted(next.settings?.selectedRoleMappings || []));
+      setRewardRoleSelections(sorted(next.settings?.rewardRoleSelections || []));
+      setCustomRoleText((next.settings?.customRoleNames || []).join("\n"));
+      setVipPrivateSetupKeys(sorted(next.settings?.vipPrivateResourceKeys || []));
       setNames(next.settings?.resourceNameOverrides || {});
       setCategoryNames(next.settings?.categoryNameOverrides || {});
       setResourceCounts(next.settings?.resourceCounts || {});
@@ -257,6 +309,10 @@ export default function InfrastructureSetupWizard() {
         const saved = savedFeatureSelection(next);
         setSelected(saved);
         setSavedSelection(saved);
+        setSelectedRoleMappings(sorted(next?.settings?.selectedRoleMappings || []));
+        setRewardRoleSelections(sorted(next?.settings?.rewardRoleSelections || []));
+        setCustomRoleText((next?.settings?.customRoleNames || []).join("\n"));
+        setVipPrivateSetupKeys(sorted(next?.settings?.vipPrivateResourceKeys || []));
         setNames(next?.settings?.resourceNameOverrides || {});
         setCategoryNames(next?.settings?.categoryNameOverrides || {});
         setResourceCounts(next?.settings?.resourceCounts || {});
@@ -271,16 +327,30 @@ export default function InfrastructureSetupWizard() {
   const selectedFeatures = useMemo(() => sorted(selected), [selected]);
   const selectionDirty = selectedFeatures.join("\n") !== savedSelection.join("\n");
   const proposals = useMemo(() => report?.proposals || [], [report?.proposals]);
-  const createProposals = useMemo(
+  const roleCandidates = useMemo(
     () => proposals.filter((proposal) =>
       selected.includes(proposal.engine) &&
       !proposal.protectedFlow &&
+      proposal.resourceType === "role" &&
+      (proposal.status !== "populated" || proposal.many)
+    ),
+    [proposals, selected]
+  );
+  const previewRoleSelections = sorted(selectedRoleMappings);
+  const previewRewardRoleSelections = sorted(rewardRoleSelections);
+  const normalizedCustomRoleNames = [...new Set(customRoleText.split(/\r?\n/).map((name) => name.trim()).filter(Boolean))].slice(0, 10);
+  const selectedRewardRoleOptions = (report?.rewardRoleOptions || []).filter((option) => previewRewardRoleSelections.includes(option.id));
+  const createProposals = useMemo(
+    () => proposals.filter((proposal) =>
+      (selected.includes(proposal.engine) || `${proposal.engine}:${proposal.field}` === "moderator:logging.logChannelId") &&
+      !proposal.protectedFlow &&
+      (proposal.resourceType !== "role" || previewRoleSelections.includes(proposal.id)) &&
       (
         proposal.status !== "populated" ||
         (proposal.many && proposal.resourceType === "role")
       )
     ),
-    [proposals, selected]
+    [proposals, previewRoleSelections, selected]
   );
   const roleProposals = useMemo(
     () => createProposals.filter((proposal) => proposal.resourceType === "role"),
@@ -294,24 +364,49 @@ export default function InfrastructureSetupWizard() {
     () => createProposals.filter((proposal) => proposal.resourceType === "category"),
     [createProposals]
   );
+  const vipPrivateSetupKeysSorted = sorted(vipPrivateSetupKeys);
   const resourcesToCreate = createProposals.reduce((count, proposal) => count + (
     proposal.many && proposal.resourceType === "role"
       ? Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))
       : 1
-  ), 0) + (previewSnapshot?.report.setupCategories?.length || 0);
+  ), 0) + (previewSnapshot?.report.setupCategories?.length || 0) +
+    selectedRewardRoleOptions.length + normalizedCustomRoleNames.length;
+  const plannedVipSetupKeys = new Set([
+    ...createProposals
+      .filter((proposal) => proposal.resourceType === "channel" || proposal.resourceType === "category")
+      .map((proposal) => proposal.id),
+    ...(previewSnapshot?.report.setupCategories || []).map((category) => `group-category:${category.group}`),
+  ]);
+  const vipPrivateCreateCount = vipPrivateSetupKeysSorted.filter((id) => plannedVipSetupKeys.has(id)).length;
   const mappingCount = previewSnapshot?.mappings.length || 0;
   const skippedMappingCount = previewSnapshot?.skippedMappings.length || 0;
   const namesDirty = Boolean(previewSnapshot && !sameNames(names, previewSnapshot.names));
   const categoryNamesDirty = Boolean(previewSnapshot && !sameNames(categoryNames, previewSnapshot.categoryNames));
   const resourceCountsDirty = Boolean(previewSnapshot && !sameCounts(resourceCounts, previewSnapshot.resourceCounts));
   const setupTuningDirty = Boolean(previewSnapshot && !sameNumbers(setupTuning, previewSnapshot.setupTuning));
+  const roleSelectionsDirty = Boolean(previewSnapshot && previewRoleSelections.join("\n") !== previewSnapshot.selectedRoleMappings.join("\n"));
+  const rewardRoleSelectionsDirty = Boolean(previewSnapshot && previewRewardRoleSelections.join("\n") !== previewSnapshot.rewardRoleSelections.join("\n"));
+  const customRoleNamesDirty = Boolean(previewSnapshot && normalizedCustomRoleNames.join("\n") !== previewSnapshot.customRoleNames.join("\n"));
+  const vipSetupSelectionsDirty = Boolean(previewSnapshot && vipPrivateSetupKeysSorted.join("\n") !== previewSnapshot.vipPrivateResourceKeys.join("\n"));
+  const vipResources = useMemo(() => [
+    ...(report?.directory?.categories || []).map((resource) => ({ ...resource, kind: "category" })),
+    ...(report?.directory?.channels || []).filter((resource) =>
+      ["text", "voice", "announcement", "stage", "forum", "media"].includes(resource.kind)
+    ),
+  ], [report?.directory]);
+  const flowChoicesDirty = Boolean(previewSnapshot && JSON.stringify(flowChoices) !== JSON.stringify(previewSnapshot.flowChoices));
   const previewDirty = Boolean(previewSnapshot && (
     selectionDirty ||
     selectedFeatures.join("\n") !== previewSnapshot.features.join("\n") ||
     namesDirty ||
     categoryNamesDirty ||
     resourceCountsDirty ||
-    setupTuningDirty
+    setupTuningDirty ||
+    roleSelectionsDirty ||
+    rewardRoleSelectionsDirty ||
+    customRoleNamesDirty ||
+    vipSetupSelectionsDirty ||
+    flowChoicesDirty
   ));
   const selectedProtected = features.filter((feature) => selected.includes(feature.id) && feature.protected);
   const activeFeatureGroup = GROUPS.find((group) => group.id === activeGroup) || GROUPS[0];
@@ -330,6 +425,39 @@ export default function InfrastructureSetupWizard() {
     setSelected((current) => enabled
       ? sorted([...current, id])
       : current.filter((entry) => entry !== id));
+  }
+
+  function setVipResourceSelected(id: string, enabled: boolean) {
+    setSelectedVipResourceIds((current) => enabled
+      ? sorted([...current, id])
+      : current.filter((entry) => entry !== id));
+  }
+
+  function setVipSetupKeySelected(id: string, enabled: boolean) {
+    setVipPrivateSetupKeys((current) => enabled
+      ? sorted([...current, id])
+      : current.filter((entry) => entry !== id));
+  }
+
+  async function applyVipVisibility() {
+    if (!selectedVipResourceIds.length) return;
+    setVipConfirmationOpen(false);
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await callApi({ action: "vip-visibility", resourceIds: selectedVipResourceIds });
+      const applied = data.result?.applied || [];
+      const failed = data.result?.failed || [];
+      if (data.report) setReport(data.report);
+      setSelectedVipResourceIds(failed.map((row) => row.id || "").filter(Boolean));
+      setMessage(`VIP visibility applied to ${applied.length} selected resource(s).${failed.length ? ` ${failed.length} need attention.` : ""}`);
+      if (failed.length) setError(failed.map((row) => `${row.id || "Resource"}: ${row.error || "permission update failed"}`).join(" "));
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Could not apply VIP-only visibility.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function preparePreview() {
@@ -357,6 +485,10 @@ export default function InfrastructureSetupWizard() {
         resourceNameOverrides: names,
         categoryNameOverrides: categoryNames,
         resourceCounts,
+        selectedRoleMappings: previewRoleSelections,
+        rewardRoleSelections: previewRewardRoleSelections,
+        customRoleNames: normalizedCustomRoleNames,
+        vipPrivateResourceKeys: vipPrivateSetupKeysSorted,
         setupTuning,
       });
       const adapt = await callApi({ action: "adapt" });
@@ -366,18 +498,31 @@ export default function InfrastructureSetupWizard() {
       const normalizedCategoryNames = next.settings?.categoryNameOverrides || categoryNames;
       const normalizedResourceCounts = next.settings?.resourceCounts || resourceCounts;
       const normalizedSetupTuning = Object.fromEntries((next.setupTuning || []).map((setting) => [setting.id, setting.value]));
+      const normalizedVipPrivateKeys = sorted(next.settings?.vipPrivateResourceKeys || vipPrivateSetupKeysSorted);
       setReport(next);
       setSelected(sorted(next.settings?.trackedEngines || selectedFeatures));
       setSavedSelection(sorted(next.settings?.trackedEngines || selectedFeatures));
       setNames(normalizedNames);
       setCategoryNames(normalizedCategoryNames);
       setResourceCounts(normalizedResourceCounts);
+      setVipPrivateSetupKeys(normalizedVipPrivateKeys);
+      const normalizedRoleSelections = sorted(next.settings?.selectedRoleMappings || previewRoleSelections);
+      setSelectedRoleMappings(normalizedRoleSelections);
+      const normalizedRewardSelections = sorted(next.settings?.rewardRoleSelections || previewRewardRoleSelections);
+      setRewardRoleSelections(normalizedRewardSelections);
+      const savedCustomRoleNames = next.settings?.customRoleNames || normalizedCustomRoleNames;
+      setCustomRoleText(savedCustomRoleNames.join("\n"));
       setSetupTuning(normalizedSetupTuning);
       setPreviewSnapshot({
         features: sorted(next.settings?.trackedEngines || selectedFeatures),
         names: normalizedNames,
         categoryNames: normalizedCategoryNames,
         resourceCounts: normalizedResourceCounts,
+        selectedRoleMappings: normalizedRoleSelections,
+        rewardRoleSelections: normalizedRewardSelections,
+        customRoleNames: savedCustomRoleNames,
+        vipPrivateResourceKeys: normalizedVipPrivateKeys,
+        flowChoices: { ...flowChoices },
         setupTuning: normalizedSetupTuning,
         report: next,
         mappings: adapt.preview?.planned || [],
@@ -408,6 +553,10 @@ export default function InfrastructureSetupWizard() {
         resourceNameOverrides: previewSnapshot.names,
         categoryNameOverrides: previewSnapshot.categoryNames,
         resourceCounts: previewSnapshot.resourceCounts,
+        selectedRoleMappings: previewSnapshot.selectedRoleMappings,
+        rewardRoleSelections: previewSnapshot.rewardRoleSelections,
+        customRoleNames: previewSnapshot.customRoleNames,
+        vipPrivateResourceKeys: previewSnapshot.vipPrivateResourceKeys,
         setupTuning: previewSnapshot.setupTuning,
       });
 
@@ -430,11 +579,15 @@ export default function InfrastructureSetupWizard() {
         resourceNameOverrides: previewSnapshot.names,
         categoryNameOverrides: previewSnapshot.categoryNames,
         resourceCounts: previewSnapshot.resourceCounts,
+        rewardRoleSelections: previewSnapshot.rewardRoleSelections,
+        customRoleNames: previewSnapshot.customRoleNames,
+        vipPrivateResourceKeys: previewSnapshot.vipPrivateResourceKeys,
         setupTuning: previewSnapshot.setupTuning,
       });
 
       const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
       const failuresById = new Map<string, CreationFailure>();
+      const loggingWarnings = new Set<string>();
       const maxBatches = 100;
       let completed = false;
       for (let batch = 1; batch <= maxBatches; batch += 1) {
@@ -443,6 +596,7 @@ export default function InfrastructureSetupWizard() {
         const result = data.result || {};
         const batchCreated = result.created || [];
         allCreated.push(...batchCreated);
+        for (const warning of result.loggingWarnings || []) loggingWarnings.add(warning);
         setCreated([...allCreated]);
 
         const failures = result.failed || [];
@@ -470,6 +624,37 @@ export default function InfrastructureSetupWizard() {
         throw new Error("Setup reached the safety limit of 100 batches. Review the created resources and run another preview for anything remaining.");
       }
 
+      const featurePatch: Record<string, boolean> = {};
+      const securityPatch: Record<string, { enabled: boolean }> = {};
+      for (const flow of Object.keys(previewSnapshot.flowChoices) as ProtectedFlow[]) {
+        const choice = previewSnapshot.flowChoices[flow];
+        if (choice === "keep") continue;
+        const enabled = choice === "enable";
+        const featureKey = flow === "onboarding"
+          ? "onboardingEnabled"
+          : flow === "verification"
+            ? "verificationEnabled"
+            : null;
+        if (featureKey) featurePatch[featureKey] = enabled;
+        securityPatch[flow] = { enabled };
+      }
+      if (Object.keys(featurePatch).length || Object.keys(securityPatch).length) {
+        setBatchProgress("Saving the explicit onboarding and security choices…");
+        const response = await fetch("/api/bot/dashboard-config", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            guildId,
+            patch: {
+              ...(Object.keys(featurePatch).length ? { features: featurePatch } : {}),
+              ...(Object.keys(securityPatch).length ? { security: securityPatch } : {}),
+            },
+          }),
+          cache: "no-store",
+        });
+        await readJson(response);
+      }
+
       await callApi({ action: "settings", autopilotEnabled, automaticProvisioningEnabled });
       const refreshed = await loadReport();
       setPreviewSnapshot(null);
@@ -477,7 +662,7 @@ export default function InfrastructureSetupWizard() {
       setCreationFailures(finalFailures);
       setMessage(finalFailures.length
         ? `Setup created ${allCreated.length} resource(s), but ${finalFailures.length} resource(s) still need attention. See the failed resources below.`
-        : `Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty. Autopilot is ${autopilotEnabled ? "on" : "off"}; automatic resource creation is ${automaticProvisioningEnabled ? "on" : "off"}.`);
+        : `Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty. Autopilot is ${autopilotEnabled ? "on" : "off"}; automatic resource creation is ${automaticProvisioningEnabled ? "on" : "off"}.${loggingWarnings.size ? ` Setup logs need attention: ${[...loggingWarnings].join("; ")}` : ""}`);
       setBatchProgress("");
       if (!refreshed) throw new Error("Setup finished, but the refreshed infrastructure report could not be loaded.");
     } catch (cause: unknown) {
@@ -513,6 +698,25 @@ export default function InfrastructureSetupWizard() {
     setMessage("");
   }
 
+  function setFlowChoice(flow: ProtectedFlow, choice: FlowChoice) {
+    setFlowChoices((current) => ({ ...current, [flow]: choice }));
+    setMessage("");
+  }
+
+  function setRoleSelected(id: string, enabled: boolean) {
+    setSelectedRoleMappings((current) => sorted(enabled
+      ? [...current, id]
+      : current.filter((entry) => entry !== id)));
+    setMessage("");
+  }
+
+  function setRewardRoleSelected(id: string, enabled: boolean) {
+    setRewardRoleSelections((current) => sorted(enabled
+      ? [...current, id]
+      : current.filter((entry) => entry !== id)));
+    setMessage("");
+  }
+
   function toggleGroup(group: string, enabled: boolean) {
     const ids = features.filter((feature) => feature.group === group && feature.selectable).map((feature) => feature.id);
     setSelected((current) => sorted(enabled
@@ -542,11 +746,43 @@ export default function InfrastructureSetupWizard() {
         <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed">
-          Choose systems by category, review channel, category, and role names, then approve one setup. This only scopes infrastructure tracking; it does not switch runtime features on or off.
+          Choose systems by category, review resource names, and approve one setup. Setup bootstraps the moderator log destination first, then creates selected reward roles before the remaining channels and categories.
         </p>
         <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup creates only missing, eligible channels, categories, and roles. Existing server resources are never deleted. Protected flows such as welcome, verification, pre-onboarding, and GTA Heist remain manual/suggestion-only. The bot needs the appropriate Discord permissions.
+          Setup creates only missing, eligible channels, categories, and roles you explicitly select. Existing server resources are never deleted. Protected flows are never provisioned or rewritten automatically. The bot needs the appropriate Discord permissions.
         </p>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
+        <h2 className="text-lg font-black uppercase">First-run checklist</h2>
+        <ol className="mt-3 grid gap-3 text-sm leading-relaxed md:grid-cols-2">
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>1. Bootstrap logging and roles.</strong> Setup creates the moderator log destination first, then selected cat, achievement, progression, and custom roles before the rest of the resources.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>2. Decide protected member flows.</strong> Choose whether onboarding, verification, and pre-onboarding should be enabled or disabled, or leave each current setting unchanged.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>3. Set up security and audit details.</strong> Review <a className="underline" href="/dashboard/security/pre-onboarding">pre-onboarding safeguards</a> and select the moderation logging systems below.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>4. Configure your custom bot securely.</strong> Use the <a className="underline" href="/dashboard/bot-personalizer#custom-bot-credentials">Bot Personalizer</a> for its token, client ID, and OAuth settings. Never paste tokens into chat.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3 md:col-span-2"><strong>5. Set message routing and verify permissions.</strong> In Bot Personalizer, choose who can send DMs, whether guild messages use the bot or webhook, then confirm the bot can manage the selected channels and roles.</li>
+        </ol>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
+        <h2 className="text-lg font-black uppercase">Protected flow decisions</h2>
+        <p className="mt-1 text-sm text-pink-100/70">These choices apply only after you approve and complete setup. “Keep current” preserves existing behavior.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {([
+            ["onboarding", "Onboarding"],
+            ["verification", "Verification"],
+            ["preOnboarding", "Pre-onboarding security"],
+          ] as [ProtectedFlow, string][]).map(([flow, label]) => (
+            <label key={flow} className="grid gap-2 rounded-lg border border-pink-900/40 p-3 text-sm font-bold">
+              {label}
+              <select value={flowChoices[flow]} onChange={(event) => setFlowChoice(flow, event.target.value as FlowChoice)} className="min-h-10 rounded-md border border-pink-900/50 bg-black px-2 text-sm text-pink-50">
+                <option value="keep">Keep current setting</option>
+                <option value="enable">Enable</option>
+                <option value="disable">Disable</option>
+              </select>
+            </label>
+          ))}
+        </div>
       </section>
 
       {error ? <div role="alert" className="rounded-lg border border-red-700/60 bg-red-950/50 p-3 text-sm text-red-100">{error}</div> : null}
@@ -622,8 +858,112 @@ export default function InfrastructureSetupWizard() {
           <button type="button" disabled={busy || selectedFeatures.length === 0} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? "Preparing…" : "Preview selected setup"}
           </button>
-          <span className="text-xs text-pink-100/60">Scanning is read-only. Your feature selection saves tracking scope; Discord resources and mappings change only after approval.</span>
+          <span className="text-xs text-pink-100/60">Scanning is read-only. Feature selection saves tracking scope; resources, mappings, and any protected-flow choices change only after approval.</span>
         </div>
+      </section>
+
+      {report?.directory ? (
+        <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
+          <h2 className="text-lg font-black uppercase">VIP-protected channel visibility</h2>
+          <p className="mt-1 text-sm text-pink-100/70">
+            {report.vipRole
+              ? `Configured VIP role: ${report.vipRole.name}. Select existing categories or channels, then confirm to deny @everyone and allow this VIP role.`
+              : "A valid configured VIP role was not found in this server. Configure the VIP role before applying private visibility."}
+          </p>
+          <p className="mt-1 text-xs text-pink-100/60">Only View Channel access for @everyone, VIP, and the bot is changed; other role permissions are preserved, so existing staff access remains. Discord administrators always retain access. Selecting a category protects its synced channels; select unsynced child channels separately.</p>
+          {(["category", "channel"] as const).map((kind) => {
+            const resources = vipResources.filter((resource) => kind === "category" ? resource.kind === "category" : resource.kind !== "category");
+            if (!resources.length) return null;
+            const title = kind === "category" ? "Categories" : "Channels";
+            return (
+              <details key={kind} className="mt-3 rounded-lg border border-pink-900/40 p-3">
+                <summary className="cursor-pointer text-sm font-black uppercase text-pink-100">{title} ({resources.length})</summary>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  {resources.map((resource) => (
+                    <label key={resource.id} className="flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedVipResourceIds.includes(resource.id)}
+                        onChange={(event) => setVipResourceSelected(resource.id, event.target.checked)}
+                        className="mt-1 accent-pink-500"
+                        disabled={!report.vipRole || busy}
+                      />
+                      <span>
+                        <strong>{resource.name}</strong>
+                        {resource.parentId ? <span className="block text-xs text-pink-100/60">in {vipResources.find((row) => row.id === resource.parentId)?.name || "a category"}</span> : null}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </details>
+            );
+          })}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={busy || !report.vipRole || !selectedVipResourceIds.length || selectedVipResourceIds.length > 100}
+              onClick={() => setVipConfirmationOpen(true)}
+              className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Apply VIP visibility ({selectedVipResourceIds.length})
+            </button>
+            {selectedVipResourceIds.length > 100 ? <span className="text-xs text-amber-100/80">Choose no more than 100 resources at a time.</span> : null}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
+          <details>
+            <summary className="cursor-pointer text-lg font-black uppercase">
+              Optional reward role creation ({roleCandidates.length + (report?.rewardRoleOptions?.length || 0)})
+            </summary>
+            <p className="mt-2 text-sm text-pink-100/70">Select roles Possum should create and connect to a real reward. Achievement and progression rewards are opt-in. Other roles usually refer to roles you already have; leave those unchecked unless the bot grants them.</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {roleCandidates.map((proposal) => (
+                <label key={proposal.id} className="flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
+                  <input type="checkbox" checked={previewRoleSelections.includes(proposal.id)} onChange={(event) => setRoleSelected(proposal.id, event.target.checked)} className="mt-1 accent-pink-500" />
+                  <span><strong>{proposal.engineLabel || proposal.engine}</strong><span className="block text-xs text-pink-100/60">{proposal.field}{proposal.many ? " (multiple optional roles)" : ""}</span></span>
+                </label>
+              ))}
+            </div>
+            {(report?.rewardRoleOptions || []).length ? (
+              <div className="mt-4">
+                <h3 className="text-sm font-black uppercase">Achievement and level rewards</h3>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  {(report?.rewardRoleOptions || []).map((option) => (
+                    <div key={option.id} className="grid gap-2 rounded-lg border border-pink-900/40 p-3 text-sm">
+                      <label className="flex items-start gap-3">
+                        <input type="checkbox" checked={previewRewardRoleSelections.includes(option.id)} onChange={(event) => setRewardRoleSelected(option.id, event.target.checked)} className="mt-1 accent-pink-500" />
+                        <span><strong>{option.label}</strong><span className="block text-xs text-pink-100/60">{option.kind === "achievement" ? "Achievement unlock role" : option.kind === "prestige" ? "Prestige reward role" : "Progression level role"} · created role will be wired to this reward</span></span>
+                      </label>
+                      {previewRewardRoleSelections.includes(option.id) ? (
+                        <input
+                          value={names[option.id] || option.proposedName}
+                          onChange={(event) => updateResourceName(option.id, event.target.value)}
+                          maxLength={100}
+                          aria-label={`Name for ${option.label} reward role`}
+                          className="min-h-10 rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                        />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <label className="mt-4 grid gap-2 text-sm">
+              <span><strong>Optional custom roles</strong><span className="block text-xs text-pink-100/60">One role name per line, up to 10. These are created for later dashboard assignment and are not granted automatically.</span></span>
+              <textarea
+                value={customRoleText}
+                onChange={(event) => setCustomRoleText(event.target.value)}
+                maxLength={1100}
+                rows={3}
+                aria-label="Optional custom role names"
+                placeholder={"Community Helper\nEvent Champion"}
+                className="min-h-24 w-full rounded-md border border-pink-900/50 bg-black px-3 py-2 text-sm text-pink-50"
+              />
+              <span className="text-xs text-pink-100/60">{normalizedCustomRoleNames.length}/10 custom roles</span>
+            </label>
+          </details>
       </section>
 
       {previewSnapshot ? (
@@ -638,7 +978,7 @@ export default function InfrastructureSetupWizard() {
                 proposal.many && proposal.resourceType === "role"
                   ? Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))
                   : 1
-              ), 0)} roles · {channelProposals.length} channels · {explicitCategoryProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} categories · {mappingCount} existing mappings to fill
+              ), 0) + selectedRewardRoleOptions.length + normalizedCustomRoleNames.length} roles · {channelProposals.length} channels · {explicitCategoryProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} categories · {mappingCount} existing mappings to fill{vipPrivateCreateCount ? ` · ${vipPrivateCreateCount} VIP-protected` : ""}
             </span>
           </div>
 
@@ -648,46 +988,59 @@ export default function InfrastructureSetupWizard() {
             </div>
           ) : null}
 
-          {createProposals.length ? (
+          {createProposals.length || selectedRewardRoleOptions.length || normalizedCustomRoleNames.length ? (
             <div className="space-y-4">
               {[
                 { title: "Roles", rows: roleProposals },
                 { title: "Channels", rows: channelProposals },
                 { title: "Engine categories", rows: explicitCategoryProposals },
               ].filter((group) => group.rows.length > 0).map((group) => (
-                <div key={group.title} className="space-y-2">
-                  <h3 className="text-sm font-black uppercase text-pink-100">{group.title} ({group.rows.length})</h3>
-                  {group.rows.map((proposal) => (
-                <label key={proposal.id} className="grid gap-1 rounded-lg border border-pink-900/40 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
-                  <span className="min-w-0">
-                    <span className="block font-bold">{proposal.engineLabel || featureById.get(proposal.engine)?.name || proposal.engine}</span>
-                    <span className="block break-all text-xs text-pink-100/60">{proposal.resourceType || "channel"} · {proposal.field}</span>
-                  </span>
-                  <input
-                    value={resourceName(proposal, names)}
-                    onChange={(event) => updateResourceName(proposal.id, event.target.value)}
-                    maxLength={100}
-                    aria-label={`Name for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
-                    className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
-                  />
-                  {proposal.many && proposal.resourceType === "role" ? (
-                    <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
-                      Roles to create
-                      <input
-                        type="number"
-                        min={1}
-                        max={10}
-                        value={targetRoleCount(proposal, resourceCounts)}
-                        onChange={(event) => updateResourceCount(proposal.id, event.target.value)}
-                        aria-label={`Number of roles for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
-                        className="min-h-10 w-24 rounded-md border border-pink-900/50 bg-black px-2 text-sm text-pink-50"
-                      />
-                      <span>Additional roles are named with a number suffix.</span>
-                    </label>
-                  ) : null}
-                </label>
-                  ))}
-                </div>
+                <details key={group.title} className="rounded-lg border border-pink-900/40 p-3">
+                  <summary className="cursor-pointer text-sm font-black uppercase text-pink-100">{group.title} ({group.rows.length})</summary>
+                  <div className="mt-3 space-y-2">
+                    {group.rows.map((proposal) => (
+                      <div key={proposal.id} className="grid gap-1 rounded-lg border border-pink-900/40 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
+                        <span className="min-w-0">
+                          <span className="block font-bold">{proposal.engineLabel || featureById.get(proposal.engine)?.name || proposal.engine}</span>
+                          <span className="block break-all text-xs text-pink-100/60">{proposal.resourceType || "channel"} · {proposal.field}</span>
+                        </span>
+                        <input
+                          value={resourceName(proposal, names)}
+                          onChange={(event) => updateResourceName(proposal.id, event.target.value)}
+                          maxLength={100}
+                          aria-label={`Name for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
+                          className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                        />
+                        {proposal.many && proposal.resourceType === "role" ? (
+                          <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
+                            Roles to create
+                            <input
+                              type="number"
+                              min={1}
+                              max={10}
+                              value={targetRoleCount(proposal, resourceCounts)}
+                              onChange={(event) => updateResourceCount(proposal.id, event.target.value)}
+                              aria-label={`Number of roles for ${proposal.engineLabel || proposal.engine} ${proposal.field}`}
+                              className="min-h-10 w-24 rounded-md border border-pink-900/50 bg-black px-2 text-sm text-pink-50"
+                            />
+                            <span>Additional roles are named with a number suffix.</span>
+                          </label>
+                        ) : null}
+                        {report?.vipRole && (proposal.resourceType === "channel" || proposal.resourceType === "category") ? (
+                          <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
+                            <input
+                              type="checkbox"
+                              checked={vipPrivateSetupKeysSorted.includes(proposal.id)}
+                              onChange={(event) => setVipSetupKeySelected(proposal.id, event.target.checked)}
+                              className="accent-pink-500"
+                            />
+                            Restrict this new resource to VIPs (preserve staff access)
+                          </label>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </details>
               ))}
             </div>
           ) : (
@@ -698,11 +1051,14 @@ export default function InfrastructureSetupWizard() {
             <div className="space-y-3 rounded-lg border border-pink-900/40 p-3">
               <div>
                 <h3 className="text-sm font-black uppercase text-pink-100">Categories for these systems</h3>
-                <p className="mt-1 text-xs text-pink-100/65">New channels will be placed under their matching category. Existing matching categories are reused.</p>
+                <p className="mt-1 text-xs text-pink-100/65">New system channels go under their feature category. New log, audit, and transcript destinations get a separate Logging category. Existing channels and mappings are not moved.</p>
               </div>
               {previewSnapshot.report.setupCategories.map((category) => {
-                const label = GROUPS.find((group) => group.id === category.group)?.label || category.group;
-                return <label key={category.group} className="grid gap-1 rounded-md sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
+                const label = category.group === "logging"
+                  ? "Logging"
+                  : GROUPS.find((group) => group.id === category.group)?.label || category.group;
+                const privacyKey = `group-category:${category.group}`;
+                return <div key={category.group} className="grid gap-1 rounded-md sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
                   <span className="text-sm font-bold">{label}</span>
                   <input
                     value={categoryNames[category.group] || category.name}
@@ -711,7 +1067,18 @@ export default function InfrastructureSetupWizard() {
                     aria-label={`Name for ${label} category`}
                     className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
                   />
-                </label>;
+                  {report?.vipRole ? (
+                    <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={vipPrivateSetupKeysSorted.includes(privacyKey)}
+                        onChange={(event) => setVipSetupKeySelected(privacyKey, event.target.checked)}
+                        className="accent-pink-500"
+                      />
+                      Restrict this new category to VIPs (preserve staff access)
+                    </label>
+                  ) : null}
+                </div>;
               })}
             </div>
           ) : null}
@@ -776,17 +1143,23 @@ export default function InfrastructureSetupWizard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
-            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create {resourcesToCreate} missing channels, categories, and roles for this server. New channels are grouped by system category. Nothing will be deleted.</p>
-            <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-pink-900/40 p-3 text-sm">
-              {createProposals.map((proposal) => <li key={proposal.id}>{proposal.resourceType || "channel"}: <strong>{resourceName(proposal, names)}</strong>
-                {proposal.many && proposal.resourceType === "role" && targetRoleCount(proposal, resourceCounts) > 1
-                  ? ` (${Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))} to create)`
-                  : ""}
-              </li>)}
-              {(previewSnapshot.report.setupCategories || []).map((category) => <li key={`category-${category.group}`}>category: <strong>{categoryNames[category.group] || category.name}</strong></li>)}
-              {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}
-            </ul>
-            <p className="mt-3 text-xs text-amber-100/80">Protected onboarding, verification, pre-onboarding, and Heist flows remain suggestion-only. Runtime features are not switched on or off by this setup.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create {resourcesToCreate} missing channels, categories, and roles for this server. New channels are grouped by system category. {vipPrivateCreateCount ? `${vipPrivateCreateCount} selected new resource(s) will deny @everyone and allow the configured VIP role while preserving staff access.` : ""} Nothing will be deleted.</p>
+            <details className="mt-3 rounded-lg border border-pink-900/40 p-3">
+              <summary className="cursor-pointer text-sm font-bold">Show the full creation and mapping list</summary>
+              <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-sm">
+                {createProposals.map((proposal) => <li key={proposal.id}>{proposal.resourceType || "channel"}: <strong>{resourceName(proposal, names)}</strong>
+                  {vipPrivateSetupKeysSorted.includes(proposal.id) ? " — VIP-protected" : ""}
+                  {proposal.many && proposal.resourceType === "role" && targetRoleCount(proposal, resourceCounts) > 1
+                    ? ` (${Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))} to create)`
+                    : ""}
+                </li>)}
+                {selectedRewardRoleOptions.map((option) => <li key={option.id}>reward role: <strong>{names[option.id] || option.proposedName}</strong> → {option.label}</li>)}
+                {normalizedCustomRoleNames.map((name, index) => <li key={`custom-role-${index}`}>custom role: <strong>{name}</strong> (not assigned to a reward)</li>)}
+                {(previewSnapshot.report.setupCategories || []).map((category) => <li key={`category-${category.group}`}>category: <strong>{categoryNames[category.group] || category.name}</strong>{vipPrivateSetupKeysSorted.includes(`group-category:${category.group}`) ? " — VIP-protected" : ""}</li>)}
+                {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}
+              </ul>
+            </details>
+            <p className="mt-3 text-xs text-amber-100/80">Protected flows and Heist resources remain suggestion-only. Any explicit onboarding, verification, or pre-onboarding choice above is applied only after this approved setup finishes.</p>
             <label className="mt-3 flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
               <input
                 type="checkbox"
@@ -815,6 +1188,25 @@ export default function InfrastructureSetupWizard() {
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" disabled={busy} onClick={() => setPreviewOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
               <button type="button" disabled={busy || previewDirty} onClick={() => void approveSetup()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Yes, build selected setup</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {vipConfirmationOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setVipConfirmationOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="vip-visibility-confirm-title" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
+            <h2 id="vip-visibility-confirm-title" className="text-xl font-black uppercase">Confirm VIP-only visibility</h2>
+            <p className="mt-2 text-sm text-pink-100/80">This will deny View Channel to @everyone and allow it to {report?.vipRole?.name || "the configured VIP role"} for the selected resources. Existing role-specific grants, including staff access, and all other permissions are preserved. Discord administrators always retain access.</p>
+            <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-pink-900/40 p-3 text-sm">
+              {vipResources.filter((resource) => selectedVipResourceIds.includes(resource.id)).map((resource) => (
+                <li key={resource.id}>{resource.kind}: <strong>{resource.name}</strong></li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-amber-100/80">Unsynced channels inside a selected category will not inherit its permissions. Select those channels separately if they should also be VIP-only.</p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" disabled={busy} onClick={() => setVipConfirmationOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
+              <button type="button" disabled={busy || !report?.vipRole} onClick={() => void applyVipVisibility()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Confirm permissions</button>
             </div>
           </section>
         </div>

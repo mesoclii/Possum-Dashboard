@@ -10,7 +10,10 @@
     "build:turbo": "node ./node_modules/next/dist/bin/next build --turbopack",
     "start": "next start -p 3000",
     "lint": "eslint .",
-    "deploy:vm": "node scripts/deploy-vm.js"
+    "deploy:vm": "node scripts/deploy-vm.js",
+    "catalog:sync": "node scripts/sync-catalog.js",
+    "prebuild": "node scripts/sync-catalog.js",
+    "predev": "node scripts/sync-catalog.js"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.4.2",

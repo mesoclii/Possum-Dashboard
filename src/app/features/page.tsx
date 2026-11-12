@@ -1,3 +1,4 @@
+import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
 "use client";
 
 import Link from "next/link";
@@ -68,7 +69,9 @@ export default function FeaturesPage() {
       : { target: "_blank", rel: "noreferrer" };
 
   return (
-    <div style={shell}>
+    <>
+      <MarketingHeader />
+      <div style={shell}>
       <div style={{ maxWidth: 1480, margin: "0 auto" }}>
         <section style={{ ...card, padding: 28, marginBottom: 22 }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(320px,0.8fr)", gap: 20 }}>
@@ -200,6 +203,7 @@ export default function FeaturesPage() {
           </div>
         </section>
       </div>
-    </div>
+      <MarketingFooter />
+    </>
   );
 }

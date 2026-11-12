@@ -1,3 +1,4 @@
+import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
 import LegalDocument from "@/components/possum/LegalDocument";
 
 export const metadata = { title: "Privacy Policy | Possum Bot" };
@@ -6,7 +7,9 @@ const list = { margin: "6px 0 0 20px", padding: 0 } as const;
 
 export default function PrivacyPage() {
   return (
-    <LegalDocument
+    <>
+      <MarketingHeader />
+      <LegalDocument
       title="Privacy Policy"
       updated="November 5, 2026"
       intro="This policy explains what information Possum Bot and the Possum dashboard collect, why, and how you can have it removed. Each Discord server's settings and data are kept separate and are not shown to other servers."
@@ -85,6 +88,8 @@ export default function PrivacyPage() {
           body: "We may update this policy; the date at the top shows the latest version. For questions or requests, contact us through the Possum Support server on Discord, linked from possumbot.com.",
         },
       ]}
-    />
+      />
+      <MarketingFooter />
+    </>
   );
 }

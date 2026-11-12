@@ -1,5 +1,7 @@
 "use client";
 
+import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
+
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -95,7 +97,9 @@ export default function StatusPage() {
   }
 
   return (
-    <div style={shell}>
+    <>
+      <MarketingHeader />
+      <div style={shell}>
       <div style={{ maxWidth: 1380, margin: "0 auto" }}>
         <section style={{ ...card, marginBottom: 20, padding: 26 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
@@ -286,6 +290,7 @@ export default function StatusPage() {
           <section style={card}>Loading status board...</section>
         )}
       </div>
-    </div>
+      <MarketingFooter />
+    </>
   );
 }

@@ -54,9 +54,13 @@ type PersonaConfig = {
   customBot2ActivityType: string;
   customBot2ActivityText: string;
   customBot2ClientId: string;
+  customBot2RedirectUri: string;
   customBot2Token: string;
+  customBot2ClientSecret: string;
   customBot2HasToken: boolean;
+  customBot2HasClientSecret: boolean;
   customBot2ClearToken: boolean;
+  customBot2ClearClientSecret: boolean;
   customBot3Enabled: boolean;
   customBot3Nickname: string;
   customBot3AvatarUrl: string;
@@ -64,9 +68,13 @@ type PersonaConfig = {
   customBot3ActivityType: string;
   customBot3ActivityText: string;
   customBot3ClientId: string;
+  customBot3RedirectUri: string;
   customBot3Token: string;
+  customBot3ClientSecret: string;
   customBot3HasToken: boolean;
+  customBot3HasClientSecret: boolean;
   customBot3ClearToken: boolean;
+  customBot3ClearClientSecret: boolean;
   profileBannerUrl: string;
   activityType: string;
   activityText: string;
@@ -114,9 +122,13 @@ const DEFAULT_CFG: PersonaConfig = {
   customBot2ActivityType: "LISTENING",
   customBot2ActivityText: "",
   customBot2ClientId: "",
+  customBot2RedirectUri: "",
   customBot2Token: "",
+  customBot2ClientSecret: "",
   customBot2HasToken: false,
+  customBot2HasClientSecret: false,
   customBot2ClearToken: false,
+  customBot2ClearClientSecret: false,
   customBot3Enabled: false,
   customBot3Nickname: "",
   customBot3AvatarUrl: "",
@@ -124,9 +136,13 @@ const DEFAULT_CFG: PersonaConfig = {
   customBot3ActivityType: "LISTENING",
   customBot3ActivityText: "",
   customBot3ClientId: "",
+  customBot3RedirectUri: "",
   customBot3Token: "",
+  customBot3ClientSecret: "",
   customBot3HasToken: false,
+  customBot3HasClientSecret: false,
   customBot3ClearToken: false,
+  customBot3ClearClientSecret: false,
   profileBannerUrl: "",
   activityType: "LISTENING",
   activityText: "/help",
@@ -283,9 +299,13 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBot2ActivityType: String(src.customBot2ActivityType || "LISTENING"),
     customBot2ActivityText: String(src.customBot2ActivityText || ""),
     customBot2ClientId: String(src.customBot2ClientId || ""),
+    customBot2RedirectUri: String(src.customBot2RedirectUri || ""),
     customBot2Token: String(src.customBot2Token || ""),
+    customBot2ClientSecret: String(src.customBot2ClientSecret || ""),
     customBot2HasToken: Boolean(src.customBot2HasToken),
+    customBot2HasClientSecret: Boolean(src.customBot2HasClientSecret),
     customBot2ClearToken: Boolean(src.customBot2ClearToken),
+    customBot2ClearClientSecret: Boolean(src.customBot2ClearClientSecret),
     customBot3Enabled: Boolean(src.customBot3Enabled),
     customBot3Nickname: String(src.customBot3Nickname || ""),
     customBot3AvatarUrl: String(src.customBot3AvatarUrl || ""),
@@ -293,9 +313,13 @@ function sanitizeConfig(rawCfg: Partial<PersonaConfig> | null | undefined): Pers
     customBot3ActivityType: String(src.customBot3ActivityType || "LISTENING"),
     customBot3ActivityText: String(src.customBot3ActivityText || ""),
     customBot3ClientId: String(src.customBot3ClientId || ""),
+    customBot3RedirectUri: String(src.customBot3RedirectUri || ""),
     customBot3Token: String(src.customBot3Token || ""),
+    customBot3ClientSecret: String(src.customBot3ClientSecret || ""),
     customBot3HasToken: Boolean(src.customBot3HasToken),
+    customBot3HasClientSecret: Boolean(src.customBot3HasClientSecret),
     customBot3ClearToken: Boolean(src.customBot3ClearToken),
+    customBot3ClearClientSecret: Boolean(src.customBot3ClearClientSecret),
     profileBannerUrl: String(src.profileBannerUrl || ""),
     activityType: String(src.activityType || "LISTENING"),
     activityText: String(src.activityText || "/help"),
@@ -408,8 +432,11 @@ function buildCustomBot2Patch(cfg: PersonaConfig): Partial<PersonaConfig> {
     customBot2ActivityType: cfg.customBot2ActivityType,
     customBot2ActivityText: cfg.customBot2ActivityText,
     customBot2ClientId: cfg.customBot2ClientId,
+    customBot2RedirectUri: cfg.customBot2RedirectUri,
     customBot2Token: cfg.customBot2Token,
+    customBot2ClientSecret: cfg.customBot2ClientSecret,
     customBot2ClearToken: cfg.customBot2ClearToken,
+    customBot2ClearClientSecret: cfg.customBot2ClearClientSecret,
     featureRouting: cfg.featureRouting,
     voiceRouting: cfg.voiceRouting,
     dmFeatureRouting: cfg.dmFeatureRouting,
@@ -425,8 +452,11 @@ function buildCustomBot3Patch(cfg: PersonaConfig): Partial<PersonaConfig> {
     customBot3ActivityType: cfg.customBot3ActivityType,
     customBot3ActivityText: cfg.customBot3ActivityText,
     customBot3ClientId: cfg.customBot3ClientId,
+    customBot3RedirectUri: cfg.customBot3RedirectUri,
     customBot3Token: cfg.customBot3Token,
+    customBot3ClientSecret: cfg.customBot3ClientSecret,
     customBot3ClearToken: cfg.customBot3ClearToken,
+    customBot3ClearClientSecret: cfg.customBot3ClearClientSecret,
     featureRouting: cfg.featureRouting,
     voiceRouting: cfg.voiceRouting,
     dmFeatureRouting: cfg.dmFeatureRouting,
@@ -471,12 +501,26 @@ const CUSTOM_BOT_IDENTITY_KEYS = [
 ] as const;
 const CUSTOM_BOT2_IDENTITY_KEYS = [
   "customBot2Enabled", "customBot2Nickname", "customBot2AvatarUrl", "customBot2Status", "customBot2ActivityType",
-  "customBot2ActivityText", "customBot2ClientId", "customBot2Token", "customBot2ClearToken",
+  "customBot2ActivityText", "customBot2ClientId", "customBot2RedirectUri", "customBot2Token", "customBot2ClientSecret",
+  "customBot2ClearToken", "customBot2ClearClientSecret",
 ] as const;
 const CUSTOM_BOT3_IDENTITY_KEYS = [
   "customBot3Enabled", "customBot3Nickname", "customBot3AvatarUrl", "customBot3Status", "customBot3ActivityType",
-  "customBot3ActivityText", "customBot3ClientId", "customBot3Token", "customBot3ClearToken",
+  "customBot3ActivityText", "customBot3ClientId", "customBot3RedirectUri", "customBot3Token", "customBot3ClientSecret",
+  "customBot3ClearToken", "customBot3ClearClientSecret",
 ] as const;
+
+// A custom bot's own application client ID builds its own invite.
+function customBotInviteUrl(clientId: string) {
+  const id = String(clientId || "").trim();
+  if (!/^\d{15,25}$/.test(id)) return "";
+  const params = new URLSearchParams({
+    client_id: id,
+    scope: "bot applications.commands",
+    permissions: "8",
+  });
+  return `https://discord.com/oauth2/authorize?${params.toString()}`;
+}
 
 function laneChanged(keys: readonly string[], current: PersonaConfig, baseline: PersonaConfig | null) {
   if (!baseline) return true;
@@ -506,6 +550,8 @@ export default function BotPersonalizerClient() {
   }, [loading, rawCfg]);
   const possumAiHref = buildDashboardHref("/dashboard/ai/learning");
   const customBotRuntimeRows = Array.isArray((details as any)?.customBotRuntime) ? ((details as any).customBotRuntime as Array<{ title?: string; value?: string }>) : [];
+  const customBot2RuntimeRows = Array.isArray((details as any)?.customBot2Runtime) ? ((details as any).customBot2Runtime as Array<{ title?: string; value?: string }>) : [];
+  const customBot3RuntimeRows = Array.isArray((details as any)?.customBot3Runtime) ? ((details as any).customBot3Runtime as Array<{ title?: string; value?: string }>) : [];
   const standardPreviewName = String(cfg.guildNickname || botUser?.globalName || botUser?.username || "Possum").trim();
   const standardPreviewAvatar = safePreviewUrl(cfg.botAvatarUrl) || safePreviewUrl((botUser as any)?.avatarUrl || "");
   const webhookPreviewAvatar = safePreviewUrl(cfg.webhookAvatarUrl);
@@ -1119,7 +1165,7 @@ export default function BotPersonalizerClient() {
                     <label><input type="checkbox" checked={cfg.customBotRedirectConfiguredConfirmed} onChange={(e) => updateCfg({ customBotRedirectConfiguredConfirmed: e.target.checked })} /> The correct redirect URI is added in OAuth2 settings</label>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 12 }}>
+                  <div id="custom-bot-credentials" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 12 }}>
                     <div>
                       <label>Custom bot client ID</label>
                       <input
@@ -1207,6 +1253,15 @@ export default function BotPersonalizerClient() {
                     <input style={input} value={cfg.customBot2ClientId} onChange={(e) => updateCfg({ customBot2ClientId: e.target.value })} placeholder="Discord application client ID" />
                   </div>
                   <div>
+                    <label>Redirect URI</label>
+                    <input
+                      style={input}
+                      value={cfg.customBot2RedirectUri}
+                      onChange={(e) => updateCfg({ customBot2RedirectUri: e.target.value })}
+                      placeholder="https://your-domain/api/auth/custom-bot/callback"
+                    />
+                  </div>
+                  <div>
                     <label>Bot token</label>
                     <input
                       style={input}
@@ -1216,6 +1271,19 @@ export default function BotPersonalizerClient() {
                       placeholder={cfg.customBot2HasToken ? "Stored securely. Enter a new token to rotate it." : "Enter second bot token"}
                     />
                     <div style={{ ...hint, marginTop: 6 }}>{cfg.customBot2HasToken ? "A token is stored securely." : "No token stored yet."}</div>
+                  </div>
+                  <div>
+                    <label>Client secret</label>
+                    <input
+                      style={input}
+                      type="password"
+                      value={cfg.customBot2ClientSecret}
+                      onChange={(e) => updateCfg({ customBot2ClientSecret: e.target.value, customBot2ClearClientSecret: false })}
+                      placeholder={cfg.customBot2HasClientSecret ? "Stored securely. Enter a new secret to rotate it." : "Enter OAuth2 client secret"}
+                    />
+                    <div style={{ ...hint, marginTop: 6 }}>
+                      {cfg.customBot2HasClientSecret ? "A client secret is stored securely." : "No client secret stored yet."}
+                    </div>
                   </div>
                   <div>
                     <label>Nickname (this guild)</label>
@@ -1250,6 +1318,18 @@ export default function BotPersonalizerClient() {
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  {customBotInviteUrl(cfg.customBot2ClientId) ? (
+                    <a
+                      href={customBotInviteUrl(cfg.customBot2ClientId)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ ...subAction, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                    >
+                      Invite Second Bot
+                    </a>
+                  ) : (
+                    <span style={{ ...hint, alignSelf: "center" }}>Add the second bot&apos;s client ID to get its invite link.</span>
+                  )}
                   <button type="button" style={subAction} disabled={saving} onClick={() => void saveAndDeployCustomBot2()}>
                     Save + Deploy Second Bot
                   </button>
@@ -1259,6 +1339,38 @@ export default function BotPersonalizerClient() {
                   <button type="button" style={subAction} onClick={() => updateCfg({ customBot2ClearToken: !cfg.customBot2ClearToken, customBot2Token: "" })}>
                     {cfg.customBot2ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
                   </button>
+                  <button
+                    type="button"
+                    style={subAction}
+                    onClick={() => updateCfg({ customBot2ClearClientSecret: !cfg.customBot2ClearClientSecret, customBot2ClientSecret: "" })}
+                  >
+                    {cfg.customBot2ClearClientSecret ? "Client Secret Will Be Cleared" : "Clear Stored Client Secret"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("startCustomBot2")}>
+                    Start Check
+                  </button>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("refreshCustomBot2")}>
+                    Refresh Runtime
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 12 }}>
+                  {customBot2RuntimeRows.length ? customBot2RuntimeRows.map((row, index) => (
+                    <div
+                      key={`second_${row.title || "runtime"}_${index}`}
+                      style={{ border: "1px solid rgba(255,0,0,.24)", borderRadius: 10, padding: 12, background: "rgba(0,0,0,.24)" }}
+                    >
+                      <div style={{ color: "#ff9b9b", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                        {row.title || `State ${index + 1}`}
+                      </div>
+                      <div style={{ color: "#ffd7d7", fontSize: 13, lineHeight: 1.6, marginTop: 8 }}>{row.value || "No runtime data yet."}</div>
+                    </div>
+                  )) : (
+                    <div style={{ ...hint, gridColumn: "1 / -1" }}>
+                      No second-bot runtime data yet. Save the token, then run a start or refresh check.
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1279,6 +1391,15 @@ export default function BotPersonalizerClient() {
                     <input style={input} value={cfg.customBot3ClientId} onChange={(e) => updateCfg({ customBot3ClientId: e.target.value })} placeholder="Discord application client ID" />
                   </div>
                   <div>
+                    <label>Redirect URI</label>
+                    <input
+                      style={input}
+                      value={cfg.customBot3RedirectUri}
+                      onChange={(e) => updateCfg({ customBot3RedirectUri: e.target.value })}
+                      placeholder="https://your-domain/api/auth/custom-bot/callback"
+                    />
+                  </div>
+                  <div>
                     <label>Bot token</label>
                     <input
                       style={input}
@@ -1288,6 +1409,19 @@ export default function BotPersonalizerClient() {
                       placeholder={cfg.customBot3HasToken ? "Stored securely. Enter a new token to rotate it." : "Enter third bot token"}
                     />
                     <div style={{ ...hint, marginTop: 6 }}>{cfg.customBot3HasToken ? "A token is stored securely." : "No token stored yet."}</div>
+                  </div>
+                  <div>
+                    <label>Client secret</label>
+                    <input
+                      style={input}
+                      type="password"
+                      value={cfg.customBot3ClientSecret}
+                      onChange={(e) => updateCfg({ customBot3ClientSecret: e.target.value, customBot3ClearClientSecret: false })}
+                      placeholder={cfg.customBot3HasClientSecret ? "Stored securely. Enter a new secret to rotate it." : "Enter OAuth2 client secret"}
+                    />
+                    <div style={{ ...hint, marginTop: 6 }}>
+                      {cfg.customBot3HasClientSecret ? "A client secret is stored securely." : "No client secret stored yet."}
+                    </div>
                   </div>
                   <div>
                     <label>Nickname (this guild)</label>
@@ -1322,6 +1456,18 @@ export default function BotPersonalizerClient() {
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  {customBotInviteUrl(cfg.customBot3ClientId) ? (
+                    <a
+                      href={customBotInviteUrl(cfg.customBot3ClientId)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ ...subAction, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                    >
+                      Invite Third Bot
+                    </a>
+                  ) : (
+                    <span style={{ ...hint, alignSelf: "center" }}>Add the third bot&apos;s client ID to get its invite link.</span>
+                  )}
                   <button type="button" style={subAction} disabled={saving} onClick={() => void saveAndDeployCustomBot3()}>
                     Save + Deploy Third bot
                   </button>
@@ -1331,6 +1477,38 @@ export default function BotPersonalizerClient() {
                   <button type="button" style={subAction} onClick={() => updateCfg({ customBot3ClearToken: !cfg.customBot3ClearToken, customBot3Token: "" })}>
                     {cfg.customBot3ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
                   </button>
+                  <button
+                    type="button"
+                    style={subAction}
+                    onClick={() => updateCfg({ customBot3ClearClientSecret: !cfg.customBot3ClearClientSecret, customBot3ClientSecret: "" })}
+                  >
+                    {cfg.customBot3ClearClientSecret ? "Client Secret Will Be Cleared" : "Clear Stored Client Secret"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("startCustomBot3")}>
+                    Start Check
+                  </button>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("refreshCustomBot3")}>
+                    Refresh Runtime
+                  </button>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 12 }}>
+                  {customBot3RuntimeRows.length ? customBot3RuntimeRows.map((row, index) => (
+                    <div
+                      key={`third_${row.title || "runtime"}_${index}`}
+                      style={{ border: "1px solid rgba(255,0,0,.24)", borderRadius: 10, padding: 12, background: "rgba(0,0,0,.24)" }}
+                    >
+                      <div style={{ color: "#ff9b9b", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                        {row.title || `State ${index + 1}`}
+                      </div>
+                      <div style={{ color: "#ffd7d7", fontSize: 13, lineHeight: 1.6, marginTop: 8 }}>{row.value || "No runtime data yet."}</div>
+                    </div>
+                  )) : (
+                    <div style={{ ...hint, gridColumn: "1 / -1" }}>
+                      No third-bot runtime data yet. Save the token, then run a start or refresh check.
+                    </div>
+                  )}
                 </div>
               </div>
 

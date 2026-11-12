@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
-import { buildPublicInviteUrl } from "@/lib/publicLinks";
+import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
 
 export const metadata = { title: "Getting Started & Guides | Possum Bot" };
 
@@ -26,7 +26,7 @@ export default function DocsPage() {
         <section className="docs-steps">
           {steps.map((step) => <article className="docs-step" key={step.number}><span>{step.number}</span><div><h2>{step.title}</h2><p>{step.text}</p></div></article>)}
         </section>
-        <section className="docs-help"><div><div className="eyebrow">NEED A HAND?</div><h2>We can help you get the pieces talking.</h2><p>Visit the support community for setup questions, feature requests and troubleshooting.</p></div><Link href="/status" className="site-button site-button-quiet">Check system status →</Link></section>
+        <section className="docs-help"><div><div className="eyebrow">NEED A HAND?</div><h2>We can help you get the pieces talking.</h2><p>Visit the support community for setup questions, feature requests and troubleshooting.</p></div><div className="hero-actions"><a href={buildSupportServerUrl()} target="_blank" rel="noreferrer" className="site-button">Open support server ↗</a><Link href="/status" className="site-button site-button-quiet">Check system status →</Link></div></section>
       </main>
       <MarketingFooter />
     </>

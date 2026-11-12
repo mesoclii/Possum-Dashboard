@@ -1,5 +1,6 @@
-import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
 "use client";
+
+import { MarketingHeader, MarketingFooter } from "@/components/possum/MarketingSite";
 
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";

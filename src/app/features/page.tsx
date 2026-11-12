@@ -199,10 +199,11 @@ export default function FeaturesPage() {
             Availability
           </div>
           <div style={{ color: "#ffd7d7", lineHeight: 1.8 }}>
-            Pokemon is private and not sold publicly. Saviors keeps its original baseline untouched. Public guilds get
-            the standard ready stack with premium features off until the guild owner buys a plan or you grant a trial.
+            Private and experimental modules are not included in the public feature catalog. Public guilds start with
+            the standard ready stack, with optional Pro features enabled only through the appropriate plan or trial.
           </div>
         </section>
+      </div>
       </div>
       <MarketingFooter />
     </>

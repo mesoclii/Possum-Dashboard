@@ -532,3 +532,64 @@ main [class*="text-pink-200"] {
   .site-nav a { flex: 0 0 auto; font-size: 10px; }
   .site-header-actions { margin-left: auto; }
 }
+
+/* ===== Possum public brand: electric neon pink + signal red ===== */
+:root {
+  --neon-red: #ff244f;
+  --neon-pink: #ff2bd6;
+  --neon-green: #ff2bd6;
+  --possum-pink: #ff2bd6;
+  --possum-red: #ff244f;
+}
+body::before {
+  background:
+    radial-gradient(980px 680px at 8% 0%, rgba(255,43,214,.17), transparent 58%),
+    radial-gradient(860px 620px at 100% 12%, rgba(255,36,79,.23), transparent 60%),
+    radial-gradient(720px 480px at 50% 100%, rgba(255,43,214,.13), transparent 68%),
+    linear-gradient(180deg, rgba(0,0,0,.86), rgba(0,0,0,.97));
+}
+body::after {
+  background-image:
+    linear-gradient(rgba(255,43,214,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,36,79,.04) 1px, transparent 1px);
+}
+.site-brand-mark {
+  background: linear-gradient(145deg, #ff2bd6, #ff244f);
+  box-shadow: 0 7px 28px rgba(255,43,214,.3), 0 0 18px rgba(255,36,79,.22);
+}
+.site-login-link span { color: #ff2bd6; }
+.site-button {
+  border-color: #ff2bd6;
+  background: linear-gradient(120deg, #ff2bd6 0%, #ff244f 100%);
+  box-shadow: 0 10px 30px rgba(255,43,214,.2), 0 0 22px rgba(255,36,79,.12);
+}
+.site-button:hover {
+  border-color: #ff6be4;
+  box-shadow: 0 14px 38px rgba(255,43,214,.28), 0 0 28px rgba(255,36,79,.2);
+}
+.site-button-outline { border-color: rgba(255,43,214,.72); color: #ff9bea; }
+.site-nav a:hover, .site-login-link:hover { color: #ff8de9; }
+.marketing-main .eyebrow, .info-main .eyebrow { color: #ff78e6; }
+.marketing-main .eyebrow-dot { background: #ff2bd6; box-shadow: 0 0 12px #ff2bd6; }
+.marketing-main h1 span, .marketing-main h2 span,
+.marketing-main .hero-copy h1 span, .marketing-main .section-heading h2 span,
+.marketing-main .security-band-copy h2 span, .marketing-main .final-cta h2 span {
+  background: linear-gradient(100deg, #ff8bea 0%, #ff2bd6 46%, #ff244f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.feature-card { border-color: rgba(255,43,214,.2); }
+.feature-card:hover { border-color: rgba(255,43,214,.7); box-shadow: 0 18px 48px rgba(255,43,214,.1), 0 0 24px rgba(255,36,79,.08); }
+.feature-card-top > span, .feature-card-top > b, .text-link { color: #ff65df; }
+.security-band { border-color: rgba(255,43,214,.28); }
+.security-core { background: linear-gradient(145deg,#ff2bd6,#ff244f); box-shadow: 0 0 42px rgba(255,43,214,.3); }
+.info-card { border-color: rgba(255,43,214,.2); }
+.info-card-index { color: #ff65df; }
+.info-card li::marker { color: #ff2bd6; }
+.principle-row > span { color: #ff65df; }
+.final-cta { border-color: rgba(255,43,214,.3); }
+.site-footer { border-color: rgba(255,43,214,.18); }
+@media (prefers-reduced-motion: reduce) {
+  .site-button { transition: none; }
+}

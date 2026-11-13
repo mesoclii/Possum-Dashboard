@@ -252,7 +252,7 @@ export default function OnboardingBuilderClient() {
           <div style={box}>
             <h3 style={{ marginTop: 0 }}>Ticket Panel Builder (18+ Gate)</h3>
             <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 10 }}>
-              This is the panel members see in your verification channel. It carries the rules button, the verify button, and optionally the ID verification ticket button for age checks.
+              This is the gate message each member gets when they join: a rules button, a rules confirmation, then verify. Verifying opens their ID ticket in the Entry Tickets category; staff run the ID check there and grant access. Nothing stays pinned in the channel.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
@@ -320,7 +320,7 @@ export default function OnboardingBuilderClient() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
               <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("verification", verification, "Saved the verification panel.")}>Save Panel Settings</button>
               <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("onboarding", onboarding, "Saved the ID ticket settings.")}>Save ID Ticket Settings</button>
-              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("verification", "deployVerificationPanel", "Deployed the verification panel.")}>Save + Deploy Verification Panel</button>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("verification", "deployVerificationPanel", "Posted a test gate message (auto-deletes in 30 minutes).")}>Save + Post Test Gate Message</button>
             </div>
           </div>
 

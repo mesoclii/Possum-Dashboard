@@ -344,16 +344,16 @@ export default function VerificationClient() {
       </div>
 
       <div style={styles.card}>
-        <h3 style={{ marginTop: 0, color: "#ff4444" }}>Deploy</h3>
+        <h3 style={{ marginTop: 0, color: "#ff4444" }}>Gate message</h3>
         <div style={{ color: "#ffd7a8", marginBottom: 10 }}>
-          Saves this config, then posts the persistent gate panel to the welcome channel with the rules and verify buttons.
+          Every member gets their own gate message in the welcome channel when they join: rules button, rules confirm, then verify, which opens their ID ticket. Save posts a copy now for testing; it auto-deletes after 30 minutes, so nothing sits in the channel permanently.
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => void save()} disabled={saving} style={{ ...styles.input, width: "auto", cursor: "pointer", fontWeight: 800 }}>
             {saving ? "Saving..." : "Save Verification"}
           </button>
           <button onClick={() => void deployPanel()} disabled={saving} style={{ ...styles.input, width: "auto", cursor: "pointer", fontWeight: 800 }}>
-            Save + Deploy Gate Panel
+            Save + Post Test Gate Message
           </button>
         </div>
       </div>

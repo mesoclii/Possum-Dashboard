@@ -81,7 +81,7 @@ export default function OnboardingBuilderClient() {
     }
   }
 
-  async function runAction(engine: "tickets" | "selfroles", action: string, okLabel: string) {
+  async function runAction(engine: "tickets" | "selfroles" | "onboarding" | "verification", action: string, okLabel: string) {
     if (!guildId) return;
     try {
       setSaving(true);
@@ -250,22 +250,116 @@ export default function OnboardingBuilderClient() {
           </div>
 
           <div style={box}>
-            <h3 style={{ marginTop: 0 }}>Verification Copy + Panel Deploys</h3>
+            <h3 style={{ marginTop: 0 }}>Ticket Panel Builder (18+ Gate)</h3>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 10 }}>
+              This is the panel members see in your verification channel. It carries the rules button, the verify button, and optionally the ID verification ticket button for age checks.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label>Panel channel</label>
+                <select style={input} value={String(verification.panelChannelId || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelChannelId: event.target.value }))}>
+                  <option value="">Use the welcome channel</option>
+                  {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Panel image URL (optional)</label>
+                <input style={input} value={String(verification.panelImageUrl || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelImageUrl: event.target.value }))} placeholder="https://..." />
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label>Panel title</label>
+              <input style={input} value={String(verification.panelTitle || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelTitle: event.target.value }))} placeholder="Welcome to the Safe Zone (18+)" />
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label>Panel description</label>
+              <textarea style={{ ...input, minHeight: 90 }} value={String(verification.panelDescription || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelDescription: event.target.value }))} placeholder="Read the rules, confirm you are 18 or older, then verify to enter." />
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label>Panel footer</label>
+              <input style={input} value={String(verification.panelFooter || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelFooter: event.target.value }))} placeholder="Verification comes first. Onboarding comes after this step." />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(200px,1fr))", gap: 10, marginTop: 10 }}>
+              <div>
+                <label>Verify button label</label>
+                <input style={input} value={String(verification.verifyButtonLabel || "")} onChange={(event) => setVerification((prev) => ({ ...prev, verifyButtonLabel: event.target.value }))} placeholder="Enter The Safe Zone (18+)" />
+              </div>
+              <div>
+                <label>Rules link button label</label>
+                <input style={input} value={String(verification.rulesButtonLabel || "")} onChange={(event) => setVerification((prev) => ({ ...prev, rulesButtonLabel: event.target.value }))} placeholder="Open Rules" />
+              </div>
+              <div>
+                <label>Rules confirm button label</label>
+                <input style={input} value={String(verification.readRulesButtonLabel || "")} onChange={(event) => setVerification((prev) => ({ ...prev, readRulesButtonLabel: event.target.value }))} placeholder="I've Read the Survival Code" />
+              </div>
+              <div>
+                <label>ID ticket button label</label>
+                <input style={input} value={String(onboarding.idTicketButtonLabel || "")} onChange={(event) => setOnboarding((prev) => ({ ...prev, idTicketButtonLabel: event.target.value }))} placeholder="Open ID Verification Ticket" />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(180px,1fr))", gap: 10, marginTop: 10 }}>
+              <label><input type="checkbox" checked={verification.requireRulesRead !== false} onChange={(event) => setVerification((prev) => ({ ...prev, requireRulesRead: event.target.checked }))} /> Require the rules confirm button before verifying</label>
+              <label><input type="checkbox" checked={onboarding.idFlowEnabled !== false} onChange={(event) => setOnboarding((prev) => ({ ...prev, idFlowEnabled: event.target.checked }))} /> Show the ID verification ticket button (age checks)</label>
+            </div>
+            <div style={{ border: "1px solid #700000", borderRadius: 10, padding: 14, marginTop: 12, background: "rgba(0,0,0,0.35)" }}>
+              <div style={{ color: "#ffb3b3", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>Preview</div>
+              <div style={{ fontWeight: 900, fontSize: 16 }}>{String(verification.panelTitle || "Welcome to the Safe Zone (18+)")}</div>
+              <div style={{ whiteSpace: "pre-wrap", marginTop: 6, color: "#ffd7d7" }}>
+                {String(verification.panelDescription || "Read the rules, confirm you are 18 or older, then verify to enter.")}
+              </div>
+              <div style={{ color: "#ff9b9b", fontSize: 12, marginTop: 10 }}>
+                {String(verification.panelFooter || "Verification comes first. Onboarding comes after this step.")}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                <span style={{ ...input, width: "auto" }}>{String(verification.rulesButtonLabel || "Open Rules")}</span>
+                {verification.requireRulesRead !== false ? <span style={{ ...input, width: "auto" }}>{String(verification.readRulesButtonLabel || "I've Read the Survival Code")}</span> : null}
+                <span style={{ ...input, width: "auto" }}>{String(verification.verifyButtonLabel || "Enter The Safe Zone (18+)")}</span>
+                {onboarding.idFlowEnabled !== false ? <span style={{ ...input, width: "auto" }}>{String(onboarding.idTicketButtonLabel || "Open ID Verification Ticket")}</span> : null}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("verification", verification, "Saved the verification panel.")}>Save Panel Settings</button>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("onboarding", onboarding, "Saved the ID ticket settings.")}>Save ID Ticket Settings</button>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("verification", "deployVerificationPanel", "Deployed the verification panel.")}>Save + Deploy Verification Panel</button>
+            </div>
+          </div>
+
+          <div style={box}>
+            <h3 style={{ marginTop: 0 }}>Ticket Panel Builder (Support / VIP / Drops)</h3>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 10 }}>
+              The general ticket panel is separate from the 18+ gate. Pick where it posts, then deploy it; the full builder with per-type buttons lives in Tickets.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label>Ticket panel channel</label>
+                <select style={input} value={String(tickets.panelChannelId || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelChannelId: event.target.value }))}>
+                  <option value="">(none)</option>
+                  {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Ticket panel title</label>
+                <input style={input} value={String(tickets.panelTitle || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelTitle: event.target.value }))} placeholder="Support Tickets" />
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <label>Ticket panel description</label>
+              <textarea style={{ ...input, minHeight: 80 }} value={String(tickets.panelDescription || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelDescription: event.target.value }))} placeholder="Choose a ticket type below." />
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("tickets", tickets, "Saved the ticket panel.")}>Save Ticket Panel</button>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("tickets", "deployPanel", "Deployed the tickets panel.")}>Save + Deploy Tickets Panel</button>
+              <Link href={`/dashboard/tickets?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Full Tickets Builder</Link>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("selfroles", "deployPanels", "Deployed selfroles panels.")}>Deploy Selfroles</button>
+              <Link href={`/dashboard/selfroles?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Selfroles</Link>
+            </div>
+          </div>
+
+          <div style={box}>
+            <h3 style={{ marginTop: 0 }}>Messages + Copy</h3>
             <div style={{ marginBottom: 10 }}>
               <label>Welcome DM template</label>
               <textarea style={{ ...input, minHeight: 80 }} value={String(verification.dmTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, dmTemplate: event.target.value }))} />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label>Verification panel title</label>
-              <input style={input} value={String(verification.panelTitle || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelTitle: event.target.value }))} />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label>Verification panel description</label>
-              <textarea style={{ ...input, minHeight: 80 }} value={String(verification.panelDescription || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelDescription: event.target.value }))} />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label>Verification panel footer</label>
-              <input style={input} value={String(verification.panelFooter || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelFooter: event.target.value }))} />
             </div>
             <div style={{ marginBottom: 10 }}>
               <label>Gate announcement template</label>
@@ -276,12 +370,8 @@ export default function OnboardingBuilderClient() {
               <textarea style={{ ...input, minHeight: 80 }} value={String(onboarding.postVerifyTemplate || "")} onChange={(event) => setOnboarding((prev) => ({ ...prev, postVerifyTemplate: event.target.value }))} />
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("verification", verification, "Saved verification templates.")}>Save Verification Copy</button>
-              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("onboarding", onboarding, "Saved post-verified onboarding copy.")}>Save Post-Verified Copy</button>
-              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("tickets", "deployPanel", "Deployed tickets panel.")}>Deploy Tickets Panel</button>
-              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void runAction("selfroles", "deployPanels", "Deployed selfroles panels.")}>Deploy Selfroles</button>
-              <Link href={`/dashboard/tickets?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Tickets</Link>
-              <Link href={`/dashboard/selfroles?guildId=${encodeURIComponent(guildId)}`} style={{ ...input, width: "auto", textDecoration: "none", fontWeight: 800 }}>Open Selfroles</Link>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("verification", verification, "Saved verification copy.")}>Save Verification Copy</button>
+              <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("onboarding", onboarding, "Saved post-verified copy.")}>Save Post-Verified Copy</button>
             </div>
           </div>
         </>

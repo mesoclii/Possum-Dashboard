@@ -13,6 +13,15 @@ type OnboardingConfig = {
   sendPostVerifyMessage: boolean;
   sendTicketTranscript: boolean;
   removeRolesOnVerify: boolean;
+  welcomeChannelId: string;
+  mainChatChannelId: string;
+  rulesChannelId: string;
+  verifiedRoleId: string;
+  dmTemplate: string;
+  panelTitle: string;
+  panelDescription: string;
+  panelFooter: string;
+  gateAnnouncementTemplate: string;
   idChannelId: string;
   ticketCategoryId: string;
   transcriptChannelId: string;
@@ -54,6 +63,15 @@ const DEFAULTS: OnboardingConfig = {
   sendPostVerifyMessage: true,
   sendTicketTranscript: true,
   removeRolesOnVerify: true,
+  welcomeChannelId: "",
+  mainChatChannelId: "",
+  rulesChannelId: "",
+  verifiedRoleId: "",
+  dmTemplate: "Welcome to {{guildName}}.\n\nStart onboarding in <#{{welcomeChannelId}}>.",
+  panelTitle: "Welcome to {{guildName}}",
+  panelDescription: "Read the rules in <#{{rulesChannelId}}> and confirm below to continue.",
+  panelFooter: "Complete onboarding to unlock the server.",
+  gateAnnouncementTemplate: "Survivor <@{{userId}}> has reached the gates.",
   idChannelId: "",
   ticketCategoryId: "",
   transcriptChannelId: "",
@@ -184,6 +202,65 @@ export default function OnboardingClient() {
           <label><input type="checkbox" checked={!!cfg.sendPostVerifyMessage} onChange={(e) => setCfg({ ...cfg, sendPostVerifyMessage: e.target.checked })} /> Send post-verified message</label>
           <label><input type="checkbox" checked={!!cfg.sendTicketTranscript} onChange={(e) => setCfg({ ...cfg, sendTicketTranscript: e.target.checked })} /> Send ticket transcript</label>
           <label><input type="checkbox" checked={!!cfg.removeRolesOnVerify} onChange={(e) => setCfg({ ...cfg, removeRolesOnVerify: e.target.checked })} /> Remove configured roles after final verification</label>
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <h3 style={{ marginTop: 0, color: "#ff4444" }}>Welcome routing and gate copy</h3>
+        <div style={{ color: "#ffd7a8", marginBottom: 10, fontSize: 13 }}>
+          The current welcome values live on the Verification page. These are the onboarding engine&apos;s own fallbacks, used when verification has no value set.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10 }}>
+          <div>
+            <label>Welcome channel</label>
+            <select style={styles.input} value={cfg.welcomeChannelId || ""} onChange={(e) => setCfg({ ...cfg, welcomeChannelId: e.target.value })}>
+              <option value="">Not set</option>
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Rules channel</label>
+            <select style={styles.input} value={cfg.rulesChannelId || ""} onChange={(e) => setCfg({ ...cfg, rulesChannelId: e.target.value })}>
+              <option value="">Not set</option>
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Main chat channel</label>
+            <select style={styles.input} value={cfg.mainChatChannelId || ""} onChange={(e) => setCfg({ ...cfg, mainChatChannelId: e.target.value })}>
+              <option value="">Not set</option>
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Verified role</label>
+            <select style={styles.input} value={cfg.verifiedRoleId || ""} onChange={(e) => setCfg({ ...cfg, verifiedRoleId: e.target.value })}>
+              <option value="">Not set</option>
+              {(roles as GuildRole[]).map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+          <div>
+            <label>Welcome DM</label>
+            <textarea style={styles.area} value={cfg.dmTemplate || ""} onChange={(e) => setCfg({ ...cfg, dmTemplate: e.target.value })} />
+          </div>
+          <div>
+            <label>Gate panel title</label>
+            <input style={styles.input} value={cfg.panelTitle || ""} onChange={(e) => setCfg({ ...cfg, panelTitle: e.target.value })} />
+          </div>
+          <div>
+            <label>Gate panel description</label>
+            <textarea style={styles.area} value={cfg.panelDescription || ""} onChange={(e) => setCfg({ ...cfg, panelDescription: e.target.value })} />
+          </div>
+          <div>
+            <label>Gate panel footer</label>
+            <input style={styles.input} value={cfg.panelFooter || ""} onChange={(e) => setCfg({ ...cfg, panelFooter: e.target.value })} />
+          </div>
+          <div>
+            <label>Arrival announcement</label>
+            <textarea style={styles.area} value={cfg.gateAnnouncementTemplate || ""} onChange={(e) => setCfg({ ...cfg, gateAnnouncementTemplate: e.target.value })} />
+          </div>
         </div>
       </div>
 

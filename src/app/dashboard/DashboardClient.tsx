@@ -547,6 +547,7 @@ const CARDS: Card[] = [
   { href: "/dashboard/moderator", title: "Moderator", description: "Separate automod, audit logging, and moderation controls.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/pre-onboarding", title: "Pre-Onboarding", description: "Blacklist rejoin, refusal-role, and pre-entry enforcement before onboarding begins.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/onboarding", title: "Onboarding", description: "Join flow, welcome routing, and onboarding channel behavior.", goOnly: true, goLabel: "Go" },
+  { href: "/dashboard/security/verification", title: "Verification", description: "18+ gate: welcome DM, rules panel, verify buttons, roles, and decline handling.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/verification", title: "Verification", description: "Verification decisions, timeout behavior, and follow-up staff controls.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/economy/leaderboard", title: "Invite Tracker", description: "Invite tracking tiers, recruiter thresholds, and leaderboard behavior.", toggle: engineController("inviteTracker") },
   { href: "/dashboard/economy", title: "Economy", description: "Economy baseline and related systems.", toggle: featureController("economyEnabled") },

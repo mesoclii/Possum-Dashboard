@@ -44,6 +44,15 @@ type OnboardingConfig = {
   idPanelContent: string;
   postVerifyTemplate: string;
   postVerifyAutoDeleteMinutes: number;
+  sendJoinWelcome: boolean;
+  welcomeMessageChannelId: string;
+  welcomeMessageTemplate: string;
+  joinWelcomeAutoDeleteMinutes: number;
+  postVerifyChannelId: string;
+  ticketPanelTitle: string;
+  ticketPanelDescription: string;
+  ticketPanelFooter: string;
+  ticketPanelContent: string;
   idTicketButtonLabel: string;
   idReadyButtonLabel: string;
   idDeclineButtonLabel: string;
@@ -94,6 +103,16 @@ const DEFAULTS: OnboardingConfig = {
   idPanelContent: "Survivor <@{{userId}}>",
   postVerifyTemplate: "<@{{userId}}> is now verified. Welcome to {{guildName}}.",
   postVerifyAutoDeleteMinutes: 0,
+  sendJoinWelcome: true,
+  welcomeMessageChannelId: "",
+  welcomeMessageTemplate:
+    "Welcome to {{guildName}}, {{memberMention}}.\n\nYou are survivor #{{memberCount}}. Read {{rulesChannel}}, then verify to enter.",
+  joinWelcomeAutoDeleteMinutes: 0,
+  postVerifyChannelId: "",
+  ticketPanelTitle: "ID Verification",
+  ticketPanelDescription: "Upload your ID here. Staff will review it and verify you.\n\nDeclining ends the admission process.",
+  ticketPanelFooter: "This ticket is private.",
+  ticketPanelContent: "Survivor <@{{userId}}>",
   idTicketButtonLabel: "Open ID Verification Ticket",
   idReadyButtonLabel: "I'm Ready To Submit ID",
   idDeclineButtonLabel: "I'm Leaving The Safe Zone",
@@ -202,6 +221,32 @@ export default function OnboardingClient() {
           <label><input type="checkbox" checked={!!cfg.sendPostVerifyMessage} onChange={(e) => setCfg({ ...cfg, sendPostVerifyMessage: e.target.checked })} /> Send post-verified message</label>
           <label><input type="checkbox" checked={!!cfg.sendTicketTranscript} onChange={(e) => setCfg({ ...cfg, sendTicketTranscript: e.target.checked })} /> Send ticket transcript</label>
           <label><input type="checkbox" checked={!!cfg.removeRolesOnVerify} onChange={(e) => setCfg({ ...cfg, removeRolesOnVerify: e.target.checked })} /> Remove configured roles after final verification</label>
+        </div>
+      </div>
+
+      <div style={styles.card}>
+        <h3 style={{ marginTop: 0, color: "#ff4444" }}>Join welcome (hello page)</h3>
+        <div style={{ color: "#ffd7a8", marginBottom: 10, fontSize: 13 }}>
+          A plain welcome posted the moment someone joins. It is separate from the gate message: no buttons, no
+          admission logic. Tokens: {"{{guildName}}"}, {"{{memberMention}}"}, {"{{memberCount}}"}, {"{{rulesChannel}}"}.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10 }}>
+          <label><input type="checkbox" checked={!!cfg.sendJoinWelcome} onChange={(e) => setCfg({ ...cfg, sendJoinWelcome: e.target.checked })} /> Send the join welcome</label>
+          <div>
+            <label>Hello page channel</label>
+            <select style={styles.input} value={cfg.welcomeMessageChannelId || ""} onChange={(e) => setCfg({ ...cfg, welcomeMessageChannelId: e.target.value })}>
+              <option value="">Use the welcome channel</option>
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label>Auto-delete minutes (0 = keep)</label>
+            <input style={styles.input} type="number" min={0} max={10080} value={cfg.joinWelcomeAutoDeleteMinutes || 0} onChange={(e) => setCfg({ ...cfg, joinWelcomeAutoDeleteMinutes: Number(e.target.value || 0) })} />
+          </div>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <label>Join welcome message</label>
+          <textarea style={styles.area} value={cfg.welcomeMessageTemplate || ""} onChange={(e) => setCfg({ ...cfg, welcomeMessageTemplate: e.target.value })} />
         </div>
       </div>
 
@@ -346,19 +391,34 @@ export default function OnboardingClient() {
       </div>
 
       <div style={styles.card}>
-        <h3 style={{ marginTop: 0, color: "#ff4444" }}>ID panel copy and decline behavior</h3>
+        <h3 style={{ marginTop: 0, color: "#ff4444" }}>Entry ticket, post-verify and refusal</h3>
+        <div style={{ color: "#ffd7a8", marginBottom: 10, fontSize: 13 }}>
+          This is the message the member gets inside their new ticket, the three staff buttons on it, and where the
+          verified message lands. Blank copy falls back to the legacy ID panel values.
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
           <div>
-            <label>ID panel title</label>
-            <input style={styles.input} value={cfg.idPanelTitle || ""} onChange={(e) => setCfg({ ...cfg, idPanelTitle: e.target.value })} />
+            <label>Entry ticket title</label>
+            <input style={styles.input} value={cfg.ticketPanelTitle || ""} placeholder={cfg.idPanelTitle || "ID Verification"} onChange={(e) => setCfg({ ...cfg, ticketPanelTitle: e.target.value })} />
           </div>
           <div>
-            <label>ID panel description</label>
-            <textarea style={styles.area} value={cfg.idPanelDescription || ""} onChange={(e) => setCfg({ ...cfg, idPanelDescription: e.target.value })} />
+            <label>Entry ticket description</label>
+            <textarea style={styles.area} value={cfg.ticketPanelDescription || ""} placeholder={cfg.idPanelDescription || "Upload your ID here..."} onChange={(e) => setCfg({ ...cfg, ticketPanelDescription: e.target.value })} />
           </div>
           <div>
-            <label>ID panel header content</label>
-            <textarea style={styles.area} value={cfg.idPanelContent || ""} onChange={(e) => setCfg({ ...cfg, idPanelContent: e.target.value })} />
+            <label>Entry ticket header line</label>
+            <textarea style={styles.area} value={cfg.ticketPanelContent || ""} placeholder={cfg.idPanelContent || "Survivor <@{{userId}}>"} onChange={(e) => setCfg({ ...cfg, ticketPanelContent: e.target.value })} />
+          </div>
+          <div>
+            <label>Entry ticket footer</label>
+            <input style={styles.input} value={cfg.ticketPanelFooter || ""} placeholder="This ticket is private." onChange={(e) => setCfg({ ...cfg, ticketPanelFooter: e.target.value })} />
+          </div>
+          <div>
+            <label>Post-verify message channel</label>
+            <select style={styles.input} value={cfg.postVerifyChannelId || ""} onChange={(e) => setCfg({ ...cfg, postVerifyChannelId: e.target.value })}>
+              <option value="">Use the main chat channel</option>
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
           </div>
           <div>
             <label>Post-verify message</label>

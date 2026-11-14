@@ -184,13 +184,12 @@ const s = {
     } as CSSProperties),
 };
 
-type TabKey = "overview" | "gate" | "copy" | "ticket" | "advanced";
+type TabKey = "overview" | "gate" | "copy" | "advanced";
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "overview", label: "Overview" },
   { key: "gate", label: "Gate settings" },
   { key: "copy", label: "Message copy" },
-  { key: "ticket", label: "ID and refusal" },
   { key: "advanced", label: "Advanced" },
 ];
 
@@ -427,6 +426,19 @@ export default function VerificationClient() {
 
           <div style={s.card}>
             <div style={s.head}>
+              <h2 style={s.h2}>Ticket and post-verified message</h2>
+              <a href="/dashboard/security/onboarding" style={{ color: "#ff8a8a", fontSize: 12, fontWeight: 700 }}>
+                Edit on the Onboarding page
+              </a>
+            </div>
+            <p style={{ ...s.hint, margin: "6px 0 0" }}>
+              The entry ticket copy, its three staff buttons, refusal handling and the channel for the post-verified
+              message all live with the onboarding engine. This page stops at the gate so the two never disagree.
+            </p>
+          </div>
+
+          <div style={s.card}>
+            <div style={s.head}>
               <h2 style={s.h2}>Test the gate</h2>
               <span style={{ color: "#a87171", fontSize: 11.5 }}>Auto-deletes after 30 minutes</span>
             </div>
@@ -476,7 +488,7 @@ export default function VerificationClient() {
                   {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
                 </select>
               </Field>
-              <Field label="Main chat" help="Where the post-verify message lands.">
+              <Field label="Main chat" help="Fallback only. Set the post-verify channel on the Onboarding page.">
                 <select style={s.input} value={cfg.mainChatChannelId || ""} onChange={(e) => setCfg({ ...cfg, mainChatChannelId: e.target.value })}>
                   <option value="">Use the welcome channel</option>
                   {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
@@ -610,49 +622,7 @@ export default function VerificationClient() {
         </>
       ) : null}
 
-      {tab === "ticket" ? (
-        <>
-          <div style={s.card}>
-            <div style={s.head}>
-              <h2 style={s.h2}>ID ticket copy</h2>
-              <span style={{ color: "#a87171", fontSize: 11.5 }}>Owned by onboarding</span>
-            </div>
-            <p style={s.hint}>The ticket is created in the Entry Tickets category when the member verifies. These strings are used inside it.</p>
-            <div style={{ ...s.grid(300) }}>
-              <Field label="ID panel title">
-                <input style={s.input} value={cfg.idPanelTitle || ""} onChange={(e) => setCfg({ ...cfg, idPanelTitle: e.target.value })} />
-              </Field>
-              <Field label="ID panel header">
-                <input style={s.input} value={cfg.idPanelContent || ""} onChange={(e) => setCfg({ ...cfg, idPanelContent: e.target.value })} />
-              </Field>
-            </div>
-            <div style={{ ...s.grid(300), marginTop: 12 }}>
-              <Field label="ID panel description">
-                <textarea style={s.area} value={cfg.idPanelDescription || ""} onChange={(e) => setCfg({ ...cfg, idPanelDescription: e.target.value })} />
-              </Field>
-              <Field label="Decline reply">
-                <textarea style={s.area} value={cfg.declineReplyTemplate || ""} onChange={(e) => setCfg({ ...cfg, declineReplyTemplate: e.target.value })} />
-              </Field>
-            </div>
-          </div>
 
-          <div style={s.card}>
-            <div style={s.head}>
-              <h2 style={s.h2}>Refusal and expiry</h2>
-            </div>
-            <div style={{ ...s.grid(260), marginTop: 10 }}>
-              <Switch checked={!!cfg.autoKickOnDecline} onChange={(next) => setCfg({ ...cfg, autoKickOnDecline: next })} title="Remove members who decline" description="Refusal ends admission instead of leaving them restricted." />
-              <Switch checked={!!cfg.autoKickOnTimeout} onChange={(next) => setCfg({ ...cfg, autoKickOnTimeout: next })} title="Remove members who time out" description="Applies when the ID ticket expires." />
-              <Field label="Decline removal reason">
-                <input style={s.input} value={cfg.declineKickReason || ""} onChange={(e) => setCfg({ ...cfg, declineKickReason: e.target.value })} />
-              </Field>
-              <Field label="Timeout removal reason">
-                <input style={s.input} value={cfg.timeoutKickReason || ""} onChange={(e) => setCfg({ ...cfg, timeoutKickReason: e.target.value })} />
-              </Field>
-            </div>
-          </div>
-        </>
-      ) : null}
 
       {tab === "advanced" ? (
         <div style={s.card}>

@@ -7,6 +7,7 @@ import {
 } from "@/lib/botApiServer";
 import { readActorUserId } from "@/lib/botApi";
 import { getConfiguredGameAuthOrigin } from "@/lib/gameAuthOrigin";
+import { deleteServerCachePrefix } from "@/lib/serverCache";
 
 function readFirst(value: string | string[] | undefined): string {
   return String(Array.isArray(value) ? value[0] : value || "").trim();
@@ -68,6 +69,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const redirectPath = String(json?.redirectPath || fallback).trim() || fallback;
     if (!response.ok || json?.success === false) {
       return res.redirect(302, appendError(redirectPath || fallback, providerKey, json?.error || `Failed to finish ${providerKey} login.`));
+    }
+    const callbackRedirect = new URL(redirectPath, origin);
+    const guildId = String(callbackRedirect.searchParams.get("guildId") || "").trim();
+    if (/^\d{16,20}$/.test(guildId)) {
+      deleteServerCachePrefix(`runtime-engine:${guildId}:`);
     }
     return res.redirect(302, redirectPath);
   } catch (error: any) {

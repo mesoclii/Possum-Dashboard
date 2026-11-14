@@ -46,6 +46,7 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
   const [statuses, setStatuses] = useState<ProviderStatus[]>([]);
   const [credentials, setCredentials] = useState<ProviderCredentials>(initialCredentials);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -57,7 +58,10 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
         if (!response.ok || json?.success === false) {
           throw new Error(json?.error || "Could not load provider setup status.");
         }
-        if (active) setStatuses(Array.isArray(json.providers) ? json.providers : []);
+        if (active) {
+          setStatuses(Array.isArray(json.providers) ? json.providers : []);
+          setAuthorized(true);
+        }
       })
       .catch((error: any) => {
         if (active) setMessage(error?.message || "Could not load provider setup status.");
@@ -111,42 +115,50 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
       <h3 style={{ marginTop: 0, color: "#ff6666", textTransform: "uppercase", letterSpacing: "0.08em" }}>
         Bot Owner: Provider Login Setup
       </h3>
-      <p style={{ color: "#ffb7b7", fontSize: 12 }}>
-        Add OAuth details here instead of editing .env. Secrets are sent over HTTPS, encrypted on the bot server, and never returned to the dashboard. Blank fields keep the saved value.
-      </p>
-      <form onSubmit={saveCredentials} style={{ display: "grid", gap: 12 }}>
-        <div style={panel}>
-          <strong>Battle.net</strong>
-          <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
-            {loading ? "Checking setup..." : providerStatus("battlenet")?.ready ? "Ready for login" : `Needs: ${providerStatus("battlenet")?.missing.join(", ") || "client ID and client secret"}`}
-            {" | "}
-            <a href="https://develop.battle.net/access/clients" target="_blank" rel="noreferrer">Open Battle.net developer portal</a>
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            <input style={input} autoComplete="off" placeholder="Battle.net client ID" value={credentials.battlenet.clientId} onChange={(event) => updateCredential("battlenet", "clientId", event.target.value)} />
-            <input style={input} type="password" autoComplete="new-password" placeholder="Battle.net client secret" value={credentials.battlenet.clientSecret} onChange={(event) => updateCredential("battlenet", "clientSecret", event.target.value)} />
-          </div>
+      {authorized ? (
+        <>
+          <p style={{ color: "#ffb7b7", fontSize: 12 }}>
+            Add OAuth details here instead of editing .env. Secrets are sent over HTTPS, encrypted on the bot server, and never returned to the dashboard. Blank fields keep the saved value.
+          </p>
+          <form onSubmit={saveCredentials} style={{ display: "grid", gap: 12 }}>
+            <div style={panel}>
+              <strong>Battle.net</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("battlenet")?.ready ? "Ready for login" : `Needs: ${providerStatus("battlenet")?.missing.join(", ") || "client ID and client secret"}`}
+                {" | "}
+                <a href="https://develop.battle.net/access/clients" target="_blank" rel="noreferrer">Open Battle.net developer portal</a>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input style={input} autoComplete="off" placeholder="Battle.net client ID" value={credentials.battlenet.clientId} onChange={(event) => updateCredential("battlenet", "clientId", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Battle.net client secret" value={credentials.battlenet.clientSecret} onChange={(event) => updateCredential("battlenet", "clientSecret", event.target.value)} />
+              </div>
+            </div>
+            <div style={panel}>
+              <strong>Epic Games</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("epic")?.ready ? "Ready for login" : `Needs: ${providerStatus("epic")?.missing.join(", ") || "client ID, client secret, and EOS deployment ID"}`}
+                {" | "}
+                <a href="https://dev.epicgames.com/portal/" target="_blank" rel="noreferrer">Open Epic developer portal</a>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input style={input} autoComplete="off" placeholder="Epic Games client ID" value={credentials.epic.clientId} onChange={(event) => updateCredential("epic", "clientId", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Epic Games client secret" value={credentials.epic.clientSecret} onChange={(event) => updateCredential("epic", "clientSecret", event.target.value)} />
+                <input style={input} autoComplete="off" placeholder="Epic EOS deployment ID" value={credentials.epic.deploymentId} onChange={(event) => updateCredential("epic", "deploymentId", event.target.value)} />
+              </div>
+            </div>
+            <div>
+              <button type="submit" style={button} disabled={saving || loading}>
+                {saving ? "Saving securely..." : "Save provider credentials"}
+              </button>
+              {message ? <div role="status" style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
+            </div>
+          </form>
+        </>
+      ) : (
+        <div role={loading ? "status" : "alert"} style={{ color: "#ffb7b7", fontSize: 12 }}>
+          {loading ? "Checking bot owner access..." : message || "Only bot owners can manage provider credentials."}
         </div>
-        <div style={panel}>
-          <strong>Epic Games</strong>
-          <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
-            {loading ? "Checking setup..." : providerStatus("epic")?.ready ? "Ready for login" : `Needs: ${providerStatus("epic")?.missing.join(", ") || "client ID, client secret, and EOS deployment ID"}`}
-            {" | "}
-            <a href="https://dev.epicgames.com/portal/" target="_blank" rel="noreferrer">Open Epic developer portal</a>
-          </div>
-          <div style={{ display: "grid", gap: 8 }}>
-            <input style={input} autoComplete="off" placeholder="Epic Games client ID" value={credentials.epic.clientId} onChange={(event) => updateCredential("epic", "clientId", event.target.value)} />
-            <input style={input} type="password" autoComplete="new-password" placeholder="Epic Games client secret" value={credentials.epic.clientSecret} onChange={(event) => updateCredential("epic", "clientSecret", event.target.value)} />
-            <input style={input} autoComplete="off" placeholder="Epic EOS deployment ID" value={credentials.epic.deploymentId} onChange={(event) => updateCredential("epic", "deploymentId", event.target.value)} />
-          </div>
-        </div>
-        <div>
-          <button type="submit" style={button} disabled={saving || loading}>
-            {saving ? "Saving securely..." : "Save provider credentials"}
-          </button>
-          {message ? <div role="status" style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
-        </div>
-      </form>
+      )}
     </section>
   );
 }

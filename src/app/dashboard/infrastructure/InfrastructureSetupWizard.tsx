@@ -63,6 +63,33 @@ type DirectoryResource = {
   parentId?: string;
 };
 
+type SetupCreatedResource = {
+  id: string;
+  name?: string;
+  kind?: string;
+  engine?: string;
+  field?: string;
+  createdBySetup?: boolean | null;
+};
+
+type UndoResource = {
+  id: string;
+  name: string;
+  kind: string;
+  engine: string;
+  field: string;
+  exists: boolean;
+  blocked: boolean;
+  reason?: string;
+};
+
+type UndoPreview = {
+  ok: boolean;
+  resources: UndoResource[];
+  unverifiedCount: number;
+  previewToken: string;
+};
+
 type RewardRoleOption = {
   id: string;
   kind: "achievement" | "progression" | "prestige";
@@ -84,6 +111,7 @@ type SetupReport = {
     channels?: DirectoryResource[];
   };
   setupTuning?: SetupTuning[];
+  createdResources?: SetupCreatedResource[];
   settings?: {
     mode?: string;
     autopilotEnabled?: boolean;
@@ -106,6 +134,7 @@ type ApiResponse = {
   error?: string;
   report?: SetupReport;
   preview?: { planned?: AdaptRow[]; skipped?: { id: string; reason: string }[] };
+  undoPreview?: UndoPreview;
   result?: {
     wrote?: boolean;
     stale?: boolean;
@@ -117,6 +146,10 @@ type ApiResponse = {
     role?: { id: string; name: string };
     deferred?: number;
     message?: string;
+    ok?: boolean;
+    complete?: boolean;
+    unverifiedCount?: number;
+    removed?: UndoResource[];
   };
 };
 
@@ -245,6 +278,8 @@ export default function InfrastructureSetupWizard() {
   const [activeGroup, setActiveGroup] = useState(GROUPS[0].id);
   const [previewSnapshot, setPreviewSnapshot] = useState<PreviewSnapshot | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [undoPreview, setUndoPreview] = useState<UndoPreview | null>(null);
+  const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
   const [selectedVipResourceIds, setSelectedVipResourceIds] = useState<string[]>([]);
   const [vipConfirmationOpen, setVipConfirmationOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -676,6 +711,57 @@ export default function InfrastructureSetupWizard() {
     }
   }
 
+  async function prepareUndoPreview() {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await callApi({ action: "undo-preview" });
+      if (!data.undoPreview) {
+        throw new Error("The server did not return a setup rollback preview.");
+      }
+      setUndoPreview(data.undoPreview);
+      setUndoConfirmOpen(true);
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Could not prepare setup rollback.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmUndoSetup() {
+    if (!undoPreview) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await callApi({
+        action: "undo",
+        confirmed: true,
+        previewToken: undoPreview.previewToken,
+      });
+      const result = data.result || {};
+      const refreshed = await loadReport();
+      setUndoConfirmOpen(false);
+      setUndoPreview(null);
+      const unknownNotice = result.unverifiedCount
+        ? ` ${result.unverifiedCount} older resource(s) had unknown ownership and were left untouched.`
+        : "";
+      setMessage(result.failed?.length
+        ? `Undo Setup removed ${result.removed?.length || 0} resource(s); ${result.failed.length} operation(s) need attention.${unknownNotice}`
+        : `Undo Setup removed ${result.removed?.length || 0} resource(s) and disabled setup automation.${unknownNotice}`);
+      if (result.failed?.length) {
+        setError(result.failed.map((item) => `${item.name || item.id || "Resource"}: ${item.error || "Could not remove."}`).join(" "));
+      }
+      if (!refreshed) throw new Error("Undo Setup finished, but the refreshed infrastructure report could not be loaded.");
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Undo Setup could not be completed.");
+      await loadReport().catch(() => null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function updateResourceName(id: string, value: string) {
     setNames((current) => ({ ...current, [id]: value }));
     setMessage("");
@@ -765,6 +851,22 @@ export default function InfrastructureSetupWizard() {
           <li className="rounded-lg border border-pink-900/40 p-3 md:col-span-2"><strong>5. Set message routing and verify permissions.</strong> In Bot Personalizer, choose who can send DMs, whether guild messages use the bot or webhook, then confirm the bot can manage the selected channels and roles.</li>
         </ol>
       </section>
+
+      {report?.createdResources?.length ? (
+        <section className="rounded-xl border border-red-800/60 bg-red-950/20 p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black uppercase text-red-100">Undo Setup</h2>
+              <p className="mt-1 max-w-3xl text-sm text-red-100/75">
+                Preview and remove only resources this setup can verify it created. This permanently deletes messages in those channels and removes deleted roles from members.
+              </p>
+            </div>
+            <button type="button" disabled={busy} onClick={() => void prepareUndoPreview()} className="min-h-11 rounded-lg border border-red-600/70 px-4 py-2 text-sm font-black uppercase text-red-100 disabled:cursor-not-allowed disabled:opacity-50">
+              {busy ? "Preparing…" : "Preview Undo"}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <h2 className="text-lg font-black uppercase">Protected flow decisions</h2>
@@ -1188,6 +1290,38 @@ export default function InfrastructureSetupWizard() {
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" disabled={busy} onClick={() => setPreviewOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
               <button type="button" disabled={busy || previewDirty} onClick={() => void approveSetup()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Yes, build selected setup</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {undoConfirmOpen && undoPreview ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setUndoConfirmOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="undo-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-red-700/70 bg-black p-4 shadow-2xl sm:p-6">
+            <h2 id="undo-setup-confirm-title" className="text-xl font-black uppercase text-red-100">Confirm Undo Setup</h2>
+            <p className="mt-2 text-sm text-red-100/85">
+              {undoPreview.resources.filter((resource) => resource.exists && !resource.blocked).length} resource(s) will be deleted. Messages in those channels will be permanently lost, and deleted roles will be removed from members. The server itself and resources setup merely reused will not be deleted.
+            </p>
+            {undoPreview.unverifiedCount ? (
+              <p className="mt-2 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
+                {undoPreview.unverifiedCount} older resource(s) have unknown ownership and are excluded from deletion.
+              </p>
+            ) : null}
+            <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-red-900/50 p-3 text-sm text-red-50">
+              {undoPreview.resources.map((resource) => (
+                <li key={resource.id}>
+                  {resource.kind}: <strong>{resource.name}</strong>
+                  {resource.blocked ? ` — not deletable: ${resource.reason || "Discord restriction"}` : resource.exists ? " — will be deleted" : " — already missing; setup mapping will be cleared"}
+                </li>
+              ))}
+              {!undoPreview.resources.length ? <li>No verified setup-created resources were found.</li> : null}
+            </ul>
+            <p className="mt-3 text-xs text-pink-100/70">Undo also disables setup automation, clears mappings to deleted resources, and clears setup selections. Other engine settings are left unchanged.</p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" disabled={busy} onClick={() => setUndoConfirmOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
+              <button type="button" disabled={busy} onClick={() => void confirmUndoSetup()} className="min-h-11 rounded-lg border border-red-600 bg-red-950 px-4 py-2 text-sm font-black uppercase text-red-100 disabled:opacity-50">
+                {busy ? "Removing…" : "Delete listed resources"}
+              </button>
             </div>
           </section>
         </div>

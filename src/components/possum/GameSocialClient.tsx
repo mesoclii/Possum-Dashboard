@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { fetchGuildData, fetchRuntimeEngine, invalidateRuntimeEngines, resolveGuildContext, runRuntimeEngineAction, saveRuntimeEngine } from "@/lib/liveRuntime";
+import { isDashboardControlOwner } from "@/lib/dashboardOwner";
+import GameProviderAuthSettings from "./GameProviderAuthSettings";
 
 type EngineKey = "gameIdentity" | "privacyConsent" | "presenceFusion" | "playtime" | "squadFinder" | "gameProvider" | "showoff";
 type RuntimeRow = Record<string, any>;
@@ -97,6 +99,7 @@ function formatChannelLabel(channel: GuildChannel, channels: GuildChannel[]) {
 export default function GameSocialClient({ guildId, guildName }: Props) {
   const context = useMemo(() => resolveGuildContext(), []);
   const viewerUserId = context.userId;
+  const isBotOwner = isDashboardControlOwner(viewerUserId);
   const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({ gameIdentity: {}, privacyConsent: {}, presenceFusion: {}, playtime: {}, squadFinder: {}, gameProvider: {}, showoff: {} });
   const [channels, setChannels] = useState<GuildChannel[]>([]);
   const [roles, setRoles] = useState<GuildRole[]>([]);
@@ -253,6 +256,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
       {loading ? <div style={{ marginTop: 10, color: "#ffb7b7" }}>Loading game social engines...</div> : null}
       {!loading ? (
         <>
+          {isBotOwner ? <GameProviderAuthSettings onSaved={() => void loadAll(guildId, true)} /> : null}
           <div style={card}>
             <h3 style={sectionTitle}>Member Self-Service</h3>
             <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Link your own accounts, request verification, control privacy + consent, and clear your gamer alerts without staff typing raw IDs for you.</div>
@@ -275,7 +279,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>Provider Login Buttons</div>
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
-                    Use these when you want button-based login instead of typing handles manually. Steam is live through OpenID. The other providers turn live as soon as their auth env is configured.
+                    Use these when you want button-based login instead of typing handles manually. Steam is live through OpenID. Bot owners can configure Battle.net and Epic login securely above.
                   </div>
                   {currentAuthProvider ? (
                     <div style={{ ...card, marginBottom: 0 }}>

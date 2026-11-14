@@ -66,6 +66,7 @@ type DirectoryResource = {
 type RewardRoleOption = {
   id: string;
   kind: "achievement" | "progression" | "prestige";
+  engine: string;
   label: string;
   proposedName: string;
 };
@@ -339,7 +340,8 @@ export default function InfrastructureSetupWizard() {
   const previewRoleSelections = sorted(selectedRoleMappings);
   const previewRewardRoleSelections = sorted(rewardRoleSelections);
   const normalizedCustomRoleNames = [...new Set(customRoleText.split(/\r?\n/).map((name) => name.trim()).filter(Boolean))].slice(0, 10);
-  const selectedRewardRoleOptions = (report?.rewardRoleOptions || []).filter((option) => previewRewardRoleSelections.includes(option.id));
+  const availableRewardRoleOptions = (report?.rewardRoleOptions || []).filter((option) => selected.includes(option.engine));
+  const selectedRewardRoleOptions = availableRewardRoleOptions.filter((option) => previewRewardRoleSelections.includes(option.id));
   const createProposals = useMemo(
     () => proposals.filter((proposal) =>
       (selected.includes(proposal.engine) || `${proposal.engine}:${proposal.field}` === "moderator:logging.logChannelId") &&
@@ -465,8 +467,8 @@ export default function InfrastructureSetupWizard() {
       setError("Choose a server before starting setup.");
       return;
     }
-    if (!selectedFeatures.length) {
-      setError("Turn on at least one system to preview its setup.");
+    if (!selectedFeatures.length && !normalizedCustomRoleNames.length) {
+      setError("Select a system or enter at least one custom role to preview setup.");
       return;
     }
     setBusy(true);
@@ -756,7 +758,7 @@ export default function InfrastructureSetupWizard() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <h2 className="text-lg font-black uppercase">First-run checklist</h2>
         <ol className="mt-3 grid gap-3 text-sm leading-relaxed md:grid-cols-2">
-          <li className="rounded-lg border border-pink-900/40 p-3"><strong>1. Bootstrap logging and roles.</strong> Setup creates the moderator log destination first, then selected cat, achievement, progression, and custom roles before the rest of the resources.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>1. Choose systems and roles.</strong> Setup creates resources only for selected systems. Custom Discord roles can also be created on their own for later dashboard assignment.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>2. Decide protected member flows.</strong> Choose whether onboarding, verification, and pre-onboarding should be enabled or disabled, or leave each current setting unchanged.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>3. Set up security and audit details.</strong> Review <a className="underline" href="/dashboard/security/pre-onboarding">pre-onboarding safeguards</a> and select the moderation logging systems below.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>4. Configure your custom bot securely.</strong> Use the <a className="underline" href="/dashboard/bot-personalizer#custom-bot-credentials">Bot Personalizer</a> for its token, client ID, and OAuth settings. Never paste tokens into chat.</li>
@@ -805,7 +807,7 @@ export default function InfrastructureSetupWizard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
-            <button type="button" disabled={busy || selectedFeatures.length === 0} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" disabled={busy || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
               {busy ? "Preparing…" : "Preview selected setup"}
             </button>
           </div>
@@ -855,7 +857,7 @@ export default function InfrastructureSetupWizard() {
           </div>
         </fieldset>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy || selectedFeatures.length === 0} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={busy || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? "Preparing…" : "Preview selected setup"}
           </button>
           <span className="text-xs text-pink-100/60">Scanning is read-only. Feature selection saves tracking scope; resources, mappings, and any protected-flow choices change only after approval.</span>
@@ -913,11 +915,10 @@ export default function InfrastructureSetupWizard() {
       ) : null}
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
-          <details>
-            <summary className="cursor-pointer text-lg font-black uppercase">
-              Optional reward role creation ({roleCandidates.length + (report?.rewardRoleOptions?.length || 0)})
-            </summary>
-            <p className="mt-2 text-sm text-pink-100/70">Select roles Possum should create and connect to a real reward. Achievement and progression rewards are opt-in. Other roles usually refer to roles you already have; leave those unchecked unless the bot grants them.</p>
+            <h2 className="text-lg font-black uppercase">Create and connect roles</h2>
+            <p className="mt-1 text-sm text-pink-100/70">Reward roles are offered only for selected systems and configured rewards that are missing a role. Custom roles can be created on their own, without selecting a system, and are not granted automatically.</p>
+            <h3 className="mt-4 text-sm font-black uppercase">Optional system role mappings ({roleCandidates.length})</h3>
+            <p className="mt-1 text-xs text-pink-100/60">Choose only roles that the selected system should grant. Existing role IDs and dashboard-owned role lists are not created here.</p>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               {roleCandidates.map((proposal) => (
                 <label key={proposal.id} className="flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
@@ -926,11 +927,11 @@ export default function InfrastructureSetupWizard() {
                 </label>
               ))}
             </div>
-            {(report?.rewardRoleOptions || []).length ? (
+            {availableRewardRoleOptions.length ? (
               <div className="mt-4">
-                <h3 className="text-sm font-black uppercase">Achievement and level rewards</h3>
+                <h3 className="text-sm font-black uppercase">Configured achievement and level rewards ({availableRewardRoleOptions.length})</h3>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  {(report?.rewardRoleOptions || []).map((option) => (
+                  {availableRewardRoleOptions.map((option) => (
                     <div key={option.id} className="grid gap-2 rounded-lg border border-pink-900/40 p-3 text-sm">
                       <label className="flex items-start gap-3">
                         <input type="checkbox" checked={previewRewardRoleSelections.includes(option.id)} onChange={(event) => setRewardRoleSelected(option.id, event.target.checked)} className="mt-1 accent-pink-500" />
@@ -951,7 +952,7 @@ export default function InfrastructureSetupWizard() {
               </div>
             ) : null}
             <label className="mt-4 grid gap-2 text-sm">
-              <span><strong>Optional custom roles</strong><span className="block text-xs text-pink-100/60">One role name per line, up to 10. These are created for later dashboard assignment and are not granted automatically.</span></span>
+              <span><strong>Custom Discord roles</strong><span className="block text-xs text-pink-100/60">One role name per line, up to 10. Create them here for later dashboard assignment; this works even when no systems are selected.</span></span>
               <textarea
                 value={customRoleText}
                 onChange={(event) => setCustomRoleText(event.target.value)}
@@ -963,7 +964,6 @@ export default function InfrastructureSetupWizard() {
               />
               <span className="text-xs text-pink-100/60">{normalizedCustomRoleNames.length}/10 custom roles</span>
             </label>
-          </details>
       </section>
 
       {previewSnapshot ? (

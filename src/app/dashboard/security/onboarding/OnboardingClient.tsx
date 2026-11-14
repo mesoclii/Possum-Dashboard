@@ -48,6 +48,7 @@ type OnboardingConfig = {
   welcomeMessageChannelId: string;
   welcomeMessageTemplate: string;
   joinWelcomeAutoDeleteMinutes: number;
+  joinWelcomeCarriesGate: boolean;
   postVerifyChannelId: string;
   ticketPanelTitle: string;
   ticketPanelDescription: string;
@@ -108,6 +109,7 @@ const DEFAULTS: OnboardingConfig = {
   welcomeMessageTemplate:
     "Welcome to {{guildName}}, {{memberMention}}.\n\nYou are survivor #{{memberCount}}. Read {{rulesChannel}}, then verify to enter.",
   joinWelcomeAutoDeleteMinutes: 0,
+  joinWelcomeCarriesGate: true,
   postVerifyChannelId: "",
   ticketPanelTitle: "ID Verification",
   ticketPanelDescription: "Upload your ID here. Staff will review it and verify you.\n\nDeclining ends the admission process.",
@@ -227,11 +229,13 @@ export default function OnboardingClient() {
       <div style={styles.card}>
         <h3 style={{ marginTop: 0, color: "#ff4444" }}>Join welcome (hello page)</h3>
         <div style={{ color: "#ffd7a8", marginBottom: 10, fontSize: 13 }}>
-          A plain welcome posted the moment someone joins. It is separate from the gate message: no buttons, no
-          admission logic. Tokens: {"{{guildName}}"}, {"{{memberMention}}"}, {"{{memberCount}}"}, {"{{rulesChannel}}"}.
+          Posted the moment someone joins. With the toggle on, the rules link, read-rules, verify and no-ID buttons sit
+          under the welcome text, so the member never has to find a second message. Tokens: {"{{guildName}}"},
+          {"{{memberMention}}"}, {"{{memberCount}}"}, {"{{rulesChannel}}"}.
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 10 }}>
           <label><input type="checkbox" checked={!!cfg.sendJoinWelcome} onChange={(e) => setCfg({ ...cfg, sendJoinWelcome: e.target.checked })} /> Send the join welcome</label>
+          <label><input type="checkbox" checked={cfg.joinWelcomeCarriesGate !== false} onChange={(e) => setCfg({ ...cfg, joinWelcomeCarriesGate: e.target.checked })} /> Put the rules / verify / no-ID buttons on this message</label>
           <div>
             <label>Hello page channel</label>
             <select style={styles.input} value={cfg.welcomeMessageChannelId || ""} onChange={(e) => setCfg({ ...cfg, welcomeMessageChannelId: e.target.value })}>

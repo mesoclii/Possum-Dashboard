@@ -84,8 +84,27 @@ function summaryValue(summary: Array<{ label: string; value: string }> | undefin
 function listRows(value: any): RuntimeRow[] { return Array.isArray(value) ? value : []; }
 function normalizeIdentityProviderKey(value: any) {
   const key = String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (["microsoft", "microsoftaccount", "microsoftlive", "xboxlive", "xboxliveid"].includes(key)) return "xbox";
-  return key;
+  const aliases: Record<string, string> = {
+    microsoft: "xbox",
+    microsoftaccount: "xbox",
+    microsoftlive: "xbox",
+    xboxlive: "xbox",
+    xboxliveid: "xbox",
+    minecraft: "xbox",
+    battletag: "battlenet",
+    wow: "battlenet",
+    worldofwarcraft: "battlenet",
+    overwatch: "battlenet",
+    overwatch2: "battlenet",
+    diablo: "battlenet",
+    diablo4: "battlenet",
+    fortnite: "epic",
+    rocketleague: "epic",
+    gtav: "rockstar",
+    gtaonline: "rockstar",
+    socialclub: "rockstar",
+  };
+  return aliases[key] || key;
 }
 function authProviderDisplayTitle(entry: RuntimeRow) {
   return normalizeIdentityProviderKey(entry?.key) === "xbox" ? "Microsoft / Xbox" : String(entry?.title || "Game provider");
@@ -312,7 +331,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                       </div>
                       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                         {currentAuthProvider.ready && viewerUserId ? (
-                          <a href={buildConnectHref(identityForm.providerKey, identityForm.platform)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>
+                          <a href={buildConnectHref(currentAuthProvider.key, identityForm.platform)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>
                             Connect with {currentAuthProvider.title}
                           </a>
                         ) : (

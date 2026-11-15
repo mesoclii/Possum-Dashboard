@@ -54,6 +54,8 @@ function accessReasonLabel(reason: string) {
       return "Allowed by the configured dashboard access role.";
     case "ok_role_level":
       return "Allowed by the configured minimum role level.";
+    case "ok_public_guild_member":
+      return "Allowed as a member of this Discord server.";
     case "ok_member_gaming_portal_user":
       return "Allowed by the member gaming portal allowlist.";
     case "ok_member_gaming_portal_role":

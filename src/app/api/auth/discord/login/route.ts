@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildDiscordOauthUrl, getDiscordOauthConfigurationIssue } from "@/lib/discordOAuth";
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
+import { getDashboardPublicOrigin } from "@/lib/dashboardUrl";
 import {
   createOauthState,
   dashboardOAuthStateCookieName,
@@ -12,6 +13,17 @@ import {
 } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
+  const dashboardOrigin = getDashboardPublicOrigin(request);
+  if (dashboardOrigin !== request.nextUrl.origin) {
+    const loginUrl = new URL(
+      `${request.nextUrl.pathname}${request.nextUrl.search}`,
+      dashboardOrigin
+    );
+    const response = NextResponse.redirect(loginUrl);
+    response.headers.set("Cache-Control", "no-store, private");
+    return response;
+  }
+
   try {
     await enforceDashboardRateLimit(request, "oauth_login");
   } catch (error: any) {

@@ -283,8 +283,12 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <input style={input} placeholder="Gamertag / handle" value={identityForm.handle} onChange={(event) => setIdentityForm((prev) => ({ ...prev, handle: event.target.value }))} />
                   <select style={input} value={identityForm.platform} onChange={(event) => setIdentityForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
                   <input style={input} placeholder="Account ID / UID" value={identityForm.accountId} onChange={(event) => setIdentityForm((prev) => ({ ...prev, accountId: event.target.value }))} />
-                  <input style={input} placeholder="Public profile URL (Rockstar / PSNProfiles / Steam)" value={identityForm.profileUrl} onChange={(event) => setIdentityForm((prev) => ({ ...prev, profileUrl: event.target.value }))} />
-                  <div style={{ color: "#ffb3b3", fontSize: 11 }}>Public profile URLs are saved as links only. They do not verify ownership or imply that private stats can be retrieved.</div>
+                  {["rockstar", "playstation", "steam"].includes(identityForm.providerKey) ? (
+                    <>
+                      <input style={input} placeholder="Public profile URL (optional)" value={identityForm.profileUrl} onChange={(event) => setIdentityForm((prev) => ({ ...prev, profileUrl: event.target.value }))} />
+                      <div style={{ color: "#ffb3b3", fontSize: 11 }}>Saved as a public link only. It does not verify ownership or unlock private stats.</div>
+                    </>
+                  ) : null}
                   <select style={input} value={identityForm.visibility} onChange={(event) => setIdentityForm((prev) => ({ ...prev, visibility: event.target.value }))}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>

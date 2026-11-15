@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
+import ProjectUpdateTimes from "@/components/possum/ProjectUpdateTimes";
 
 const navigation = [
   { href: "/features", label: "Features" },
@@ -60,6 +61,7 @@ export function MarketingFooter() {
         <div className="site-footer-bottom">
           <span>© {new Date().getFullYear()} Possum Bot</span>
           <span>Independent project. Discord community platform.</span>
+          <ProjectUpdateTimes />
         </div>
         <div
           className="site-footer-credit"

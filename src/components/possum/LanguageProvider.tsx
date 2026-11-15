@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 
 const STORAGE_KEY = "possum.lang";
 const ATTRS = ["placeholder", "title", "aria-label"] as const;
-const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "CODE", "PRE", "NOSCRIPT"]);
+const SKIP_TEXT_TAGS = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "CODE", "PRE", "NOSCRIPT"]);
+const SKIP_ATTRIBUTE_TAGS = new Set(["SCRIPT", "STYLE", "CODE", "PRE", "NOSCRIPT"]);
 
 type Dict = Record<string, string>;
 
@@ -18,9 +19,10 @@ function translateValue(dict: Dict, raw: string): string | null {
   return `${lead}${hit}${trail}`;
 }
 
-function shouldSkip(el: Element | null): boolean {
+function shouldSkip(el: Element | null, includeFormControls = true): boolean {
   for (let node: Element | null = el; node; node = node.parentElement) {
-    if (SKIP_TAGS.has(node.tagName) || node.hasAttribute("data-no-translate") || node.getAttribute("contenteditable") === "true") {
+    const skippedTags = includeFormControls ? SKIP_TEXT_TAGS : SKIP_ATTRIBUTE_TAGS;
+    if (skippedTags.has(node.tagName) || node.hasAttribute("data-no-translate") || node.getAttribute("contenteditable") === "true") {
       return true;
     }
   }
@@ -34,7 +36,7 @@ function translateTextNode(dict: Dict, node: Text) {
 }
 
 function translateAttributes(dict: Dict, el: Element) {
-  if (shouldSkip(el)) return;
+  if (shouldSkip(el, false)) return;
   for (const attr of ATTRS) {
     const value = el.getAttribute(attr);
     if (!value) continue;
@@ -85,6 +87,7 @@ export default function LanguageProvider() {
     void import("@/lib/i18n/es.json").then((mod) => {
       if (cancelled) return;
       const dict = ((mod as any).default || mod) as Dict;
+      translateTree(dict, document.head);
       translateTree(dict, document.body);
       observer = new MutationObserver((records) => {
         observer?.disconnect();
@@ -93,9 +96,9 @@ export default function LanguageProvider() {
           else if (record.type === "attributes") translateAttributes(dict, record.target as Element);
           else record.addedNodes.forEach((node) => translateTree(dict, node));
         }
-        observer?.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...ATTRS] });
+        observer?.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...ATTRS] });
       });
-      observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...ATTRS] });
+      observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...ATTRS] });
     });
 
     return () => {

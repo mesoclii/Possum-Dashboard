@@ -17,7 +17,7 @@ type GuildChannel = { id: string; name: string; type: number; parentId?: string 
 type GuildRole = { id: string; name: string; position?: number };
 type Props = { guildId: string; guildName: string };
 
-const card: CSSProperties = { border: "1px solid rgba(255,0,0,.35)", borderRadius: 12, padding: 14, background: "rgba(90,0,0,.10)", marginBottom: 12 };
+const card: CSSProperties = { border: "1px solid rgba(255,0,0,.22)", borderRadius: 12, padding: 12, background: "rgba(30,8,12,.42)", marginBottom: 10 };
 const input: CSSProperties = { width: "100%", background: "#070707", border: "1px solid rgba(255,0,0,.45)", color: "#ffd3d3", borderRadius: 10, padding: "10px 12px" };
 const button: CSSProperties = { ...input, width: "auto", fontWeight: 800, cursor: "pointer" };
 const sectionTitle: CSSProperties = { marginTop: 0, color: "#ff6666", textTransform: "uppercase", letterSpacing: "0.08em" };
@@ -52,7 +52,7 @@ const LINK_PROVIDERS = [
 ];
 const STATS_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["apex", "fortnite", "cod", "wow", "overwatch2", "diablo4", "destiny2", "valorant", "leagueoflegends", "rocketleague", "gtaonline", "minecraft", "custom"].includes(entry.value));
 const MAP_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["apex", "cod", "overwatch2"].includes(entry.value));
-const ADAPTER_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["apex", "fortnite", "cod", "steam", "epic", "xbox", "battlenet", "rockstar", "wow", "overwatch2", "diablo4", "destiny2", "valorant", "leagueoflegends", "rocketleague", "gtaonline", "minecraft"].includes(entry.value));
+const ADAPTER_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["steam", "epic", "xbox", "battlenet", "playstation", "destiny2"].includes(entry.value));
 const ROLE_SYNC_GAMES = [
   { key: "apex", label: "Apex Role Map", tiers: ["rookie", "bronze", "silver", "gold", "platinum", "diamond", "master", "predator"] },
   { key: "fortnite", label: "Fortnite Role Map", tiers: ["bronze", "silver", "gold", "platinum", "diamond", "elite", "champion", "unreal"] },
@@ -268,23 +268,17 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   }, [guildId, loadAll]);
 
   return (
-    <div style={{ ...card, marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <div>
-          <div style={{ fontSize: 24, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 900, color: "#ff2f2f" }}>Gaming Hub</div>
-          <div style={{ color: "#ff9e9e", marginTop: 4 }}>Guild: {guildName || guildId}</div>
-          <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>This stack now covers provider sync, ownership verification, privacy + consent, rank automation, gamer cards, and squad finder.</div>
+    <div style={{ width: "100%", minWidth: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(180px,1fr) repeat(4,minmax(105px,150px))", gap: 10, alignItems: "stretch", marginBottom: 14 }}>
+        <div style={{ minWidth: 0, padding: "10px 4px" }}>
+          <div style={{ fontSize: 22, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900, color: "#ff4545" }}>Gaming Hub</div>
+          <div style={{ color: "#ff9e9e", marginTop: 4, fontSize: 12 }}>{guildName || guildId}</div>
+          <div style={{ color: "#ffb7b7", fontSize: 11, marginTop: 6 }}>Accounts · activity · stats · squads</div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 8 }}>
-          {runtimeCard("Linked", summaryValue(identitySummary, "Linked Accounts"))}
-          {runtimeCard("Verified", summaryValue(identitySummary, "Verified"))}
-          {runtimeCard("Privacy", summaryValue(privacySummary, "Profiles"))}
-          {runtimeCard("Live", summaryValue(presenceSummary, "Live Players"))}
-          {runtimeCard("Hours", summaryValue(playtimeSummary, "Total Hours"))}
-          {runtimeCard("Squads", summaryValue(squadSummary, "Open Squads"))}
-          {runtimeCard("Stats", summaryValue(providerSummary, "Stats Records"))}
-          {runtimeCard("Card", summaryValue(showoffSummary, "Active", "Enabled"))}
-        </div>
+        {runtimeCard("Linked accounts", summaryValue(identitySummary, "Linked Accounts"))}
+        {runtimeCard("Playing now", summaryValue(presenceSummary, "Live Players"))}
+        {runtimeCard("Playtime", summaryValue(playtimeSummary, "Total Hours"))}
+        {runtimeCard("Open squads", summaryValue(squadSummary, "Open Squads"))}
       </div>
       {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loadWarnings.length ? (
@@ -442,7 +436,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
             <h3 style={sectionTitle}>Identity + Consent Defaults</h3>
             {!canManageGaming ? <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 8 }}>Staff-only settings are read-only in member portal mode.</div> : null}
             <fieldset disabled={!canManageGaming} style={lockedGroup}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", gap: 10 }}>
               <label><input type="checkbox" checked={Boolean(getValue(engines.gameIdentity, ["enabled"], true))} onChange={(event) => updateConfig("gameIdentity", { enabled: event.target.checked })} /> Identity enabled</label>
               <label><input type="checkbox" checked={Boolean(getValue(engines.gameIdentity, ["allowSelfLink"], true))} onChange={(event) => updateConfig("gameIdentity", { allowSelfLink: event.target.checked })} /> Allow self link</label>
               <input style={input} type="number" placeholder="Max links per member" value={getValue(engines.gameIdentity, ["maxLinksPerMember"], 8)} onChange={(event) => updateConfig("gameIdentity", { maxLinksPerMember: Number(event.target.value || 0) })} />
@@ -493,11 +487,12 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("presenceFusion", engines.presenceFusion.config || {}, "Saved presence fusion settings.")}>Save Presence Fusion</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "clearPresence", {}, "Cleared cached presence.")}>Clear Presence Cache</button>
+              <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "refreshPresence", {}, "Presence refreshed from Discord.")}>Refresh now</button>
+              <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "clearPresence", {}, "Cleared cached presence.")}>Clear cache</button>
               <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "prunePresence", {}, "Pruned stale presence snapshots.")}>Prune Stale Presence</button>
             </div>
             </fieldset>
-            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{livePlayers.length ? livePlayers.map((entry) => <div key={`${entry.userId}-${entry.title}`} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div>{Array.isArray(entry.games) && entry.games.length > 1 ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{entry.games.map((game: RuntimeRow, index: number) => <span key={`${entry.userId}-${game.applicationId || game.label}-${index}`} style={{ border: "1px solid rgba(255,0,0,.35)", borderRadius: 999, padding: "3px 8px", fontSize: 11 }}>{game.label}{game.details ? ` · ${game.details}` : ""}</span>)}</div> : null}</div>) : <div style={{ color: "#ffb3b3" }}>No recent game presence captured.</div>}</div>
+            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{livePlayers.length ? livePlayers.map((entry) => <div key={`${entry.userId}-${entry.title}`} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ff9e9e", fontSize: 11 }}>{entry.capturedAt ? `Updated ${new Date(entry.capturedAt).toLocaleString()}` : "Update time unavailable"}</div></div><div style={{ color: "#ffd3d3", fontSize: 13, marginTop: 4 }}>{entry.value}</div>{entry.startedAt ? <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 4 }}>Playing since {new Date(entry.startedAt).toLocaleString()}</div> : null}{entry.activityState ? <div style={{ color: "#ffb3b3", fontSize: 11 }}>{entry.activityState}</div> : null}{Array.isArray(entry.games) && entry.games.length > 1 ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{entry.games.map((game: RuntimeRow, index: number) => <span key={`${entry.userId}-${game.applicationId || game.label}-${index}`} style={{ border: "1px solid rgba(255,0,0,.35)", borderRadius: 999, padding: "3px 8px", fontSize: 11 }}>{game.label}{game.details ? ` · ${game.details}` : ""}</span>)}</div> : null}</div>) : <div style={{ color: "#ffb3b3" }}>No recent game presence captured.</div>}</div>
           </div>
 
           <div style={card}>
@@ -528,7 +523,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 {messageChannels.map((channel) => <option key={channel.id} value={channel.id}>{formatChannelLabel(channel, channels)}</option>)}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>{ADAPTER_PROVIDERS.map((entry) => { const current = Array.isArray(engines.gameProvider.config?.allowedProviders) ? engines.gameProvider.config?.allowedProviders : []; const adapters = engines.gameProvider.config?.externalAdapters || {}; const adapter = adapters[entry.value] || {}; const endpoint = String(adapter.endpointUrl || ""); const builtIn = endpoint.startsWith("builtin://"); return <div key={entry.value} style={{ ...card, marginBottom: 0, minWidth: 260, flex: 1 }}><div style={{ fontWeight: 800, marginBottom: 8 }}>{entry.label} Provider Route</div><label><input type="checkbox" checked={current.includes(entry.value)} onChange={() => updateConfig("gameProvider", { allowedProviders: toggleProviderList(current, entry.value) })} /> Provider enabled</label><label style={{ display: "block", marginTop: 8 }}><input type="checkbox" checked={Boolean(adapter.enabled)} onChange={(event) => updateConfig("gameProvider", { externalAdapters: { ...(engines.gameProvider.config?.externalAdapters || {}), [entry.value]: { ...adapter, enabled: event.target.checked } } })} /> Route enabled</label><div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>{builtIn ? "Built-in route selected. Leave it as-is unless you want to point this provider at your own bridge." : "External override route active."}</div><div style={{ display: "grid", gap: 8, marginTop: 8 }}><select style={input} value={builtIn ? "builtin" : "external"} onChange={(event) => updateConfig("gameProvider", { externalAdapters: { ...(engines.gameProvider.config?.externalAdapters || {}), [entry.value]: { ...adapter, mode: event.target.value, endpointUrl: event.target.value === "builtin" ? `builtin://${entry.value}` : "" } } })}><option value="builtin">Built-in route</option><option value="external">External bridge override</option></select><input style={input} placeholder="Bridge endpoint URL override" value={endpoint} onChange={(event) => updateConfig("gameProvider", { externalAdapters: { ...(engines.gameProvider.config?.externalAdapters || {}), [entry.value]: { ...adapter, endpointUrl: event.target.value } } })} /><input style={input} placeholder="Optional adapter API key" value={String(adapter.apiKey || "")} onChange={(event) => updateConfig("gameProvider", { externalAdapters: { ...(engines.gameProvider.config?.externalAdapters || {}), [entry.value]: { ...adapter, apiKey: event.target.value } } })} /><div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(120px,1fr))", gap: 8 }}><input style={input} type="number" placeholder="RPM" value={String(adapter.requestsPerMinute ?? 10)} onChange={(event) => updateConfig("gameProvider", { externalAdapters: { ...(engines.gameProvider.config?.externalAdapters || {}), [entry.value]: { ...adapter, requestsPerMinute: Number(event.target.value || 0) } } })} /><input style={input} type="number" placeholder="Cooldown min" value={String(adapter.cooldownMinutes ?? 30)} onChange={(event) => updateConfig("gameProvider", { externalAdapters: { ...(engines.gameProvider.config?.externalAdapters || {}), [entry.value]: { ...adapter, cooldownMinutes: Number(event.target.value || 0) } } })} /></div></div></div>; })}</div>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 10 }}>Accounts connect through their actual network sign-in. Per-game bridge routes and API-key boxes are not needed here.</div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("gameProvider", engines.gameProvider.config || {}, "Saved provider engine settings.")}>Save Provider Engine</button>
               <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "refreshProvidersNow", {}, "Ran scheduled provider sync now.")}>Run Provider Sync</button>
@@ -640,13 +635,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
               })}
             </div>
             </fieldset>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 12, marginTop: 12 }}>
-              <div style={card}><div style={{ fontWeight: 800, marginBottom: 8 }}>Launcher Readiness</div><div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 8 }}>This is the live-readiness check for Steam, Epic, Xbox, Battle.net, PlayStation, and Rockstar. `endpoint ready` means the bot has a route to call. `missing bridge` means the dashboard is wired, but the bot still needs a real upstream endpoint or bridge URL in env.</div><div style={{ display: "grid", gap: 8 }}>{launcherReadiness.length ? launcherReadiness.map((entry) => <div key={entry.title} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>) : <div style={{ color: "#ffb3b3" }}>No launcher readiness rows yet.</div>}</div></div>
-              <div style={card}><div style={{ fontWeight: 800, marginBottom: 8 }}>Adapter Health</div><div style={{ display: "grid", gap: 8 }}>{providerHealth.length ? providerHealth.map((entry) => <div key={entry.key} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>) : <div style={{ color: "#ffb3b3" }}>No adapter health data yet.</div>}</div></div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 12, marginTop: 12 }}>
-              <div style={card}><div style={{ fontWeight: 800, marginBottom: 8 }}>Provider Capabilities</div><div style={{ display: "grid", gap: 8 }}>{providerCapabilities.length ? providerCapabilities.map((entry) => <div key={entry.key} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>) : <div style={{ color: "#ffb3b3" }}>No provider capability rows found.</div>}</div></div>
-            </div>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>Live account sync status appears with each linked account. Unsupported third-party routes are not shown.</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 12, marginTop: 12 }}>
               <div style={{ display: "grid", gap: 8 }}>{statRows.length ? statRows.map((entry) => <div key={entry.id || entry.title} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>{entry.id && canManageGaming ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "removeStats", { recordId: entry.id }, "Removed provider stats snapshot.")}>Remove</button> : null}</div></div>) : <div style={{ color: "#ffb3b3" }}>No game stats snapshots recorded.</div>}</div>
               <div style={{ display: "grid", gap: 8 }}>{mapRows.length ? mapRows.map((entry) => <div key={entry.id || entry.title} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>{entry.id && canManageGaming ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "removeMapRotation", { recordId: entry.id }, "Removed map rotation snapshot.")}>Remove</button> : null}</div></div>) : <div style={{ color: "#ffb3b3" }}>No map rotation snapshots recorded.</div>}</div>

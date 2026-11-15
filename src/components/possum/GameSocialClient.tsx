@@ -221,6 +221,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   const launcherReadiness = listRows(engines.gameProvider.details?.launcherReadiness);
   const providerHealth = listRows(engines.gameProvider.details?.syncHealth);
   const authProviders = listRows(engines.gameIdentity.details?.authProviders);
+  const playstationProfile = engines.gameIdentity.details?.playstationProfile || null;
   const showoffRows = listRows(engines.showoff.details?.previews);
   const squadRows = listRows(engines.squadFinder.details?.activeSquads);
   const memberState = engines.privacyConsent.details?.memberSelfService || engines.gameIdentity.details?.memberSelfService || null;
@@ -297,6 +298,21 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
       {!loading ? (
         <>
           <GameProviderAuthSettings onSaved={() => void loadAll(guildId, true)} />
+          {playstationProfile ? (
+            <div style={card}>
+              <h3 style={sectionTitle}>PlayStation Sync: {playstationProfile.onlineId}</h3>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", color: "#ffd3d3", fontSize: 13 }}>
+                <span>Trophy level: {playstationProfile.trophySummary?.level || playstationProfile.trophySummary?.trophyLevel || "Unavailable"}</span>
+                <span>Games: {playstationProfile.games?.length || 0}</span>
+                <span>Trophies: {Object.values(playstationProfile.trophySummary?.earnedTrophies || {}).reduce((sum: number, value: any) => sum + Number(value || 0), 0) || "Unavailable"}</span>
+                <span>Synced: {playstationProfile.syncedAt ? new Date(playstationProfile.syncedAt).toLocaleString() : "Unknown"}</span>
+              </div>
+              <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>
+                {playstationProfile.gameHistoryAvailable ? "PSN game history is available." : "PSN privacy settings currently hide game history."}
+              </div>
+              {playstationProfile.games?.length ? <ul style={{ marginBottom: 0, color: "#ffd3d3" }}>{playstationProfile.games.slice(0, 8).map((game: any) => <li key={game.titleId || game.name}>{game.name}: {Number(game.hours || 0).toFixed(1)} hours</li>)}</ul> : null}
+            </div>
+          ) : null}
           <div style={card}>
             <h3 style={sectionTitle}>Member Self-Service</h3>
             <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Link your own accounts, request verification, control privacy + consent, and clear your gamer alerts without staff typing raw IDs for you.</div>

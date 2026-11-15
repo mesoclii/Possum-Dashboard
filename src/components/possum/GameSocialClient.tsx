@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import Link from "next/link";
 import { fetchGuildData, fetchRuntimeEngine, invalidateRuntimeEngines, resolveGuildContext, runRuntimeEngineAction, saveRuntimeEngine } from "@/lib/liveRuntime";
 import GameProviderAuthSettings from "./GameProviderAuthSettings";
+import MemberGamingHub from "./MemberGamingHub";
 
-type EngineKey = "gameIdentity" | "privacyConsent" | "presenceFusion" | "playtime" | "squadFinder" | "gameProvider" | "showoff";
+type EngineKey = "gameIdentity" | "privacyConsent" | "presenceFusion" | "playtime" | "squadFinder" | "gameProvider" | "showoff" | "searchAnything";
 type RuntimeRow = Record<string, any>;
 type EnginePayload = {
   config?: Record<string, any>;
@@ -128,7 +130,7 @@ function formatChannelLabel(channel: GuildChannel, channels: GuildChannel[]) {
 export default function GameSocialClient({ guildId, guildName }: Props) {
   const context = useMemo(() => resolveGuildContext(), []);
   const viewerUserId = context.userId;
-  const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({ gameIdentity: {}, privacyConsent: {}, presenceFusion: {}, playtime: {}, squadFinder: {}, gameProvider: {}, showoff: {} });
+  const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({ gameIdentity: {}, privacyConsent: {}, presenceFusion: {}, playtime: {}, squadFinder: {}, gameProvider: {}, showoff: {}, searchAnything: {} });
   const [channels, setChannels] = useState<GuildChannel[]>([]);
   const [roles, setRoles] = useState<GuildRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +151,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     try {
       if (!quiet) { setLoading(true); setMessage(""); }
       setLoadWarnings([]);
-      const engineKeys: EngineKey[] = ["gameIdentity", "privacyConsent", "presenceFusion", "playtime", "squadFinder", "gameProvider", "showoff"];
+      const engineKeys: EngineKey[] = ["gameIdentity", "privacyConsent", "presenceFusion", "playtime", "squadFinder", "gameProvider", "showoff", "searchAnything"];
       invalidateRuntimeEngines(targetGuildId, engineKeys);
       const results = await Promise.all(engineKeys.map(async (engine) => {
         try {
@@ -158,14 +160,18 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
           return [engine, { loadError: error?.message || "Engine settings could not be loaded." }] as const;
         }
       }));
+      const next = Object.fromEntries(results) as Record<EngineKey, EnginePayload>;
+      const accessScope = Object.values(next).find((payload) => payload.details?.viewerScope)?.details?.viewerScope;
+      const memberPortalView = String(accessScope || (viewerUserId ? "member_gaming_portal" : "admin")) !== "admin";
       let guildData: any = {};
       let guildDataError = "";
-      try {
-        guildData = await fetchGuildData(targetGuildId, viewerUserId);
-      } catch (error: any) {
-        guildDataError = error?.message || "Discord roles and channels could not be loaded.";
+      if (!memberPortalView) {
+        try {
+          guildData = await fetchGuildData(targetGuildId, viewerUserId);
+        } catch (error: any) {
+          guildDataError = error?.message || "Discord roles and channels could not be loaded.";
+        }
       }
-      const next = Object.fromEntries(results) as Record<EngineKey, EnginePayload>;
       const warnings = results
         .filter(([, payload]) => payload.loadError)
         .map(([engine, payload]) => `${engine}: ${payload.loadError}`);
@@ -197,7 +203,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
 
   function updateConfig(engine: EngineKey, patch: Record<string, unknown>) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before editing its settings.`); return; } setEngines((prev) => ({ ...prev, [engine]: { ...prev[engine], config: { ...(prev[engine].config || {}), ...patch } } })); }
   async function saveConfig(engine: EngineKey, patch: Record<string, unknown>, okLabel: string) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before saving its settings.`); return; } try { setSaving(true); setMessage(""); const json = await saveRuntimeEngine(guildId, engine, patch, viewerUserId); setEngines((prev) => ({ ...prev, [engine]: normalizePayload(json) })); setMessage(okLabel); } catch (err: any) { setMessage(err?.message || "Save failed."); } finally { setSaving(false); } }
-  async function runAction(engine: EngineKey, action: string, payload: Record<string, unknown>, okLabel: string) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before running actions.`); return; } try { setSaving(true); setMessage(""); const result: any = await runRuntimeEngineAction(guildId, engine, action, payload, viewerUserId); await loadAll(guildId, true); const outcome = result?.result || result; if (outcome?.ok === false) { setMessage(`Not completed: ${String(outcome.reason || outcome.error || "action declined").replace(/_/g, " ")}.`); } else if (action === "refreshPresence" && outcome?.captured !== undefined) { setMessage(`Presence refreshed. Updated ${Number(outcome.captured)} cached member activities.`); } else if (action === "refreshProviderUser" && outcome?.importedGames !== undefined) { setMessage(`Synced ${outcome.profile?.personaName || "Steam account"}: ${outcome.profile?.gameCount ?? 0} public games, ${Number(outcome.importedGames)} playtime records imported.`); } else if (action === "refreshProviderUser" && outcome?.profile?.characterCount !== undefined) { setMessage(`Destiny 2 synced: ${outcome.profile.characterCount} characters, ${Number(outcome.profile.totalHours || 0).toFixed(1)} hours played.`); } else if (action === "refreshProviderUser" && outcome?.statsRecord?.notes) { setMessage(`World of Warcraft synced: ${String(outcome.statsRecord.notes).slice(0, 220)}`); } else { setMessage(okLabel); } } catch (err: any) { setMessage(err?.message || "Action failed."); } finally { setSaving(false); } }
+  async function runAction(engine: EngineKey, action: string, payload: Record<string, unknown>, okLabel: string): Promise<any> { if (engines[engine].loadError) { setMessage(`Reload ${engine} before running actions.`); return null; } try { setSaving(true); setMessage(""); const result: any = await runRuntimeEngineAction(guildId, engine, action, payload, viewerUserId); await loadAll(guildId, true); const outcome = result?.result || result; if (outcome?.ok === false) { setMessage(`Not completed: ${String(outcome.reason || outcome.error || "action declined").replace(/_/g, " ")}.`); } else if (action === "refreshPresence" && outcome?.captured !== undefined) { setMessage(`Presence refreshed. Updated ${Number(outcome.captured)} cached member activities.`); } else if (action === "refreshProviderUser" && outcome?.importedGames !== undefined) { setMessage(`Synced ${outcome.profile?.personaName || "Steam account"}: ${outcome.profile?.gameCount ?? 0} public games, ${Number(outcome.importedGames)} playtime records imported.`); } else if (action === "refreshProviderUser" && outcome?.profile?.characterCount !== undefined) { setMessage(`Destiny 2 synced: ${outcome.profile.characterCount} characters, ${Number(outcome.profile.totalHours || 0).toFixed(1)} hours played.`); } else if (action === "refreshProviderUser" && outcome?.statsRecord?.notes) { setMessage(`World of Warcraft synced: ${String(outcome.statsRecord.notes).slice(0, 220)}`); } else { setMessage(okLabel); } return outcome; } catch (err: any) { setMessage(err?.message || "Action failed."); return null; } finally { setSaving(false); } }
   const identitySummary = useMemo(() => engines.gameIdentity.summary || [], [engines.gameIdentity]);
   const presenceSummary = useMemo(() => engines.presenceFusion.summary || [], [engines.presenceFusion]);
   const playtimeSummary = useMemo(() => engines.playtime.summary || [], [engines.playtime]);
@@ -215,7 +221,14 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   const showoffRows = listRows(engines.showoff.details?.previews);
   const squadRows = listRows(engines.squadFinder.details?.activeSquads);
   const memberState = engines.privacyConsent.details?.memberSelfService || engines.gameIdentity.details?.memberSelfService || null;
-  const viewerScope = String(engines.gameIdentity.details?.viewerScope || engines.playtime.details?.viewerScope || "admin");
+  const viewerScope = String(
+    engines.gameIdentity.details?.viewerScope ||
+    engines.privacyConsent.details?.viewerScope ||
+    engines.presenceFusion.details?.viewerScope ||
+    engines.playtime.details?.viewerScope ||
+    engines.searchAnything.details?.viewerScope ||
+    (viewerUserId ? "member_gaming_portal" : "admin")
+  );
   const canManageGaming = viewerScope === "admin";
   const myIdentities = listRows(memberState?.identities);
   const myPendingVerifications = listRows(memberState?.pendingVerifications);
@@ -239,6 +252,40 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     if (platform) params.set("platform", platform);
     return `/api/games/auth/start?${params.toString()}`;
   }, [guildId, viewerUserId]);
+  const pollMemberActivity = useCallback(async () => {
+    const liveKeys: EngineKey[] = ["gameIdentity", "presenceFusion", "squadFinder"];
+    invalidateRuntimeEngines(guildId, liveKeys);
+    const results = await Promise.all(liveKeys.map(async (engine) => {
+      try {
+        return [engine, normalizePayload(await fetchRuntimeEngine(guildId, engine, viewerUserId))] as const;
+      } catch (error: any) {
+        return [engine, { loadError: error?.message || "Live activity could not be refreshed." }] as const;
+      }
+    }));
+    setEngines((prev) => {
+      const next = { ...prev };
+      for (const [engine, payload] of results) {
+        if (!payload.loadError) next[engine] = payload;
+      }
+      return next;
+    });
+    const warningKeys = new Set(liveKeys);
+    const nextWarnings = results
+      .filter(([, payload]) => payload.loadError)
+      .map(([engine, payload]) => `${engine}: ${payload.loadError}`);
+    setLoadWarnings((prev) => [
+      ...prev.filter((warning) => ![...warningKeys].some((engine) => warning.startsWith(`${engine}:`))),
+      ...nextWarnings,
+    ]);
+  }, [guildId, viewerUserId]);
+
+  useEffect(() => {
+    if (loading || canManageGaming) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void pollMemberActivity();
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [guildId, loading, canManageGaming, pollMemberActivity]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -256,6 +303,29 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     if (providerAuth === "success") void loadAll(guildId, true);
   }, [guildId, loadAll]);
 
+  if (loading) {
+    return <div role="status" style={{ width: "100%", padding: 24, color: "#a9c5d1" }}>Loading Gaming Hub…</div>;
+  }
+
+  if (!loading && !canManageGaming) {
+    return (
+      <MemberGamingHub
+        key={`${guildId}:${viewerUserId || ""}`}
+        guildId={guildId}
+        guildName={guildName}
+        viewerUserId={viewerUserId || ""}
+        engines={engines}
+        loading={loading}
+        saving={saving}
+        message={message}
+        warnings={loadWarnings}
+        onReload={() => void loadAll(guildId)}
+        onAction={runAction}
+        buildConnectHref={buildConnectHref}
+      />
+    );
+  }
+
   return (
     <div style={{ width: "100%", minWidth: 0 }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,140px),1fr))", gap: 10, alignItems: "stretch", marginBottom: 14 }}>
@@ -269,6 +339,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
         {runtimeCard("Playtime", summaryValue(playtimeSummary, "Total Hours"))}
         {runtimeCard("Open squads", summaryValue(squadSummary, "Open Squads"))}
       </div>
+      {canManageGaming ? <Link href="/dashboard/games/wilds" style={{ display: "inline-block", marginBottom: 10, color: "#ffb0b0", fontSize: 12, textDecoration: "underline" }}>Possum Wilds asset settings</Link> : null}
       {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loadWarnings.length ? (
         <div role="alert" style={{ ...card, borderColor: "rgba(255,43,214,.55)", color: "#ffb3f0" }}>

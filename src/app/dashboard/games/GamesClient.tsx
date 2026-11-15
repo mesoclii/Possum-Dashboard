@@ -1,18 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
-import Link from "next/link";
 import { resolveGuildContext } from "@/lib/liveRuntime";
 import GameSocialClient from "@/components/possum/GameSocialClient";
-
-const card: CSSProperties = {
-  border: "1px solid rgba(255,0,0,.35)",
-  borderRadius: 12,
-  padding: 14,
-  background: "rgba(90,0,0,.10)",
-  marginBottom: 12,
-};
 
 export default function GamesClient() {
   const [guildContext, setGuildContext] = useState(() => resolveGuildContext());
@@ -48,25 +38,7 @@ export default function GamesClient() {
   }
 
   return (
-    <div style={{ maxWidth: 1280, color: "#ffcaca" }}>
-      <div style={card}>
-        <div style={{ fontSize: 24, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 900, color: "#ff2f2f" }}>
-          Gaming Hub
-        </div>
-        <div style={{ color: "#ff9e9e", marginTop: 4 }}>Guild: {guildName || guildId}</div>
-        <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>
-          This page is only for the external game stack: linked identities, Steam / Epic / Xbox / Battle.net / PlayStation / Rockstar accounts, live presence, provider stats, hours, gamer cards, and squad finder.
-        </div>
-        <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>
-          Cat Drop, Pokemon, Truth Dare, Crew, Dominion, and other server mini-game engines stay on their own dedicated dashboard pages.
-        </div>
-        <Link
-          href="/dashboard/games/wilds"
-          style={{ display: "inline-block", marginTop: 10, color: "#ffb0b0", fontSize: 12, textDecoration: "underline" }}
-        >
-          Possum Wilds (Pro) — species art/assets
-        </Link>
-      </div>
+    <div style={{ width: "100%", minWidth: 0 }}>
       <GameSocialClient guildId={guildId} guildName={guildName} />
     </div>
   );

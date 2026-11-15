@@ -131,14 +131,14 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
-  const [identityForm, setIdentityForm] = useState({ userId: viewerUserId || "", providerKey: "apex", handle: "", platform: "", accountId: "", profileUrl: "", visibility: "server" });
-  const [verificationForm, setVerificationForm] = useState({ userId: viewerUserId || "", providerKey: "apex", platform: "", proofText: "", proofToken: "" });
+  const [identityForm, setIdentityForm] = useState({ userId: viewerUserId || "", providerKey: "steam", handle: "", platform: "", accountId: "", profileUrl: "", visibility: "server" });
+  const [verificationForm, setVerificationForm] = useState({ userId: viewerUserId || "", providerKey: "steam", platform: "", proofText: "", proofToken: "" });
   const [selfPrivacy, setSelfPrivacy] = useState<any>(EMPTY_PRIVACY);
   const [playtimeForm, setPlaytimeForm] = useState({ userId: viewerUserId || "", game: "", platform: "", providerKey: "", hours: "", sourceKey: "provider_api", notes: "", evidenceUrl: "" });
   const [statsForm, setStatsForm] = useState({ userId: viewerUserId || "", providerKey: "apex", platform: "", rankTier: "", rankLabel: "", rating: "", kills: "", wins: "", kd: "", matches: "", currentMode: "", currentMap: "", sourceKey: "manual" });
   const [mapForm, setMapForm] = useState({ providerKey: "apex", mode: "", currentMap: "", nextMap: "", expiresInMinutes: "", sourceKey: "manual" });
   const [rankSyncForm, setRankSyncForm] = useState({ userId: viewerUserId || "", gameKey: "" });
-  const [refreshForm, setRefreshForm] = useState({ userId: viewerUserId || "", providerKey: "apex", platform: "" });
+  const [refreshForm, setRefreshForm] = useState({ userId: viewerUserId || "", providerKey: "steam", platform: "" });
 
   const loadAll = useCallback(async (targetGuildId: string, quiet = false) => {
     if (!targetGuildId) return;
@@ -195,12 +195,9 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   async function saveConfig(engine: EngineKey, patch: Record<string, unknown>, okLabel: string) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before saving its settings.`); return; } try { setSaving(true); setMessage(""); const json = await saveRuntimeEngine(guildId, engine, patch, viewerUserId); setEngines((prev) => ({ ...prev, [engine]: normalizePayload(json) })); setMessage(okLabel); } catch (err: any) { setMessage(err?.message || "Save failed."); } finally { setSaving(false); } }
   async function runAction(engine: EngineKey, action: string, payload: Record<string, unknown>, okLabel: string) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before running actions.`); return; } try { setSaving(true); setMessage(""); const result: any = await runRuntimeEngineAction(guildId, engine, action, payload, viewerUserId); await loadAll(guildId, true); setMessage(result?.result?.ok === false ? `Not applied: ${String(result.result.reason || result.result.error || "action declined").replace(/_/g, " ")}.` : okLabel); } catch (err: any) { setMessage(err?.message || "Action failed."); } finally { setSaving(false); } }
   const identitySummary = useMemo(() => engines.gameIdentity.summary || [], [engines.gameIdentity]);
-  const privacySummary = useMemo(() => engines.privacyConsent.summary || [], [engines.privacyConsent]);
   const presenceSummary = useMemo(() => engines.presenceFusion.summary || [], [engines.presenceFusion]);
   const playtimeSummary = useMemo(() => engines.playtime.summary || [], [engines.playtime]);
   const squadSummary = useMemo(() => engines.squadFinder.summary || [], [engines.squadFinder]);
-  const providerSummary = useMemo(() => engines.gameProvider.summary || [], [engines.gameProvider]);
-  const showoffSummary = useMemo(() => engines.showoff.summary || [], [engines.showoff]);
   const linkedProfiles = listRows(engines.gameIdentity.details?.linkedProfiles);
   const pendingVerifications = listRows(engines.gameIdentity.details?.pendingVerifications);
   const livePlayers = listRows(engines.presenceFusion.details?.livePlayers);
@@ -462,7 +459,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
 
           <div style={card}>
             <h3 style={sectionTitle}>Game Provider</h3>
-            <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Manual snapshots still work across the full game stack, while routed provider sync can now be configured for Steam, Epic, Xbox, Battle.net, PlayStation, Rockstar, Apex, Fortnite, CoD, WoW, Overwatch 2, Diablo IV, Destiny 2, Riot titles, Rocket League, GTA Online, Minecraft, and any future bridge you add.</div>
+            <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Connect supported gaming networks once. Possum keeps each game attached to its parent account and uses available account data for profiles, playtime, and rank features.</div>
             <fieldset disabled={!canManageGaming} style={lockedGroup}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,160px),1fr))", gap: 10 }}>
               <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["enabled"], true))} onChange={(event) => updateConfig("gameProvider", { enabled: event.target.checked })} /> Enabled</label>
@@ -490,10 +487,8 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
             </div>
             <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 10 }}>Accounts connect through their actual network sign-in. Per-game bridge routes and API-key boxes are not needed here.</div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-              <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("gameProvider", engines.gameProvider.config || {}, "Saved provider engine settings.")}>Save Provider Engine</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "refreshProvidersNow", {}, "Ran scheduled provider sync now.")}>Run Provider Sync</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "resetProviderHealth", {}, "Reset provider adapter health.")}>Reset Adapter Health</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "pruneProviderData", {}, "Pruned stale provider data.")}>Prune Stale Data</button>
+              <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("gameProvider", engines.gameProvider.config || {}, "Saved gaming settings.")}>Save gaming settings</button>
+              <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "pruneProviderData", {}, "Removed expired gaming snapshots.")}>Clean old snapshots</button>
             </div>
             </fieldset>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12, marginTop: 12 }}>

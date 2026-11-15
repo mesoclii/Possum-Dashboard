@@ -429,9 +429,9 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("presenceFusion", engines.presenceFusion.config || {}, "Saved presence fusion settings.")}>Save Presence Fusion</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "refreshPresence", {}, "Presence refreshed from Discord.")}>Refresh now</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "clearPresence", {}, "Cleared cached presence.")}>Clear cache</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "prunePresence", {}, "Pruned stale presence snapshots.")}>Prune Stale Presence</button>
+              <button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("presenceFusion", "refreshPresence", {}, "Presence refreshed from Discord.")}>Refresh now</button>
+              <button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("presenceFusion", "clearPresence", {}, "Cleared cached presence.")}>Clear cache</button>
+              <button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("presenceFusion", "prunePresence", {}, "Pruned stale presence snapshots.")}>Prune Stale Presence</button>
             </div>
             </fieldset>
             <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{livePlayers.length ? livePlayers.map((entry) => <div key={`${entry.userId}-${entry.title}`} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ff9e9e", fontSize: 11 }}>{entry.capturedAt ? `Updated ${new Date(entry.capturedAt).toLocaleString()}` : "Update time unavailable"}</div></div><div style={{ color: "#ffd3d3", fontSize: 13, marginTop: 4 }}>{entry.value}</div>{entry.startedAt ? <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 4 }}>Playing since {new Date(entry.startedAt).toLocaleString()}</div> : null}{entry.activityState ? <div style={{ color: "#ffb3b3", fontSize: 11 }}>{entry.activityState}</div> : null}{Array.isArray(entry.games) && entry.games.length > 1 ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{entry.games.map((game: RuntimeRow, index: number) => <span key={`${entry.userId}-${game.applicationId || game.label}-${index}`} style={{ border: "1px solid rgba(255,0,0,.28)", borderRadius: 8, padding: "5px 8px", fontSize: 11 }}>{game.label}{game.details ? ` · ${game.details}` : ""}{game.startedAt ? ` · since ${new Date(game.startedAt).toLocaleTimeString()}` : ""}</span>)}</div> : null}</div>) : <div style={{ color: "#ffb3b3" }}>No recent game presence captured.</div>}</div>
@@ -458,7 +458,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
             <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 10 }}>Network sign-in handles account connections. This section controls game stats and rank roles.</div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("gameProvider", engines.gameProvider.config || {}, "Saved gaming settings.")}>Save gaming settings</button>
-              <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "pruneProviderData", {}, "Removed expired gaming snapshots.")}>Clean old snapshots</button>
+              <button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("gameProvider", "pruneProviderData", {}, "Removed expired gaming snapshots.")}>Clean old snapshots</button>
             </div>
             </fieldset>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12, marginTop: 12 }}>

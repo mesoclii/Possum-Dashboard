@@ -342,7 +342,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>Provider Login Buttons</div>
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
-                    Steam OpenID and Microsoft / Xbox browser login are supported. Epic and Battle.net need owner-configured credentials. PlayStation uses Possum's central PSN lookup: members enter only an Online ID. Rockstar remains a manual identity link.
+                    Steam OpenID and Microsoft / Xbox browser login are supported. Epic and Battle.net need owner-configured credentials. PlayStation uses Possum central PSN lookup: members enter only an Online ID. Rockstar remains a manual identity link.
                   </div>
                   {currentAuthProvider ? (
                     <div style={{ ...card, marginBottom: 0 }}>

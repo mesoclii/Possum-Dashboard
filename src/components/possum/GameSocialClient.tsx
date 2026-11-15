@@ -82,6 +82,14 @@ function summaryValue(summary: Array<{ label: string; value: string }> | undefin
   return summary?.find((entry) => entry.label === label)?.value || fallback;
 }
 function listRows(value: any): RuntimeRow[] { return Array.isArray(value) ? value : []; }
+function normalizeIdentityProviderKey(value: any) {
+  const key = String(value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (["microsoft", "microsoftaccount", "microsoftlive", "xboxlive", "xboxliveid"].includes(key)) return "xbox";
+  return key;
+}
+function authProviderDisplayTitle(entry: RuntimeRow) {
+  return normalizeIdentityProviderKey(entry?.key) === "xbox" ? "Microsoft / Xbox" : String(entry?.title || "Game provider");
+}
 function parseOptionalNumber(value: string) { const parsed = Number(String(value || "").trim()); return Number.isFinite(parsed) ? parsed : undefined; }
 function formatRoleMap(value: any) { return Object.entries(value && typeof value === "object" ? value : {}).map(([tier, roleId]) => `${tier}:${roleId || ""}`).join("\n"); }
 function parseRoleMap(value: string) { const out: Record<string, string> = {}; for (const line of String(value || "").split(/\r?\n/)) { const [tier, roleId] = line.split(":").map((entry) => String(entry || "").trim()); if (tier) out[tier] = roleId || ""; } return out; }
@@ -197,8 +205,15 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   const myNotifications = listRows(memberState?.notifications);
   const messageChannels = useMemo(() => channels.filter((entry) => channelSupportsMessages(entry)), [channels]);
   const sortedRoles = useMemo(() => [...roles].sort((a, b) => Number(b.position || 0) - Number(a.position || 0) || a.name.localeCompare(b.name)), [roles]);
-  const identityAuthIndex = useMemo(() => new Map(myIdentities.map((entry) => [entry.providerKey, entry])), [myIdentities]);
-  const currentAuthProvider = useMemo(() => authProviders.find((entry) => entry.key === identityForm.providerKey) || null, [authProviders, identityForm.providerKey]);
+  const identityAuthIndex = useMemo(() => {
+    const index = new Map<string, RuntimeRow>();
+    for (const identity of myIdentities) {
+      const key = normalizeIdentityProviderKey(identity?.providerKey);
+      if (key) index.set(key, identity);
+    }
+    return index;
+  }, [myIdentities]);
+  const currentAuthProvider = useMemo(() => authProviders.find((entry) => normalizeIdentityProviderKey(entry.key) === normalizeIdentityProviderKey(identityForm.providerKey)) || null, [authProviders, identityForm.providerKey]);
   const buildConnectHref = useCallback((providerKey: string, platform = "") => {
     if (!guildId || !viewerUserId) return "";
     const params = new URLSearchParams();
@@ -222,7 +237,8 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     params.delete("authMessage");
     const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash || ""}`;
     window.history.replaceState({}, "", nextUrl);
-  }, []);
+    if (providerAuth === "success") void loadAll(guildId, true);
+  }, [guildId, loadAll]);
 
   return (
     <div style={{ ...card, marginBottom: 16 }}>
@@ -284,8 +300,8 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                       <div style={{ fontWeight: 700 }}>{currentAuthProvider.title}</div>
                       <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>{currentAuthProvider.value}</div>
                       <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
-                        {identityAuthIndex.get(identityForm.providerKey)
-                          ? `Connected as ${identityAuthIndex.get(identityForm.providerKey)?.handle || "linked account"}`
+                        {identityAuthIndex.get(normalizeIdentityProviderKey(identityForm.providerKey))
+                          ? `Connected as ${identityAuthIndex.get(normalizeIdentityProviderKey(identityForm.providerKey))?.handle || "linked account"}`
                           : "No linked account through provider login yet."}
                       </div>
                       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -303,12 +319,12 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   ) : null}
                   <div style={{ display: "grid", gap: 8 }}>
                     {authProviders.length ? authProviders.map((entry) => {
-                      const linked = identityAuthIndex.get(entry.key);
+                      const linked = identityAuthIndex.get(normalizeIdentityProviderKey(entry.key));
                       return (
                         <div key={entry.key} style={{ ...card, marginBottom: 0 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                             <div>
-                              <div style={{ fontWeight: 700 }}>{entry.title}</div>
+                              <div style={{ fontWeight: 700 }}>{authProviderDisplayTitle(entry)}</div>
                               <div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div>
                               <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>{linked ? `Connected as ${linked.handle}` : "Not linked yet"}</div>
                             </div>

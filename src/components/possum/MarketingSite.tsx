@@ -61,8 +61,9 @@ export function MarketingFooter() {
         <div className="site-footer-bottom">
           <span>© {new Date().getFullYear()} Possum Bot</span>
           <span>Independent project. Discord community platform.</span>
-          <ProjectUpdateTimes />
+          <span>Latest checked-out commits</span>
         </div>
+        <ProjectUpdateTimes />
         <div
           className="site-footer-credit"
           aria-label="Website design credit"

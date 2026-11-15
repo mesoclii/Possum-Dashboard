@@ -58,9 +58,8 @@ export default function ProjectUpdateTimes() {
   ];
 
   return (
-    <div className="site-project-times">
+    <div className="site-project-times" tabIndex={0} aria-label="Project update times">
       <div><span>Local time</span> {now ? <time dateTime={now.toISOString()} data-no-translate>{now.toLocaleString()}</time> : <span>Loading...</span>}</div>
-      <div><span>Latest checked-out commits</span></div>
       {rows.map(({ label, value }) => (
         <div key={label}>
           <span>{label}</span>{" "}

@@ -650,12 +650,23 @@ body > div.min-h-screen {
 }
 
 .site-project-times {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 20px;
-  font-size: clamp(13px, 1vw, 15px);
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(max-content, 1fr));
+  gap: 24px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  font-size: clamp(16px, 1.3vw, 19px);
   font-weight: 700;
   color: #ff9acb;
+}
+
+.site-project-times > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .site-project-times span:first-child {

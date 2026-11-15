@@ -129,6 +129,7 @@ export default function LanguageProvider() {
 
   return (
     <div
+      className="possum-language-switcher"
       data-no-translate
       style={{
         position: "fixed",

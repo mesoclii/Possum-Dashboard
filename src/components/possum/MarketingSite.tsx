@@ -61,6 +61,30 @@ export function MarketingFooter() {
           <span>© {new Date().getFullYear()} Possum Bot</span>
           <span>Independent project. Discord community platform.</span>
         </div>
+        <div
+          className="site-footer-credit"
+          aria-label="Website design credit"
+          style={{
+            gridColumn: "1 / -1",
+            width: "100%",
+            padding: "30px 12px 18px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            borderTop: "1px solid rgba(255,54,54,.22)",
+            marginTop: "8px",
+          }}
+        >
+          <span style={{ color: "#ff3636", fontSize: "clamp(13px, 2vw, 17px)", fontWeight: 900, letterSpacing: ".28em", textTransform: "uppercase" }}>
+            Designed by
+          </span>
+          <strong style={{ color: "#ff3636", fontSize: "clamp(23px, 4.5vw, 42px)", lineHeight: 1.15, fontWeight: 950, letterSpacing: ".015em", textShadow: "0 0 22px rgba(255,54,54,.38)" }}>
+            aStonedPossum <span aria-hidden="true">&amp;</span> aCityRaccoon
+          </strong>
+        </div>
       </div>
     </footer>
   );

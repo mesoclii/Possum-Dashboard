@@ -463,9 +463,9 @@ main [class*="text-pink-200"] {
 
 
 /* Public Possum website */
-.marketing-main { width: min(1240px, calc(100% - 56px)); margin: 0 auto; color: #f4f0ee; }
+.marketing-main { width: 100%; max-width: none; margin: 0 auto; padding-inline: clamp(24px, 4vw, 76px); color: #f4f0ee; }
 .site-header { position: sticky; top: 0; z-index: 50; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(8,9,10,.86); backdrop-filter: blur(18px); }
-.site-header-inner { width: min(1320px, calc(100% - 56px)); min-height: 78px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.site-header-inner { width: 100%; max-width: none; padding-inline: clamp(24px, 4vw, 76px); min-height: 78px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .site-brand { display: inline-flex; align-items: center; gap: 11px; color: #fff; text-decoration: none; flex: 0 0 auto; }
 .site-brand-mark { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 12px; color: #fff; background: linear-gradient(145deg,#ff5a51,#b8202a); font-size: 22px; font-weight: 950; box-shadow: 0 7px 24px rgba(236,45,54,.28); }
 .site-brand-copy { display: grid; gap: 2px; line-height: 1; }
@@ -481,7 +481,7 @@ main [class*="text-pink-200"] {
 .site-button-small { min-height: 39px; padding: 0 15px; font-size: 12px; }
 .site-button-quiet { background: rgba(255,255,255,.035); border-color: rgba(255,255,255,.16); color: #eee; box-shadow: none; }
 .site-button-outline { background: transparent; border-color: rgba(255,103,95,.7); color: #ffaaa3; box-shadow: none; }
-.marketing-hero { min-height: 670px; padding: 92px 0 82px; display: grid; grid-template-columns: minmax(0,1.02fr) minmax(460px,.98fr); gap: 45px; align-items: center; position: relative; }
+.marketing-hero { min-height: 670px; padding: 92px 0 82px; display: grid; grid-template-columns: minmax(0,1.02fr) minmax(0,.98fr); gap: 45px; align-items: center; position: relative; }
 .hero-copy { position: relative; z-index: 2; }
 .eyebrow { display: flex; align-items: center; gap: 10px; color: #f2766f; font-size: 10px; line-height: 1.4; font-weight: 900; letter-spacing: .2em; text-transform: uppercase; }
 .eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff655c; box-shadow: 0 0 13px #ff655c; }

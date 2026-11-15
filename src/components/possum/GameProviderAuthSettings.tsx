@@ -4,18 +4,20 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 
 type ProviderStatus = {
-  key: "battlenet" | "epic";
+  key: "battlenet" | "epic" | "bungie";
   label: string;
   ready: boolean;
   missing: string[];
   hasClientId: boolean;
   hasClientSecret: boolean;
   hasDeploymentId?: boolean;
+  hasApiKey?: boolean;
 };
 
 type ProviderCredentials = {
   battlenet: { clientId: string; clientSecret: string };
   epic: { clientId: string; clientSecret: string; deploymentId: string };
+  bungie: { clientId: string; clientSecret: string; apiKey: string };
 };
 
 type Props = { onSaved: () => void };
@@ -23,6 +25,7 @@ type Props = { onSaved: () => void };
 const initialCredentials: ProviderCredentials = {
   battlenet: { clientId: "", clientSecret: "" },
   epic: { clientId: "", clientSecret: "", deploymentId: "" },
+  bungie: { clientId: "", clientSecret: "", apiKey: "" },
 };
 
 const panel: CSSProperties = {
@@ -147,6 +150,19 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
                 <input style={input} autoComplete="off" placeholder="Epic Games client ID" value={credentials.epic.clientId} onChange={(event) => updateCredential("epic", "clientId", event.target.value)} />
                 <input style={input} type="password" autoComplete="new-password" placeholder="Epic Games client secret" value={credentials.epic.clientSecret} onChange={(event) => updateCredential("epic", "clientSecret", event.target.value)} />
                 <input style={input} autoComplete="off" placeholder="Epic EOS deployment ID" value={credentials.epic.deploymentId} onChange={(event) => updateCredential("epic", "deploymentId", event.target.value)} />
+              </div>
+            </div>
+            <div style={panel}>
+              <strong>Bungie / Destiny 2</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("bungie")?.ready ? "Ready for login" : `Needs: ${providerStatus("bungie")?.missing.join(", ") || "client ID, client secret, and API key"}`}
+                {" | "}
+                <a href="https://www.bungie.net/en/Application" target="_blank" rel="noreferrer">Open Bungie application portal</a>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input style={input} autoComplete="off" placeholder="Bungie OAuth client ID" value={credentials.bungie.clientId} onChange={(event) => updateCredential("bungie", "clientId", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Bungie OAuth client secret" value={credentials.bungie.clientSecret} onChange={(event) => updateCredential("bungie", "clientSecret", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Bungie API key" value={credentials.bungie.apiKey} onChange={(event) => updateCredential("bungie", "apiKey", event.target.value)} />
               </div>
             </div>
             <div>

@@ -44,7 +44,11 @@ const STATS_PROVIDERS = [
   { value: "custom", label: "Custom / Other" },
 ];
 const MAP_PROVIDERS = STATS_PROVIDERS.filter((entry) => ["apex", "cod", "overwatch2"].includes(entry.value));
-const SYNC_PROVIDERS = LINK_PROVIDERS;
+const REFRESH_PROVIDERS = [
+  { value: "steam", label: "Steam Library" },
+  { value: "destiny2", label: "Destiny 2" },
+  { value: "playstation", label: "PlayStation Network" },
+];
 const ROLE_SYNC_GAMES = [
   { key: "apex", label: "Apex Role Map", tiers: ["rookie", "bronze", "silver", "gold", "platinum", "diamond", "master", "predator"] },
   { key: "fortnite", label: "Fortnite Role Map", tiers: ["bronze", "silver", "gold", "platinum", "diamond", "elite", "champion", "unreal"] },
@@ -137,7 +141,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   const [statsForm, setStatsForm] = useState({ userId: viewerUserId || "", providerKey: "apex", platform: "", rankTier: "", rankLabel: "", rating: "", kills: "", wins: "", kd: "", matches: "", currentMode: "", currentMap: "", sourceKey: "manual" });
   const [mapForm, setMapForm] = useState({ providerKey: "apex", mode: "", currentMap: "", nextMap: "", expiresInMinutes: "", sourceKey: "manual" });
   const [rankSyncForm, setRankSyncForm] = useState({ userId: viewerUserId || "", gameKey: "" });
-  const [refreshForm, setRefreshForm] = useState({ userId: viewerUserId || "", providerKey: "steam", platform: "" });
+  const [refreshForm, setRefreshForm] = useState({ userId: viewerUserId || "", providerKey: "steam" });
 
   const loadAll = useCallback(async (targetGuildId: string, quiet = false) => {
     if (!targetGuildId) return;
@@ -496,6 +500,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <input style={input} value={statsForm.userId || viewerUserId || ""} readOnly />
                   <select style={input} value={statsForm.providerKey} onChange={(event) => setStatsForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{STATS_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <select style={input} value={statsForm.platform} onChange={(event) => setStatsForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
+                  <select style={input} value={refreshForm.providerKey} onChange={(event) => setRefreshForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{REFRESH_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <input style={input} placeholder="Rank tier key" value={statsForm.rankTier} onChange={(event) => setStatsForm((prev) => ({ ...prev, rankTier: event.target.value }))} />
                   <input style={input} placeholder="Rank label" value={statsForm.rankLabel} onChange={(event) => setStatsForm((prev) => ({ ...prev, rankLabel: event.target.value }))} />
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(120px,1fr))", gap: 8 }}><input style={input} placeholder="Rating" value={statsForm.rating} onChange={(event) => setStatsForm((prev) => ({ ...prev, rating: event.target.value }))} /><input style={input} placeholder="Kills" value={statsForm.kills} onChange={(event) => setStatsForm((prev) => ({ ...prev, kills: event.target.value }))} /><input style={input} placeholder="Wins" value={statsForm.wins} onChange={(event) => setStatsForm((prev) => ({ ...prev, wins: event.target.value }))} /><input style={input} placeholder="KD" value={statsForm.kd} onChange={(event) => setStatsForm((prev) => ({ ...prev, kd: event.target.value }))} /></div>
@@ -528,8 +533,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <select style={input} value={mapForm.sourceKey} onChange={(event) => setMapForm((prev) => ({ ...prev, sourceKey: event.target.value }))}>{SOURCES.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <input style={input} value={rankSyncForm.userId || viewerUserId || ""} readOnly />
                   <select style={input} value={rankSyncForm.gameKey} onChange={(event) => setRankSyncForm((prev) => ({ ...prev, gameKey: event.target.value }))}><option value="">All games</option>{ROLE_SYNC_GAMES.map((entry) => <option key={entry.key} value={entry.key}>{entry.label.replace(" Role Map", "")}</option>)}</select>
-                  <select style={input} value={refreshForm.providerKey} onChange={(event) => setRefreshForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{SYNC_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
-                  <select style={input} value={refreshForm.platform} onChange={(event) => setRefreshForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
+
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                   <button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("gameProvider", "setMapRotation", { ...mapForm, expiresInMinutes: parseOptionalNumber(mapForm.expiresInMinutes) }, "Saved map rotation snapshot.")}>Save Map</button>

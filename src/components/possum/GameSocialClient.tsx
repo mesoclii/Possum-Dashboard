@@ -146,13 +146,13 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
   const [rankSyncForm, setRankSyncForm] = useState({ userId: viewerUserId || "", gameKey: "" });
   const [refreshForm, setRefreshForm] = useState({ userId: viewerUserId || "", providerKey: "steam" });
 
-  const loadAll = useCallback(async (targetGuildId: string, quiet = false) => {
+  const loadAll = useCallback(async (targetGuildId: string, quiet = false, forceRefresh = false) => {
     if (!targetGuildId) return;
     try {
       if (!quiet) { setLoading(true); setMessage(""); }
       setLoadWarnings([]);
       const engineKeys: EngineKey[] = ["gameIdentity", "privacyConsent", "presenceFusion", "playtime", "squadFinder", "gameProvider", "showoff", "searchAnything"];
-      invalidateRuntimeEngines(targetGuildId, engineKeys);
+      if (forceRefresh) invalidateRuntimeEngines(targetGuildId, engineKeys);
       const results = await Promise.all(engineKeys.map(async (engine) => {
         try {
           return [engine, normalizePayload(await fetchRuntimeEngine(targetGuildId, engine, viewerUserId))] as const;
@@ -203,7 +203,40 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
 
   function updateConfig(engine: EngineKey, patch: Record<string, unknown>) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before editing its settings.`); return; } setEngines((prev) => ({ ...prev, [engine]: { ...prev[engine], config: { ...(prev[engine].config || {}), ...patch } } })); }
   async function saveConfig(engine: EngineKey, patch: Record<string, unknown>, okLabel: string) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before saving its settings.`); return; } try { setSaving(true); setMessage(""); const json = await saveRuntimeEngine(guildId, engine, patch, viewerUserId); setEngines((prev) => ({ ...prev, [engine]: normalizePayload(json) })); setMessage(okLabel); } catch (err: any) { setMessage(err?.message || "Save failed."); } finally { setSaving(false); } }
-  async function runAction(engine: EngineKey, action: string, payload: Record<string, unknown>, okLabel: string): Promise<any> { if (engines[engine].loadError) { setMessage(`Reload ${engine} before running actions.`); return null; } try { setSaving(true); setMessage(""); const result: any = await runRuntimeEngineAction(guildId, engine, action, payload, viewerUserId); await loadAll(guildId, true); const outcome = result?.result || result; if (outcome?.ok === false) { setMessage(`Not completed: ${String(outcome.reason || outcome.error || "action declined").replace(/_/g, " ")}.`); } else if (action === "refreshPresence" && outcome?.captured !== undefined) { setMessage(`Presence refreshed. Updated ${Number(outcome.captured)} cached member activities.`); } else if (action === "refreshProviderUser" && outcome?.importedGames !== undefined) { setMessage(`Synced ${outcome.profile?.personaName || "Steam account"}: ${outcome.profile?.gameCount ?? 0} public games, ${Number(outcome.importedGames)} playtime records imported.`); } else if (action === "refreshProviderUser" && outcome?.profile?.characterCount !== undefined) { setMessage(`Destiny 2 synced: ${outcome.profile.characterCount} characters, ${Number(outcome.profile.totalHours || 0).toFixed(1)} hours played.`); } else if (action === "refreshProviderUser" && outcome?.statsRecord?.notes) { setMessage(`World of Warcraft synced: ${String(outcome.statsRecord.notes).slice(0, 220)}`); } else { setMessage(okLabel); } return outcome; } catch (err: any) { setMessage(err?.message || "Action failed."); return null; } finally { setSaving(false); } }
+  async function runAction(engine: EngineKey, action: string, payload: Record<string, unknown>, okLabel: string): Promise<any> {
+    if (engines[engine].loadError) {
+      setMessage(`Reload ${engine} before running actions.`);
+      return null;
+    }
+    try {
+      setSaving(true);
+      setMessage("");
+      const result: any = await runRuntimeEngineAction(guildId, engine, action, payload, viewerUserId);
+      await loadAll(guildId, true, true);
+      const outcome = result?.result || result;
+      if (outcome?.ok === false) {
+        setMessage(`Not completed: ${String(outcome.reason || outcome.error || "action declined").replace(/_/g, " ")}.`);
+      } else if (action === "removeIdentity" && Number(outcome?.removed || 0) === 0) {
+        setMessage("No matching linked account was found; it may already be disconnected.");
+      } else if (action === "refreshPresence" && outcome?.captured !== undefined) {
+        setMessage(`Presence refreshed. Updated ${Number(outcome.captured)} cached member activities.`);
+      } else if (action === "refreshProviderUser" && outcome?.importedGames !== undefined) {
+        setMessage(`Synced ${outcome.profile?.personaName || "Steam account"}: ${outcome.profile?.gameCount ?? 0} public games, ${Number(outcome.importedGames)} playtime records imported.`);
+      } else if (action === "refreshProviderUser" && outcome?.profile?.characterCount !== undefined) {
+        setMessage(`Destiny 2 synced: ${outcome.profile.characterCount} characters, ${Number(outcome.profile.totalHours || 0).toFixed(1)} hours played.`);
+      } else if (action === "refreshProviderUser" && outcome?.statsRecord?.notes) {
+        setMessage(`World of Warcraft synced: ${String(outcome.statsRecord.notes).slice(0, 220)}`);
+      } else {
+        setMessage(okLabel);
+      }
+      return outcome;
+    } catch (err: any) {
+      setMessage(err?.message || "Action failed.");
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
   const identitySummary = useMemo(() => engines.gameIdentity.summary || [], [engines.gameIdentity]);
   const presenceSummary = useMemo(() => engines.presenceFusion.summary || [], [engines.presenceFusion]);
   const playtimeSummary = useMemo(() => engines.playtime.summary || [], [engines.playtime]);
@@ -256,7 +289,7 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
     return `/api/games/auth/start?${params.toString()}`;
   }, [guildId, viewerUserId]);
   const pollMemberActivity = useCallback(async () => {
-    const liveKeys: EngineKey[] = ["gameIdentity", "presenceFusion", "squadFinder"];
+    const liveKeys: EngineKey[] = ["presenceFusion", "squadFinder"];
     invalidateRuntimeEngines(guildId, liveKeys);
     const results = await Promise.all(liveKeys.map(async (engine) => {
       try {
@@ -286,7 +319,7 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
     if (loading || mode === "admin") return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void pollMemberActivity();
-    }, 30_000);
+    }, 60_000);
     return () => window.clearInterval(timer);
   }, [guildId, loading, mode, pollMemberActivity]);
 
@@ -303,7 +336,7 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
     params.delete("authMessage");
     const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash || ""}`;
     window.history.replaceState({}, "", nextUrl);
-    if (providerAuth === "success") void loadAll(guildId, true);
+    if (providerAuth === "success") void loadAll(guildId, true, true);
   }, [guildId, loadAll]);
 
   if (loading) {
@@ -323,7 +356,7 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
         message={message}
         warnings={loadWarnings}
         adminHref={canManageServer ? adminHubHref : ""}
-        onReload={() => void loadAll(guildId)}
+        onReload={() => void loadAll(guildId, false, true)}
         onAction={runAction}
         buildConnectHref={buildConnectHref}
       />
@@ -359,13 +392,13 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
         <div role="alert" style={{ ...card, borderColor: "rgba(255,43,214,.55)", color: "#ffb3f0" }}>
           Some Gaming Hub data could not be loaded. Failed engines are isolated and cannot be edited or saved until reloaded.
           <ul style={{ marginBottom: 8 }}>{loadWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
-          <button type="button" style={button} disabled={loading} onClick={() => void loadAll(guildId)}>Retry loading</button>
+          <button type="button" style={button} disabled={loading} onClick={() => void loadAll(guildId, false, true)}>Retry loading</button>
         </div>
       ) : null}
       {loading ? <div style={{ marginTop: 10, color: "#ffb7b7" }}>Loading game social engines...</div> : null}
       {!loading ? (
         <>
-          <GameProviderAuthSettings onSaved={() => void loadAll(guildId, true)} />
+          <GameProviderAuthSettings onSaved={() => void loadAll(guildId, true, true)} />
           {playstationProfile ? (
             <div style={card}>
               <h3 style={sectionTitle}>PlayStation Sync: {playstationProfile.onlineId}</h3>
@@ -403,7 +436,7 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
                 </div>
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>Provider Login Buttons</div>
-                  <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 4 }}>Only working account sign-ins appear here. Networks without public third-party login are not shown as fake connect buttons.</div>
+                  <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 4 }}>Real sign-ins have connect buttons; other supported networks stay available as clearly labeled manual profile links.</div>
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
                     Connect Steam, Microsoft / Xbox, Epic Games, Battle.net, and Bungie with their network sign-in. PlayStation uses Possum&apos;s central service account, so members enter only an Online ID.
                   </div>
@@ -422,6 +455,8 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
                               <a href={buildConnectHref(entry.key)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>Connect</a>
                             ) : entry.mode === "psn_service" ? (
                               <span style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.ready ? "Online ID lookup" : "PSN service setup required"}</span>
+                            ) : entry.manualOnly ? (
+                              <span style={{ color: "#ffb3b3", fontSize: 12 }}>Manual profile link only</span>
                             ) : (
                               <span style={{ color: "#ffb3b3", fontSize: 12 }}>Owner setup required</span>
                             )}

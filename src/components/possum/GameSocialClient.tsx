@@ -444,7 +444,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
               <button type="button" style={button} disabled={saving} onClick={() => void runAction("presenceFusion", "prunePresence", {}, "Pruned stale presence snapshots.")}>Prune Stale Presence</button>
             </div>
             </fieldset>
-            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{livePlayers.length ? livePlayers.map((entry) => <div key={`${entry.userId}-${entry.title}`} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>) : <div style={{ color: "#ffb3b3" }}>No recent game presence captured.</div>}</div>
+            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{livePlayers.length ? livePlayers.map((entry) => <div key={`${entry.userId}-${entry.title}`} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div>{Array.isArray(entry.games) && entry.games.length > 1 ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>{entry.games.map((game: RuntimeRow, index: number) => <span key={`${entry.userId}-${game.applicationId || game.label}-${index}`} style={{ border: "1px solid rgba(255,0,0,.35)", borderRadius: 999, padding: "3px 8px", fontSize: 11 }}>{game.label}{game.details ? ` · ${game.details}` : ""}</span>)}</div> : null}</div>) : <div style={{ color: "#ffb3b3" }}>No recent game presence captured.</div>}</div>
           </div>
 
           <div style={card}>

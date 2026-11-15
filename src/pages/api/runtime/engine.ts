@@ -24,15 +24,15 @@ export const config = {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
+    const actorUserId = await readActorUserId(req);
     try {
-      await enforceDashboardRateLimit(req, "runtime_engine");
+      await enforceDashboardRateLimit(req, "runtime_engine", actorUserId);
     } catch (error: any) {
       if (isRateLimitError(error)) {
         return res.status(429).json({ success: false, error: "Too many runtime-engine requests. Please retry shortly." });
       }
     }
 
-    const actorUserId = await readActorUserId(req);
     if (!actorUserId) {
       return res.status(401).json({ success: false, error: "A valid dashboard session is required." });
     }

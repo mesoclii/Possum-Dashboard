@@ -110,8 +110,9 @@ function elapsedSince(value: string, now: number) {
   return Number.isFinite(started) && started <= now ? formatDuration((now - started) / 60000) : "";
 }
 
-function textList(value: any) {
-  return Array.isArray(value) ? value.join(", ") : "";
+function listItems(value: any, separators: RegExp) {
+  const values = Array.isArray(value) ? value : String(value || "").split(separators);
+  return values.map((entry) => String(entry || "").trim()).filter(Boolean);
 }
 
 function normalizeProviderKey(value: any) {
@@ -162,12 +163,16 @@ export default function MemberGamingHub({
   const [now, setNow] = useState(0);
   const [gameFilter, setGameFilter] = useState("");
   const [platformFilter, setPlatformFilter] = useState("");
-  const [favoriteGames, setFavoriteGames] = useState(() => textList(privacy.favoriteGames));
+  const [favoriteGames, setFavoriteGames] = useState(() => listItems(privacy.favoriteGames, /[,;\n]+/));
+  const [favoriteGameInput, setFavoriteGameInput] = useState("");
   const [lookingForTeam, setLookingForTeam] = useState(() => Boolean(privacy.lookingForTeam));
   const [privacyValues, setPrivacyValues] = useState<Record<string, boolean>>(() => Object.fromEntries(
     PRIVACY_TOGGLES.map((key) => [key, Boolean(privacy[key])]),
   ));
-  const [watchlistUserIds, setWatchlistUserIds] = useState(() => textList(privacy.watchlistUserIds));
+  const [watchlistUserIds, setWatchlistUserIds] = useState(() => listItems(privacy.watchlistUserIds, /[,;\s]+/));
+  const [watchlistInput, setWatchlistInput] = useState("");
+  const [manualAccountInputs, setManualAccountInputs] = useState<Record<string, string>>({});
+  const [profileInputError, setProfileInputError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchProvider, setSearchProvider] = useState(() => String(searchConfig.defaultProvider || ""));
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -181,12 +186,19 @@ export default function MemberGamingHub({
   const ownIdentities = rows(memberState.identities);
   const notifications = rows(memberState.notifications);
   const providers = rows(identity.details?.authProviders);
+  const providerCatalog = rows(identity.details?.providers);
   const stats = rows(engines.gameProvider?.details?.stats);
   const playtimeRecords = rows(engines.playtime?.details?.records);
   const squads = rows(engines.squadFinder?.details?.activeSquads);
   const enabledSearchProviders = rows(searchConfig.providers).filter((entry) => entry.enabled !== false);
   const viewer = identity.details?.viewer || {};
   const totalHours = getSummary(engines.playtime, "Total Hours", "0");
+
+  function accountProviderKeyFor(value: any) {
+    const key = normalizeProviderKey(value);
+    const catalogEntry = providerCatalog.find((entry) => normalizeProviderKey(entry.key) === key);
+    return normalizeProviderKey(catalogEntry?.accountProviderKey || key);
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -249,15 +261,77 @@ export default function MemberGamingHub({
     };
   }), [ownSessions, now]);
 
+  function addFavoriteGame(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const game = favoriteGameInput.trim().replace(/\s+/g, " ");
+    if (!game) {
+      setProfileInputError("Enter a game name before adding it.");
+      return;
+    }
+    if (favoriteGames.some((entry) => entry.toLowerCase() === game.toLowerCase())) {
+      setProfileInputError("That game is already in your favorites.");
+      return;
+    }
+    if (favoriteGames.length >= 12) {
+      setProfileInputError("You can save up to 12 favorite games.");
+      return;
+    }
+    setFavoriteGames((current) => [...current, game.slice(0, 80)]);
+    setFavoriteGameInput("");
+    setProfileInputError("");
+  }
+
+  function addWatchedMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const userId = watchlistInput.trim();
+    if (!/^\d{17,20}$/.test(userId)) {
+      setProfileInputError("Enter a Discord user ID that is 17 to 20 digits long.");
+      return;
+    }
+    if (watchlistUserIds.includes(userId)) {
+      setProfileInputError("That Discord user ID is already on your list.");
+      return;
+    }
+    if (watchlistUserIds.length >= 25) {
+      setProfileInputError("You can watch up to 25 Discord members.");
+      return;
+    }
+    setWatchlistUserIds((current) => [...current, userId]);
+    setWatchlistInput("");
+    setProfileInputError("");
+  }
+
+  async function saveManualAccount(providerKey: string, providerTitle: string) {
+    const handle = String(manualAccountInputs[providerKey] || "").trim();
+    if (!handle) return;
+    const result = await onAction("gameIdentity", "upsertIdentity", {
+      providerKey,
+      handle,
+      visibility: "server",
+    }, `Saved your ${providerTitle} profile link.`);
+    if (result) {
+      setManualAccountInputs((current) => ({ ...current, [providerKey]: "" }));
+    }
+  }
+
+  async function linkPlaystation() {
+    const onlineId = psnOnlineId.trim();
+    if (!onlineId) return;
+    const result = await onAction("gameIdentity", "upsertIdentity", {
+      providerKey: "playstation",
+      handle: onlineId,
+    }, "PlayStation account linked.");
+    if (result) setPsnOnlineId("");
+  }
+
   async function saveProfile() {
-    const cleanFavorites = [...new Set(favoriteGames.split(/[,;\n]+/).map((value) => value.trim()).filter(Boolean))].slice(0, 12);
     await onAction("privacyConsent", "saveProfile", {
       profile: {
         ...privacy,
         ...privacyValues,
-        favoriteGames: cleanFavorites,
+        favoriteGames: [...new Set(favoriteGames.map((value) => value.trim()).filter(Boolean))].slice(0, 12),
         lookingForTeam,
-        watchlistUserIds: watchlistUserIds.split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean),
+        watchlistUserIds: [...new Set(watchlistUserIds)].slice(0, 25),
       },
     }, "Saved your gaming profile.");
   }
@@ -447,46 +521,92 @@ export default function MemberGamingHub({
         <Card>
           <Heading detail="Connect through each platform's existing secure sign-in. Account actions are scoped to your Discord user.">Linked accounts</Heading>
           <div style={{ display: "grid", gap: 8 }}>
-            {providers.filter((provider) => provider.ready || provider.manualOnly).map((provider) => {
+            {providers.map((provider) => {
               const providerKey = normalizeProviderKey(provider.key);
-              const linked = ownIdentities.find((entry) => normalizeProviderKey(entry.providerKey) === providerKey);
+              const linked = ownIdentities.find((entry) => accountProviderKeyFor(entry.providerKey) === providerKey);
               return (
                 <div key={provider.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: 12, border: `1px solid ${colors.line}`, borderRadius: 12 }}>
-                  <div><strong>{provider.title}</strong><div style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>{linked ? `Connected as ${linked.handle}` : provider.value || "Not linked"}</div></div>
-                  {provider.mode === "psn_service" ? (
-                    <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                      <input style={{ ...field, width: 190 }} aria-label="PlayStation Online ID" placeholder="PlayStation Online ID" value={psnOnlineId} onChange={(event) => setPsnOnlineId(event.target.value)} />
-                      <button type="button" style={button} disabled={saving || !psnOnlineId.trim()} onClick={() => void onAction("gameIdentity", "upsertIdentity", { providerKey: "playstation", handle: psnOnlineId }, "PlayStation account linked.")}>Link PSN</button>
+                  <div>
+                    <strong>{provider.title}</strong>
+                    <div style={{ color: linked ? colors.accent : colors.muted, fontSize: 12, marginTop: 3 }}>
+                      {linked ? "Linked" : provider.ready ? "Not linked" : provider.manualOnly ? "Manual profile link available" : "Provider sign-in setup required"}
                     </div>
+                    {!linked && provider.mode !== "psn_service" && (!provider.ready || provider.manualOnly) ? (
+                      <div style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>Manual profile links do not authenticate or enable provider sync.</div>
+                    ) : null}
+                  </div>
+                  {linked ? (
+                    <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                      {provider.ready && provider.mode === "psn_service" ? (
+                        <button type="button" style={button} disabled={saving} onClick={() => void onAction("gameProvider", "refreshProviderUser", { providerKey: linked.providerKey, platform: linked.platformKey }, "Refreshed your PlayStation connection.")}>Refresh connection</button>
+                      ) : provider.ready ? (
+                        <a href={buildConnectHref(provider.key)} style={{ ...button, textDecoration: "none" }}>Refresh connection</a>
+                      ) : null}
+                      <button type="button" style={button} disabled={saving} onClick={() => void onAction("gameIdentity", "removeIdentity", { providerKey: linked.providerKey, platform: linked.platformKey }, "Disconnected your linked account.")}>Disconnect</button>
+                    </div>
+                  ) : provider.mode === "psn_service" ? (
+                    provider.ready ? (
+                      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                        <input style={{ ...field, width: 190 }} aria-label="PlayStation Online ID" placeholder="PlayStation Online ID" value={psnOnlineId} onChange={(event) => setPsnOnlineId(event.target.value)} />
+                        <button type="button" style={button} disabled={saving || !psnOnlineId.trim()} onClick={() => void linkPlaystation()}>Link PlayStation</button>
+                      </div>
+                    ) : <span style={{ color: colors.muted, fontSize: 12 }}>PlayStation service setup is required.</span>
                   ) : provider.ready ? (
-                    <a href={buildConnectHref(provider.key)} style={{ ...button, textDecoration: "none" }}>{linked ? "Reconnect" : "Connect"}</a>
-                  ) : <span style={{ color: colors.muted, fontSize: 12 }}>Owner setup is not ready</span>}
+                    <a href={buildConnectHref(provider.key)} style={{ ...button, textDecoration: "none" }}>Connect</a>
+                  ) : (
+                    <form onSubmit={(event) => { event.preventDefault(); void saveManualAccount(provider.key, provider.title); }} style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                      <input
+                        style={{ ...field, width: 210 }}
+                        maxLength={120}
+                        aria-label={`${provider.title} account name or ID`}
+                        placeholder="Account name or ID"
+                        value={manualAccountInputs[provider.key] || ""}
+                        onChange={(event) => setManualAccountInputs((current) => ({ ...current, [provider.key]: event.target.value }))}
+                      />
+                      <button type="submit" style={button} disabled={saving || !String(manualAccountInputs[provider.key] || "").trim()}>Save profile link</button>
+                    </form>
+                  )}
                 </div>
               );
             })}
-            {!providers.some((provider) => provider.ready || provider.manualOnly) ? <Empty>No supported account sign-ins are currently available.</Empty> : null}
+            {!providers.length ? <Empty>No platform account options are currently available.</Empty> : null}
           </div>
-          {ownIdentities.length ? (
-            <div style={{ display: "grid", gap: 7, marginTop: 12 }}>
-              {ownIdentities.map((entry) => (
-                <div key={entry.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", padding: 10, background: colors.panelSoft, borderRadius: 10 }}>
-                  <span>{entry.providerLabel}: {entry.handle}{entry.verified ? " · verified" : ""}</span>
-                  <button type="button" style={button} disabled={saving} onClick={() => void onAction("gameIdentity", "removeIdentity", { providerKey: entry.providerKey, platform: entry.platformKey }, "Removed your linked account.")}>Remove</button>
-                </div>
-              ))}
-            </div>
-          ) : null}
         </Card>
         <Card>
           <Heading detail="Choose what you share with other members. Private account credentials are never displayed here.">Profile and privacy</Heading>
-          <label style={{ display: "block", marginBottom: 12 }}>
-            Favorite games
-            <input style={{ ...field, marginTop: 6 }} maxLength={500} value={favoriteGames} onChange={(event) => setFavoriteGames(event.target.value)} placeholder="Minecraft, Apex Legends, ..." />
-          </label>
-          <label style={{ display: "block", marginBottom: 12 }}>
-            Watched Discord member IDs for personal live alerts
-            <input style={{ ...field, marginTop: 6 }} value={watchlistUserIds} onChange={(event) => setWatchlistUserIds(event.target.value)} placeholder="Member IDs separated by commas" />
-          </label>
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="favorite-game-input">Favorite games</label>
+            <form onSubmit={addFavoriteGame} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, marginTop: 6 }}>
+              <input id="favorite-game-input" style={field} maxLength={80} value={favoriteGameInput} onChange={(event) => setFavoriteGameInput(event.target.value)} placeholder="Add one game" />
+              <button type="submit" style={button} disabled={favoriteGames.length >= 12 || !favoriteGameInput.trim()}>Add game</button>
+            </form>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 8 }}>
+              {favoriteGames.map((game) => (
+                <div key={game} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 9px", border: `1px solid ${colors.line}`, borderRadius: 10, background: colors.panelSoft }}>
+                  <span>{game}</span>
+                  <button type="button" style={{ ...button, padding: "3px 7px" }} aria-label={`Remove ${game} from favorite games`} onClick={() => setFavoriteGames((current) => current.filter((entry) => entry !== game))}>Remove</button>
+                </div>
+              ))}
+              {!favoriteGames.length ? <span style={{ color: colors.muted, fontSize: 12 }}>No favorite games added yet.</span> : null}
+            </div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label htmlFor="watchlist-user-input">Watched Discord member IDs for personal live alerts</label>
+            <form onSubmit={addWatchedMember} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, marginTop: 6 }}>
+              <input id="watchlist-user-input" style={field} inputMode="numeric" maxLength={20} value={watchlistInput} onChange={(event) => setWatchlistInput(event.target.value)} placeholder="Add one Discord user ID" />
+              <button type="submit" style={button} disabled={watchlistUserIds.length >= 25 || !watchlistInput.trim()}>Add member</button>
+            </form>
+            <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
+              {watchlistUserIds.map((userId) => (
+                <div key={userId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", border: `1px solid ${colors.line}`, borderRadius: 10, background: colors.panelSoft }}>
+                  <span>{userId}</span>
+                  <button type="button" style={{ ...button, padding: "5px 8px" }} aria-label={`Remove watched Discord member ${userId}`} onClick={() => setWatchlistUserIds((current) => current.filter((entry) => entry !== userId))}>Remove</button>
+                </div>
+              ))}
+              {!watchlistUserIds.length ? <span style={{ color: colors.muted, fontSize: 12 }}>No members on your alert list yet.</span> : null}
+            </div>
+          </div>
+          {profileInputError ? <div role="alert" style={{ color: colors.warning, marginBottom: 10 }}>{profileInputError}</div> : null}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,210px),1fr))", gap: 8 }}>
             {[
               ["shareLinkedIdentities", "Share linked accounts"],

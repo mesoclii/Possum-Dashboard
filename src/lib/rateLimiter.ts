@@ -46,8 +46,10 @@ export function isRateLimitError(error: unknown): error is { msBeforeNext: numbe
 
 export async function enforceDashboardRateLimit(
   request: NextRequest | NextApiRequest,
-  scope = "api"
+  scope = "api",
+  subjectKey?: string
 ) {
-  const key = `${scope}:${getClientIp(request)}`;
+  const subject = String(subjectKey || "").trim();
+  const key = `${scope}:${subject ? `user:${subject}` : getClientIp(request)}`;
   await sharedLimiter.consume(key);
 }

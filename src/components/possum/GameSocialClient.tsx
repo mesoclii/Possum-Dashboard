@@ -318,14 +318,14 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <select style={input} value={identityForm.visibility} onChange={(event) => setIdentityForm((prev) => ({ ...prev, visibility: event.target.value }))}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "upsertIdentity", identityForm, "Saved your linked identity.")}>Save My Link</button>
+                  <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "upsertIdentity", identityForm, "Saved your linked identity.")}>{identityForm.providerKey === "playstation" ? "Find & Link PSN" : "Save My Link"}</button>
                   <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "removeIdentity", identityForm, "Removed your linked identity.")}>Remove My Link</button>
-                  <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "requestVerification", identityForm, "Verification challenge created.")}>Start Verification</button>
+                  {identityForm.providerKey !== "playstation" ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "requestVerification", identityForm, "Verification challenge created.")}>Start Verification</button> : null}
                 </div>
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>Provider Login Buttons</div>
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
-                    Steam OpenID and Microsoft / Xbox browser login are supported. Epic and Battle.net need owner-configured credentials. PlayStation and Rockstar use manual identity or public-profile links because they do not offer public third-party OAuth.
+                    Steam OpenID and Microsoft / Xbox browser login are supported. Epic and Battle.net need owner-configured credentials. PlayStation uses Possum's central PSN lookup: members enter only an Online ID. Rockstar remains a manual identity link.
                   </div>
                   {currentAuthProvider ? (
                     <div style={{ ...card, marginBottom: 0 }}>
@@ -337,7 +337,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                           : "No linked account through provider login yet."}
                       </div>
                       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                        {currentAuthProvider.ready && viewerUserId ? (
+                        {currentAuthProvider.ready && viewerUserId && currentAuthProvider.mode !== "psn_service" ? (
                           <a href={buildConnectHref(currentAuthProvider.key, identityForm.platform)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>
                             Connect with {currentAuthProvider.title}
                           </a>
@@ -360,7 +360,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                               <div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div>
                               <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>{linked ? `Connected as ${linked.handle}` : "Not linked yet"}</div>
                             </div>
-                            {entry.ready && viewerUserId ? (
+                            {entry.ready && viewerUserId && entry.mode !== "psn_service" ? (
                               <a href={buildConnectHref(entry.key)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>Connect</a>
                             ) : (
                               <button type="button" style={button} disabled>Unavailable</button>

@@ -373,6 +373,24 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{myIdentities.length ? myIdentities.map((entry) => <div key={entry.id} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.providerLabel} - {entry.handle}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.platformKey ? `${entry.platformLabel} | ` : ""}{entry.verified ? `verified via ${entry.verificationMethod || "verified"}` : entry.verificationState || "unverified"}</div>{entry.profileUrl ? <a href={entry.profileUrl} target="_blank" rel="noreferrer" style={{ color: "#ffb3f0", fontSize: 12 }}>Open public profile</a> : null}</div>) : <div style={{ color: "#ffb3b3" }}>No personal links saved yet.</div>}</div>
               </div>
               <div style={card}>
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>Custom PlayStation Network Link</div>
+                <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 10 }}>
+                  Sony does not provide public third-party PSN OAuth. This creates a Gaming Hub identity link using your PSN Online ID and optional public profile URL. It never asks for or stores your PlayStation password.
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <input style={input} value={identityForm.handle} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: "playstation", platform: "playstation", handle: event.target.value }))} placeholder="PlayStation Network Online ID" aria-label="PlayStation Network Online ID" />
+                  <input style={input} value={identityForm.accountId} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: "playstation", platform: "playstation", accountId: event.target.value }))} placeholder="PSN Account ID (optional)" aria-label="PSN Account ID" />
+                  <input style={input} value={identityForm.profileUrl} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: "playstation", platform: "playstation", profileUrl: event.target.value }))} placeholder="Public PSNProfiles URL (optional)" aria-label="Public PSN profile URL" />
+                  <select style={input} value={identityForm.visibility} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: "playstation", platform: "playstation", visibility: event.target.value }))}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  <button type="button" style={button} disabled={saving || !identityForm.handle.trim()} onClick={() => void runAction("gameIdentity", "upsertIdentity", { ...identityForm, providerKey: "playstation", platform: "playstation" }, "Saved your PlayStation Network link.")}>Save PlayStation Link</button>
+                  <button type="button" style={button} disabled={saving || !identityForm.handle.trim()} onClick={() => void runAction("gameIdentity", "requestVerification", { ...identityForm, providerKey: "playstation", platform: "playstation" }, "Created your PlayStation verification challenge.")}>Verify PlayStation Link</button>
+                  {identityForm.profileUrl.trim() ? <a href={identityForm.profileUrl} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none" }}>Open PSN Profile</a> : null}
+                </div>
+                <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 8 }}>Use a public profile URL from psnprofiles.com or profile.playstation.com. Linking is manual and never grants private account access.</div>
+              </div>
+              <div style={card}>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>My Privacy + Consent</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(140px,1fr))", gap: 8 }}>
                   <label><input type="checkbox" checked={Boolean(selfPrivacy.shareLinkedIdentities)} onChange={(event) => setSelfPrivacy((prev: any) => ({ ...prev, shareLinkedIdentities: event.target.checked }))} /> Share links</label>

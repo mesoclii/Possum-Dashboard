@@ -324,7 +324,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <input style={input} value={identityForm.userId} readOnly />
                   <select style={input} value={identityForm.providerKey} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{LINK_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <input style={input} placeholder={identityForm.providerKey === "playstation" ? "PlayStation Online ID" : "Gamertag / handle"} value={identityForm.handle} onChange={(event) => setIdentityForm((prev) => ({ ...prev, handle: event.target.value }))} />
-                  <select style={input} value={identityForm.platform} onChange={(event) => setIdentityForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
+                  {identityForm.providerKey !== "playstation" ? <select style={input} value={identityForm.platform} onChange={(event) => setIdentityForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select> : null}
                   {identityForm.providerKey !== "playstation" ? <input style={input} placeholder="Account ID / UID" value={identityForm.accountId} onChange={(event) => setIdentityForm((prev) => ({ ...prev, accountId: event.target.value }))} /> : <div style={{ color: "#ffb3b3", fontSize: 11 }}>Possum resolves your permanent PSN account ID automatically. Members only enter their Online ID.</div>}
                   {["rockstar", "steam"].includes(identityForm.providerKey) ? (
                     <>
@@ -332,7 +332,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                       <div style={{ color: "#ffb3b3", fontSize: 11 }}>Saved as a public link only. It does not verify ownership or unlock private stats.</div>
                     </>
                   ) : null}
-                  <select style={input} value={identityForm.visibility} onChange={(event) => setIdentityForm((prev) => ({ ...prev, visibility: event.target.value }))}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
+                  {identityForm.providerKey !== "playstation" ? <select style={input} value={identityForm.visibility} onChange={(event) => setIdentityForm((prev) => ({ ...prev, visibility: event.target.value }))}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select> : <div style={{ color: "#ffb3b3", fontSize: 11 }}>Only your Online ID is needed. The link uses your current default visibility.</div> }
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                   <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "upsertIdentity", identityForm, "Saved your linked identity.")}>{identityForm.providerKey === "playstation" ? "Find & Link PSN" : "Save My Link"}</button>

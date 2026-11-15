@@ -230,6 +230,9 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     (viewerUserId ? "member_gaming_portal" : "admin")
   );
   const canManageGaming = viewerScope === "admin";
+  const canManageServer = Object.values(engines).some((payload) => payload.details?.adminControlsAvailable === true);
+  const memberHubHref = `/dashboard/games?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(viewerUserId || "")}`;
+  const adminHubHref = `/dashboard/games/admin?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(viewerUserId || "")}`;
   const myIdentities = listRows(memberState?.identities);
   const myPendingVerifications = listRows(memberState?.pendingVerifications);
   const myNotifications = listRows(memberState?.notifications);
@@ -319,6 +322,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
         saving={saving}
         message={message}
         warnings={loadWarnings}
+        adminHref={canManageServer ? adminHubHref : ""}
         onReload={() => void loadAll(guildId)}
         onAction={runAction}
         buildConnectHref={buildConnectHref}
@@ -328,6 +332,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
 
   return (
     <div style={{ width: "100%", minWidth: 0 }}>
+      <Link href={memberHubHref} style={{ display: "inline-block", marginBottom: 10, color: "#b9f4e8", fontSize: 12, textDecoration: "underline" }}>Open member Gaming Hub</Link>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,140px),1fr))", gap: 10, alignItems: "stretch", marginBottom: 14 }}>
         <div style={{ minWidth: 0, padding: "10px 4px" }}>
           <div style={{ fontSize: 22, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900, color: "#ff4545" }}>Gaming Hub</div>

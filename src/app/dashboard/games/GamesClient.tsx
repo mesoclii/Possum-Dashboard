@@ -5,7 +5,7 @@ import { resolveGuildContext } from "@/lib/liveRuntime";
 import GameSocialClient from "@/components/possum/GameSocialClient";
 
 export default function GamesClient() {
-  const [guildContext, setGuildContext] = useState(() => resolveGuildContext());
+  const [guildContext, setGuildContext] = useState({ guildId: "", guildName: "", userId: "" });
   const guildId = guildContext.guildId;
   const guildName = guildContext.guildName;
 

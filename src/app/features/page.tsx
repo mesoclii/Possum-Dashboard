@@ -73,7 +73,7 @@ export default function FeaturesPage() {
     <>
       <MarketingHeader />
       <div style={shell}>
-      <div style={{ maxWidth: 1480, margin: "0 auto" }}>
+      <div style={{ width: "100%" }}>
         <section style={{ ...card, padding: 28, marginBottom: 22 }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(320px,0.8fr)", gap: 20 }}>
             <div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { buildPublicInviteUrl, buildSupportServerUrl } from "@/lib/publicLinks";
+import ProjectUpdateTimes from "@/components/possum/ProjectUpdateTimes";
 
 const navigation = [
   { href: "/features", label: "Features" },
@@ -60,7 +61,9 @@ export function MarketingFooter() {
         <div className="site-footer-bottom">
           <span>© {new Date().getFullYear()} Possum Bot</span>
           <span>Independent project. Discord community platform.</span>
+          <span>Latest checked-out commits</span>
         </div>
+        <ProjectUpdateTimes />
         <div
           className="site-footer-credit"
           aria-label="Website design credit"
@@ -82,7 +85,7 @@ export function MarketingFooter() {
             Designed by
           </span>
           <strong style={{ color: "#ff3636", fontSize: "clamp(23px, 4.5vw, 42px)", lineHeight: 1.15, fontWeight: 950, letterSpacing: ".015em", textShadow: "0 0 22px rgba(255,54,54,.38)" }}>
-            aStonedPossum <span aria-hidden="true">&amp;</span> aCityRaccoon
+            aStonedPossum • aCityRaccoon • FluffyBnny
           </strong>
         </div>
       </div>

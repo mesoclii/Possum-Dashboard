@@ -51,7 +51,17 @@ export default function StatusPage() {
   const [status, setStatus] = useState<PublicStatus | null>(null);
   const [session, setSession] = useState<SessionState>({ loggedIn: false, isMasterOwner: false });
   const [message, setMessage] = useState("");
+  const [messageIsDynamic, setMessageIsDynamic] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [locale, setLocale] = useState("en");
+
+  useEffect(() => {
+    const updateLocale = () => setLocale(document.documentElement.lang === "es" ? "es" : "en");
+    updateLocale();
+    const observer = new MutationObserver(updateLocale);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -77,6 +87,7 @@ export default function StatusPage() {
     if (!canEdit || !status) return;
     setSaving(true);
     setMessage("");
+    setMessageIsDynamic(false);
     try {
       const res = await fetch("/api/status", {
         method: "POST",
@@ -89,8 +100,10 @@ export default function StatusPage() {
       }
       setStatus(json.status || status);
       setMessage("Public status updated.");
+      setMessageIsDynamic(false);
     } catch (error: any) {
       setMessage(error?.message || "Failed to save public status.");
+      setMessageIsDynamic(Boolean(error?.message && error.message !== "Failed to save public status."));
     } finally {
       setSaving(false);
     }
@@ -100,7 +113,7 @@ export default function StatusPage() {
     <>
       <MarketingHeader />
       <div style={shell}>
-      <div style={{ maxWidth: 1380, margin: "0 auto" }}>
+      <div style={{ width: "100%" }}>
         <section style={{ ...card, marginBottom: 20, padding: 26 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 18, flexWrap: "wrap", alignItems: "center" }}>
             <div>
@@ -145,10 +158,16 @@ export default function StatusPage() {
               <div style={{ color: overallTone.text, fontSize: 34, fontWeight: 900, textTransform: "uppercase", marginTop: 8 }}>
                 {status?.overall || "online"}
               </div>
-              <div style={{ color: "#ffd4d4", marginTop: 10 }}>{status?.headline || "Loading system status..."}</div>
+              <div style={{ color: "#ffd4d4", marginTop: 10 }}>
+                {status?.headline ? <span data-no-translate>{status.headline}</span> : "Loading system status..."}
+              </div>
             </div>
           </div>
-          {message ? <div style={{ color: "#ffd37a", marginTop: 14 }}>{message}</div> : null}
+          {message ? (
+            <div style={{ color: "#ffd37a", marginTop: 14 }}>
+              {messageIsDynamic ? <span data-no-translate>{message}</span> : message}
+            </div>
+          ) : null}
         </section>
 
         {status ? (
@@ -159,10 +178,15 @@ export default function StatusPage() {
                   <div style={{ color: "#ff9c9c", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.14em" }}>
                     Public Message
                   </div>
-                  <div style={{ color: "#ffd7d7", fontSize: 24, fontWeight: 900, marginTop: 10 }}>{status.headline}</div>
-                  <div style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 12 }}>{status.message}</div>
+                  <div data-no-translate style={{ color: "#ffd7d7", fontSize: 24, fontWeight: 900, marginTop: 10 }}>{status.headline}</div>
+                  <div data-no-translate style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 12 }}>{status.message}</div>
                   <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 12 }}>
-                    Last updated: {status.updatedAt ? new Date(status.updatedAt).toLocaleString() : "Not updated yet"}
+                    <span>Last updated:</span>{" "}
+                    {status.updatedAt ? (
+                      <time data-no-translate>{new Date(status.updatedAt).toLocaleString(locale)}</time>
+                    ) : (
+                      "Not updated yet"
+                    )}
                   </div>
                 </div>
 
@@ -231,7 +255,7 @@ export default function StatusPage() {
                 return (
                   <div key={service.id} style={{ ...card, borderColor: tone.border, background: tone.bg }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                      <div style={{ color: "#ff5454", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      <div data-no-translate style={{ color: "#ff5454", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                         {service.label}
                       </div>
                       <div
@@ -250,7 +274,7 @@ export default function StatusPage() {
                         {service.status}
                       </div>
                     </div>
-                    <div style={{ color: "#ffd4d4", lineHeight: 1.6, marginTop: 10 }}>{service.summary}</div>
+                    <div data-no-translate style={{ color: "#ffd4d4", lineHeight: 1.6, marginTop: 10 }}>{service.summary}</div>
                     {canEdit ? (
                       <select
                         value={service.status}

@@ -593,3 +593,59 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
   .site-button { transition: none; }
 }
+
+
+/* Public site viewport and floating language control */
+html, body {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+body > div.min-h-screen {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.marketing-main,
+.info-main {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: clamp(16px, 4vw, 76px) !important;
+  padding-right: clamp(16px, 4vw, 76px) !important;
+}
+
+.site-header-inner,
+.site-footer-inner {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: clamp(16px, 4vw, 76px) !important;
+  padding-right: clamp(16px, 4vw, 76px) !important;
+}
+
+.possum-language-switcher {
+  position: fixed !important;
+  inset: auto 14px 14px auto !important;
+  display: inline-flex !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  max-width: max-content !important;
+  flex: 0 0 auto !important;
+  z-index: 99999 !important;
+}
+
+@media (max-width: 680px) {
+  .marketing-main,
+  .info-main,
+  .site-header-inner,
+  .site-footer-inner {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}

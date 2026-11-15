@@ -341,7 +341,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                     }) : <div style={{ color: "#ffb3b3" }}>No provider login rows available yet.</div>}
                   </div>
                 </div>
-                <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{myIdentities.length ? myIdentities.map((entry) => <div key={entry.id} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.providerLabel} - {entry.handle}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.platformKey ? `${entry.platformLabel} | ` : ""}{entry.verified ? `verified via ${entry.verificationMethod || "verified"}` : entry.verificationState || "unverified"}</div></div>) : <div style={{ color: "#ffb3b3" }}>No personal links saved yet.</div>}</div>
+                <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{myIdentities.length ? myIdentities.map((entry) => <div key={entry.id} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.providerLabel} - {entry.handle}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.platformKey ? `${entry.platformLabel} | ` : ""}{entry.verified ? `verified via ${entry.verificationMethod || "verified"}` : entry.verificationState || "unverified"}</div>{entry.profileUrl ? <a href={entry.profileUrl} target="_blank" rel="noreferrer" style={{ color: "#ffb3f0", fontSize: 12 }}>Open public profile</a> : null}</div>) : <div style={{ color: "#ffb3b3" }}>No personal links saved yet.</div>}</div>
               </div>
               <div style={card}>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>My Privacy + Consent</div>

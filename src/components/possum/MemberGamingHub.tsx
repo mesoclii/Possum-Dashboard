@@ -28,15 +28,15 @@ type Props = {
 };
 
 const colors = {
-  page: "#071018",
-  panel: "rgba(12, 24, 35, .9)",
-  panelSoft: "rgba(18, 35, 48, .72)",
-  line: "rgba(117, 184, 209, .2)",
-  text: "#eff7fa",
-  muted: "#9bb2bf",
-  accent: "#48d8c6",
-  accentSoft: "rgba(72, 216, 198, .13)",
-  warning: "#ffd27a",
+  page: "#09040a",
+  panel: "rgba(27, 8, 16, .94)",
+  panelSoft: "rgba(39, 10, 23, .8)",
+  line: "rgba(255, 47, 105, .32)",
+  text: "#fff0f5",
+  muted: "#d2a0b0",
+  accent: "#ff2b83",
+  accentSoft: "rgba(255, 43, 131, .16)",
+  warning: "#ff6b73",
 };
 
 const panel: CSSProperties = {
@@ -50,7 +50,7 @@ const panel: CSSProperties = {
 const field: CSSProperties = {
   width: "100%",
   color: colors.text,
-  background: "#09141d",
+  background: "#11060d",
   border: `1px solid ${colors.line}`,
   borderRadius: 10,
   padding: "11px 12px",
@@ -594,7 +594,7 @@ export default function MemberGamingHub({
 
   return (
     <div style={{ color: colors.text, width: "100%", minWidth: 0, display: "grid", gap: 14 }}>
-      <header style={{ ...panel, padding: "22px clamp(16px, 3vw, 30px)", background: "radial-gradient(ellipse at 85% 0%, rgba(72,216,198,.16), transparent 42%), linear-gradient(135deg, #0b1c28, #101a2b 70%, #15182a)" }}>
+      <header style={{ ...panel, padding: "22px clamp(16px, 3vw, 30px)", background: "radial-gradient(ellipse at 85% 0%, rgba(255,43,131,.2), transparent 42%), linear-gradient(135deg, #13050d, #210714 70%, #2b080c)" }}>
         <div style={{ color: colors.accent, fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 800 }}>Possum community</div>
         <h1 style={{ margin: "8px 0 4px", fontSize: "clamp(25px, 5vw, 38px)", letterSpacing: "-.03em" }}>Gaming Hub</h1>
         <div style={{ color: colors.muted }}>{guildName || guildId} · players, profiles, sessions, and teams</div>

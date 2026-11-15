@@ -254,7 +254,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
 
   return (
     <div style={{ width: "100%", minWidth: 0 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(180px,1fr) repeat(4,minmax(105px,150px))", gap: 10, alignItems: "stretch", marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,140px),1fr))", gap: 10, alignItems: "stretch", marginBottom: 14 }}>
         <div style={{ minWidth: 0, padding: "10px 4px" }}>
           <div style={{ fontSize: 22, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900, color: "#ff4545" }}>Gaming Hub</div>
           <div style={{ color: "#ff9e9e", marginTop: 4, fontSize: 12 }}>{guildName || guildId}</div>

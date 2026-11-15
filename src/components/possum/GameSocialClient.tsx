@@ -293,7 +293,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
               <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>
                 {playstationProfile.gameHistoryAvailable ? "PSN game history is available." : "PSN privacy settings currently hide game history."}
               </div>
-              {playstationProfile.games?.length ? <ul style={{ marginBottom: 0, color: "#ffd3d3" }}>{playstationProfile.games.slice(0, 8).map((game: any) => <li key={game.titleId || game.name}>{game.name}: {Number(game.hours || 0).toFixed(1)} hours</li>)}</ul> : null}
+              {playstationProfile.games?.length ? <ul style={{ marginBottom: 0, color: "#ffd3d3" }}>{playstationProfile.games.slice(0, 8).map((game: any) => <li key={game.titleId || game.name}>{game.name}: {Number(game.hours || 0).toFixed(1)} hours{game.lastPlayedDateTime ? ` · last played ${new Date(game.lastPlayedDateTime).toLocaleDateString()}` : ""}</li>)}</ul> : null}
               {playstationProfile.trophyTitles?.length ? <div style={{ marginTop: 8, color: "#ffd3d3", fontSize: 12 }}><strong>Recent trophy progress:</strong> {playstationProfile.trophyTitles.slice(0, 6).map((title: any) => `${title.name} (${Number(title.progress || 0)}%)`).join(" | ")}</div> : null}
             </div>
           ) : null}

@@ -419,7 +419,7 @@ export default function AccessControlClient() {
               Member Gaming Portal
             </h3>
             <div style={{ color: "#ffbcbc", fontSize: 12, marginBottom: 10 }}>
-              Lets non-staff members open only the Gaming Hub route (`/dashboard/games`) and run self-service gamer actions while all other dashboard routes stay blocked.
+              Gaming Hub (`/dashboard/games`), its personal Social Alerts, and Search Anything (`/dashboard/search-anything`) are already available to every current server member. This setting controls any additional custom member-portal routes only; it does not grant server administration access.
             </div>
             <label style={{ marginRight: 16 }}>
               <input
@@ -437,7 +437,7 @@ export default function AccessControlClient() {
                   style={{ ...input, minHeight: 80 }}
                   value={idsToCsv(cfg.memberGamingPortalRoleIds)}
                   onChange={(event) => setCfg((prev) => ({ ...prev, memberGamingPortalRoleIds: csvToIds(event.target.value) }))}
-                  placeholder="Role IDs that can open /dashboard/games"
+                  placeholder="Role IDs for additional member portal routes"
                 />
               </div>
               <div>
@@ -446,7 +446,7 @@ export default function AccessControlClient() {
                   style={{ ...input, minHeight: 80 }}
                   value={idsToCsv(cfg.memberGamingPortalUserIds)}
                   onChange={(event) => setCfg((prev) => ({ ...prev, memberGamingPortalUserIds: csvToIds(event.target.value) }))}
-                  placeholder="User IDs explicitly allowed into gaming portal"
+                  placeholder="User IDs for additional member portal routes"
                 />
               </div>
             </div>

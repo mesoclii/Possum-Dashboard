@@ -459,26 +459,16 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
           </div>
 
           <div style={card}>
-            <h3 style={sectionTitle}>Game Provider</h3>
+            <h3 style={sectionTitle}>Game Stats & Rank Sync</h3>
             <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Connect supported gaming networks once. Possum keeps each game attached to its parent account and uses available account data for profiles, playtime, and rank features.</div>
             <fieldset disabled={!canManageGaming} style={lockedGroup}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,160px),1fr))", gap: 10 }}>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["enabled"], true))} onChange={(event) => updateConfig("gameProvider", { enabled: event.target.checked })} /> Enabled</label>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["allowManualStats"], true))} onChange={(event) => updateConfig("gameProvider", { allowManualStats: event.target.checked })} /> Manual stats</label>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["allowManualMapRotation"], true))} onChange={(event) => updateConfig("gameProvider", { allowManualMapRotation: event.target.checked })} /> Manual maps</label>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["autoSyncRankRoles"], true))} onChange={(event) => updateConfig("gameProvider", { autoSyncRankRoles: event.target.checked })} /> Auto rank sync</label>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10, marginTop: 10 }}>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["removeOtherRankRoles"], true))} onChange={(event) => updateConfig("gameProvider", { removeOtherRankRoles: event.target.checked })} /> Remove lower roles</label>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["autoRefreshEnabled"], false))} onChange={(event) => updateConfig("gameProvider", { autoRefreshEnabled: event.target.checked })} /> Scheduled sync</label>
-              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["notifyRankChanges"], true))} onChange={(event) => updateConfig("gameProvider", { notifyRankChanges: event.target.checked })} /> Rank notices</label>
-              <select style={input} value={getValue(engines.gameProvider, ["failoverMode"], "keep_last_snapshot")} onChange={(event) => updateConfig("gameProvider", { failoverMode: event.target.value })}><option value="keep_last_snapshot">Keep last snapshot</option><option value="manual_fallback">Manual fallback</option><option value="disable_provider">Disable failing provider</option></select>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10, marginTop: 10 }}>
-              <input style={input} type="number" placeholder="Refresh interval (min)" value={getValue(engines.gameProvider, ["refreshIntervalMinutes"], 30)} onChange={(event) => updateConfig("gameProvider", { refreshIntervalMinutes: Number(event.target.value || 0) })} />
-              <input style={input} type="number" placeholder="Max users per cycle" value={getValue(engines.gameProvider, ["maxUsersPerCycle"], 6)} onChange={(event) => updateConfig("gameProvider", { maxUsersPerCycle: Number(event.target.value || 0) })} />
-              <input style={input} type="number" placeholder="Stale stats hours" value={getValue(engines.gameProvider, ["staleStatsHours"], 72)} onChange={(event) => updateConfig("gameProvider", { staleStatsHours: Number(event.target.value || 0) })} />
-              <input style={input} type="number" placeholder="Stale map hours" value={getValue(engines.gameProvider, ["staleMapHours"], 12)} onChange={(event) => updateConfig("gameProvider", { staleMapHours: Number(event.target.value || 0) })} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", gap: 10 }}>
+              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["enabled"], true))} onChange={(event) => updateConfig("gameProvider", { enabled: event.target.checked })} /> Gaming stats enabled</label>
+              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["allowManualStats"], true))} onChange={(event) => updateConfig("gameProvider", { allowManualStats: event.target.checked })} /> Allow stat snapshots</label>
+              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["allowManualMapRotation"], true))} onChange={(event) => updateConfig("gameProvider", { allowManualMapRotation: event.target.checked })} /> Allow map updates</label>
+              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["autoSyncRankRoles"], true))} onChange={(event) => updateConfig("gameProvider", { autoSyncRankRoles: event.target.checked })} /> Auto rank roles</label>
+              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["removeOtherRankRoles"], true))} onChange={(event) => updateConfig("gameProvider", { removeOtherRankRoles: event.target.checked })} /> Replace lower rank roles</label>
+              <label><input type="checkbox" checked={Boolean(getValue(engines.gameProvider, ["notifyRankChanges"], true))} onChange={(event) => updateConfig("gameProvider", { notifyRankChanges: event.target.checked })} /> Rank change notices</label>
             </div>
             <div style={{ marginTop: 10 }}>
               <select style={input} value={getValue(engines.gameProvider, ["notificationChannelId"], "")} onChange={(event) => updateConfig("gameProvider", { notificationChannelId: event.target.value })}>
@@ -486,7 +476,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 {messageChannels.map((channel) => <option key={channel.id} value={channel.id}>{formatChannelLabel(channel, channels)}</option>)}
               </select>
             </div>
-            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 10 }}>Accounts connect through their actual network sign-in. Per-game bridge routes and API-key boxes are not needed here.</div>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 10 }}>Network sign-in handles account connections. This section controls game stats and rank roles.</div>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button type="button" style={button} disabled={saving} onClick={() => void saveConfig("gameProvider", engines.gameProvider.config || {}, "Saved gaming settings.")}>Save gaming settings</button>
               <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "pruneProviderData", {}, "Removed expired gaming snapshots.")}>Clean old snapshots</button>
@@ -596,7 +586,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
               })}
             </div>
             </fieldset>
-            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>Live account sync status appears with each linked account. Unsupported third-party routes are not shown.</div>
+            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>Live account sync results appear here after a supported account refresh.</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 12, marginTop: 12 }}>
               <div style={{ display: "grid", gap: 8 }}>{statRows.length ? statRows.map((entry) => <div key={entry.id || entry.title} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>{entry.id && canManageGaming ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "removeStats", { recordId: entry.id }, "Removed provider stats snapshot.")}>Remove</button> : null}</div></div>) : <div style={{ color: "#ffb3b3" }}>No game stats snapshots recorded.</div>}</div>
               <div style={{ display: "grid", gap: 8 }}>{mapRows.length ? mapRows.map((entry) => <div key={entry.id || entry.title} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>{entry.id && canManageGaming ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameProvider", "removeMapRotation", { recordId: entry.id }, "Removed map rotation snapshot.")}>Remove</button> : null}</div></div>) : <div style={{ color: "#ffb3b3" }}>No map rotation snapshots recorded.</div>}</div>

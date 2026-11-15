@@ -230,7 +230,6 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     }
     return index;
   }, [myIdentities]);
-  const currentAuthProvider = useMemo(() => authProviders.find((entry) => normalizeIdentityProviderKey(entry.key) === normalizeIdentityProviderKey(identityForm.providerKey)) || null, [authProviders, identityForm.providerKey]);
   const buildConnectHref = useCallback((providerKey: string, platform = "") => {
     if (!guildId || !viewerUserId) return "";
     const params = new URLSearchParams();
@@ -323,28 +322,6 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
                     Connect Steam, Microsoft / Xbox, Epic Games, Battle.net, and Bungie with their network sign-in. PlayStation uses Possum&apos;s central service account, so members enter only an Online ID.
                   </div>
-                  {currentAuthProvider ? (
-                    <div style={{ ...card, marginBottom: 0 }}>
-                      <div style={{ fontWeight: 700 }}>{currentAuthProvider.title}</div>
-                      <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>{currentAuthProvider.value}</div>
-                      <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
-                        {identityAuthIndex.get(normalizeIdentityProviderKey(identityForm.providerKey))
-                          ? `Connected as ${identityAuthIndex.get(normalizeIdentityProviderKey(identityForm.providerKey))?.handle || "linked account"}`
-                          : "No linked account through provider login yet."}
-                      </div>
-                      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                        {currentAuthProvider.ready && viewerUserId && currentAuthProvider.mode !== "psn_service" ? (
-                          <a href={buildConnectHref(currentAuthProvider.key, identityForm.platform)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>
-                            Connect with {currentAuthProvider.title}
-                          </a>
-                        ) : currentAuthProvider.mode === "psn_service" ? (
-                          <span style={{ color: "#ffb3b3", fontSize: 12 }}>Use the Online ID field above.</span>
-                        ) : (
-                          <span style={{ color: "#ffb3b3", fontSize: 12 }}>Owner setup required</span>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
                   <div style={{ display: "grid", gap: 8 }}>
                     {authProviders.length ? authProviders.map((entry) => {
                       const linked = identityAuthIndex.get(normalizeIdentityProviderKey(entry.key));

@@ -113,7 +113,6 @@ function formatRoleMap(value: any) { return Object.entries(value && typeof value
 function parseRoleMap(value: string) { const out: Record<string, string> = {}; for (const line of String(value || "").split(/\r?\n/)) { const [tier, roleId] = line.split(":").map((entry) => String(entry || "").trim()); if (tier) out[tier] = roleId || ""; } return out; }
 function parseIdList(value: string) { return [...new Set(String(value || "").split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean))]; }
 function formatIdList(value: any) { return Array.isArray(value) ? value.join(", ") : ""; }
-function toggleProviderList(current: string[], value: string) { return current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]; }
 function runtimeCard(label: string, value: string) { return <div style={card}><div style={{ fontSize: 11, textTransform: "uppercase", color: "#ffadad" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 900 }}>{value}</div></div>; }
 function channelSupportsMessages(channel: GuildChannel) { return TEXT_CHANNEL_TYPES.has(Number(channel?.type)); }
 function formatChannelLabel(channel: GuildChannel, channels: GuildChannel[]) {
@@ -335,9 +334,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                         ) : currentAuthProvider.mode === "psn_service" ? (
                           <span style={{ color: "#ffb3b3", fontSize: 12 }}>Use the Online ID field above.</span>
                         ) : (
-                          <button type="button" style={button} disabled>
-                            Connect unavailable
-                          </button>
+                          <span style={{ color: "#ffb3b3", fontSize: 12 }}>Owner setup required</span>
                         )}
                       </div>
                     </div>
@@ -356,9 +353,9 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                             {entry.ready && viewerUserId && entry.mode !== "psn_service" ? (
                               <a href={buildConnectHref(entry.key)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>Connect</a>
                             ) : entry.mode === "psn_service" ? (
-                              <span style={{ color: "#ffb3b3", fontSize: 12 }}>Online ID lookup</span>
+                              <span style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.ready ? "Online ID lookup" : "PSN service setup required"}</span>
                             ) : (
-                              <button type="button" style={button} disabled>Unavailable</button>
+                              <span style={{ color: "#ffb3b3", fontSize: 12 }}>Owner setup required</span>
                             )}
                           </div>
                         </div>

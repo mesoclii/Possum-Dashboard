@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
-const ACCESS_CACHE_TTL_MS = 15 * 60 * 1000;
+const ACCESS_CACHE_TTL_MS = 60 * 1000;
 const SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 
 type AccessCacheEntry = {
@@ -74,7 +74,7 @@ function accessReasonLabel(reason: string) {
 }
 
 function accessCacheKey(guildId: string, userId: string, routePath: string) {
-  return `dashboard-access:${guildId}:${userId}:${routePath || "/"}`;
+  return `dashboard-access-v2:${guildId}:${userId}:${routePath || "/"}`;
 }
 
 function sessionCacheKey() {
@@ -107,6 +107,11 @@ function readAccessCache(guildId: string, userId: string, routePath: string): Ac
 
 function writeAccessCache(guildId: string, userId: string, routePath: string, entry: Omit<AccessCacheEntry, "checkedAt">) {
   if (typeof window === "undefined" || !guildId || !userId) {
+    return;
+  }
+
+  if (!entry.allowed) {
+    try { sessionStorage.removeItem(accessCacheKey(guildId, userId, routePath)); } catch {}
     return;
   }
 

@@ -124,7 +124,7 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
       {authorized ? (
         <>
           <p style={{ color: "#ffb7b7", fontSize: 12 }}>
-            Add OAuth details here instead of editing .env. Secrets are sent over HTTPS, encrypted on the bot server, and never returned to the dashboard. Blank fields keep the saved value.
+            Add provider credentials here instead of editing .env. Secrets are sent over HTTPS, encrypted on the bot server, and never returned to the dashboard. Blank fields keep the saved value.
           </p>
           <p style={{ color: "#ffb7b7", fontSize: 12 }}>
             Battle.net login requests the WoW profile permission for character discovery. Existing Battle.net links must reconnect once to approve that added permission. Epic login verifies Epic identity; Fortnite stats still require a supported stats data source.

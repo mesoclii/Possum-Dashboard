@@ -358,6 +358,8 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                           <a href={buildConnectHref(currentAuthProvider.key, identityForm.platform)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>
                             Connect with {currentAuthProvider.title}
                           </a>
+                        ) : currentAuthProvider.mode === "psn_service" ? (
+                          <span style={{ color: "#ffb3b3", fontSize: 12 }}>Use the Online ID field above.</span>
                         ) : (
                           <button type="button" style={button} disabled>
                             Connect unavailable
@@ -379,6 +381,8 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                             </div>
                             {entry.ready && viewerUserId && entry.mode !== "psn_service" ? (
                               <a href={buildConnectHref(entry.key)} style={{ ...button, textDecoration: "none", textAlign: "center" }}>Connect</a>
+                            ) : entry.mode === "psn_service" ? (
+                              <span style={{ color: "#ffb3b3", fontSize: 12 }}>Online ID lookup</span>
                             ) : (
                               <button type="button" style={button} disabled>Unavailable</button>
                             )}

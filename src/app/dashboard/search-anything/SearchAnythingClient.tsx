@@ -96,8 +96,39 @@ export default function SearchAnythingClient() {
     setPreviewUrl(String((result as { url?: string } | null)?.url || ""));
   }
 
+  const memberView = String((details as any)?.viewerScope || "") === "member_gaming_portal";
+
   if (!guildId) {
     return <div style={{ ...shell, color: "#ff8a8a" }}>Missing guildId. Open from `/guilds` first.</div>;
+  }
+
+  if (memberView) {
+    return (
+      <div style={shell}>
+        <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Search Anything</h1>
+        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+        <p style={micro}>Search using the providers enabled by this server. Your search does not change server settings.</p>
+        {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
+        {loading ? <section style={card}>Loading Search Anything...</section> : (
+          <section style={card}>
+            {!cfg.enabled ? <p style={micro}>Search Anything has not been enabled by this server's administrators yet.</p> : (
+              <>
+                <label style={{ display: "block", marginBottom: 8 }}>Search provider
+                  <select style={{ ...input, marginTop: 6 }} value={previewProvider || cfg.defaultProvider} onChange={(event) => setPreviewProvider(event.target.value)}>
+                    {cfg.providers.filter((provider) => provider.enabled).map((provider) => <option key={provider.key} value={provider.key}>{provider.label}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: "block", marginBottom: 8 }}>What are you looking for?
+                  <input style={{ ...input, marginTop: 6 }} value={previewQuery} maxLength={180} onChange={(event) => setPreviewQuery(event.target.value)} placeholder="Search games, guides, communities, and more" />
+                </label>
+                <button type="button" style={button} disabled={saving || !previewQuery.trim()} onClick={() => void previewSearch()}>{saving ? "Searching..." : "Search"}</button>
+                {previewUrl ? <div style={{ marginTop: 12 }}><a href={previewUrl} target="_blank" rel="noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Open search results</a></div> : null}
+              </>
+            )}
+          </section>
+        )}
+      </div>
+    );
   }
 
   return (

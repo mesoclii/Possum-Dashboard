@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent, ReactNode } from "react";
+import { possum } from "@/styles/possumTheme";
 
 type Payload = {
   config?: Record<string, any>;
@@ -28,15 +29,15 @@ type Props = {
 };
 
 const colors = {
-  page: "#09040a",
-  panel: "rgba(27, 8, 16, .94)",
-  panelSoft: "rgba(39, 10, 23, .8)",
-  line: "rgba(255, 47, 105, .32)",
-  text: "#fff0f5",
-  muted: "#d2a0b0",
-  accent: "#ff2b83",
-  accentSoft: "rgba(255, 43, 131, .16)",
-  warning: "#ff6b73",
+  page: "#000000",
+  panel: "rgba(10, 0, 0, .94)",
+  panelSoft: "rgba(20, 0, 0, .82)",
+  line: possum.border,
+  text: "#ffd3d3",
+  muted: "#ff9e9e",
+  accent: "#ff2e75",
+  accentSoft: "rgba(255, 46, 117, .16)",
+  warning: "#ff4a4a",
 };
 
 const panel: CSSProperties = {
@@ -44,13 +45,13 @@ const panel: CSSProperties = {
   borderRadius: 16,
   padding: 18,
   background: colors.panel,
-  boxShadow: "0 16px 48px rgba(0,0,0,.2)",
+  boxShadow: possum.glowSoft,
 };
 
 const field: CSSProperties = {
   width: "100%",
   color: colors.text,
-  background: "#11060d",
+  background: "#070707",
   border: `1px solid ${colors.line}`,
   borderRadius: 10,
   padding: "11px 12px",
@@ -594,7 +595,7 @@ export default function MemberGamingHub({
 
   return (
     <div style={{ color: colors.text, width: "100%", minWidth: 0, display: "grid", gap: 14 }}>
-      <header style={{ ...panel, padding: "22px clamp(16px, 3vw, 30px)", background: "radial-gradient(ellipse at 85% 0%, rgba(255,43,131,.2), transparent 42%), linear-gradient(135deg, #13050d, #210714 70%, #2b080c)" }}>
+      <header style={{ ...panel, padding: "22px clamp(16px, 3vw, 30px)", background: "radial-gradient(ellipse at 85% 0%, rgba(255,0,0,.16), transparent 42%), linear-gradient(135deg, #050000, #100000 70%, #1a0000)" }}>
         <div style={{ color: colors.accent, fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 800 }}>Possum community</div>
         <h1 style={{ margin: "8px 0 4px", fontSize: "clamp(25px, 5vw, 38px)", letterSpacing: "-.03em" }}>Gaming Hub</h1>
         <div style={{ color: colors.muted }}>{guildName || guildId} · players, profiles, sessions, and teams</div>

@@ -315,7 +315,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>Provider Login Buttons</div>
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
-                    Connect Steam, Microsoft / Xbox, Epic Games, Battle.net, and Bungie with their network sign-in. PlayStation uses Possum's central service account, so members enter only an Online ID.
+                    Connect Steam, Microsoft / Xbox, Epic Games, Battle.net, and Bungie with their network sign-in. PlayStation uses Possum&apos;s central service account, so members enter only an Online ID.
                   </div>
                   {currentAuthProvider ? (
                     <div style={{ ...card, marginBottom: 0 }}>

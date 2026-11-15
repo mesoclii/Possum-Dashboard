@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 
 type ProviderStatus = {
-  key: "battlenet" | "epic" | "bungie" | "playstation";
+  key: "steam" | "battlenet" | "epic" | "bungie" | "playstation";
   label: string;
   ready: boolean;
   missing: string[];
@@ -16,6 +16,7 @@ type ProviderStatus = {
 };
 
 type ProviderCredentials = {
+  steam: { apiKey: string };
   battlenet: { clientId: string; clientSecret: string };
   epic: { clientId: string; clientSecret: string; deploymentId: string };
   bungie: { clientId: string; clientSecret: string; apiKey: string };
@@ -25,6 +26,7 @@ type ProviderCredentials = {
 type Props = { onSaved: () => void };
 
 const initialCredentials: ProviderCredentials = {
+  steam: { apiKey: "" },
   battlenet: { clientId: "", clientSecret: "" },
   epic: { clientId: "", clientSecret: "", deploymentId: "" },
   bungie: { clientId: "", clientSecret: "", apiKey: "" },
@@ -130,6 +132,16 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
             Battle.net login requests the WoW profile permission for character discovery. Existing Battle.net links must reconnect once to approve that added permission. Epic login verifies Epic identity; Fortnite stats still require a supported stats data source.
           </p>
           <form onSubmit={saveCredentials} style={{ display: "grid", gap: 12 }}>
+            <div style={panel}>
+              <strong>Steam</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                Steam sign-in works without a key. Add a Steam Web API key to sync public profile details and owned-game playtime.
+                {" | "}
+                <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer">Get a Steam Web API key</a>
+                <div style={{ marginTop: 4 }}>{loading ? "Checking setup..." : providerStatus("steam")?.hasApiKey ? "Library sync key saved" : "Library sync key not configured"}</div>
+              </div>
+              <input style={input} type="password" autoComplete="new-password" placeholder="Steam Web API key" value={credentials.steam.apiKey} onChange={(event) => updateCredential("steam", "apiKey", event.target.value)} />
+            </div>
             <div style={panel}>
               <strong>Battle.net</strong>
               <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>

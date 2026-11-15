@@ -23,36 +23,28 @@ const button: CSSProperties = { ...input, width: "auto", fontWeight: 800, cursor
 const sectionTitle: CSSProperties = { marginTop: 0, color: "#ff6666", textTransform: "uppercase", letterSpacing: "0.08em" };
 const lockedGroup: CSSProperties = { border: 0, padding: 0, margin: 0, minWidth: 0 };
 const LINK_PROVIDERS = [
-  { value: "apex", label: "Apex Legends" },
-  { value: "battlenet", label: "Battle.net" },
-  { value: "fortnite", label: "Fortnite" },
-  { value: "cod", label: "Call of Duty" },
-  { value: "wow", label: "World of Warcraft" },
-  { value: "overwatch2", label: "Overwatch 2" },
-  { value: "diablo4", label: "Diablo IV" },
-  { value: "destiny2", label: "Destiny 2" },
-  { value: "valorant", label: "VALORANT" },
-  { value: "leagueoflegends", label: "League of Legends" },
-  { value: "rocketleague", label: "Rocket League" },
-  { value: "gtaonline", label: "GTA Online" },
-  { value: "minecraft", label: "Minecraft" },
   { value: "steam", label: "Steam" },
-  { value: "xbox", label: "Xbox" },
+  { value: "xbox", label: "Microsoft / Xbox" },
   { value: "playstation", label: "PlayStation Network" },
-
-  { value: "nintendo", label: "Nintendo" },
-  { value: "epic", label: "Epic Games" },
-  { value: "activision", label: "Activision ID" },
-  { value: "ea", label: "EA" },
-  { value: "riot", label: "Riot" },
-  { value: "bungie", label: "Bungie" },
-  { value: "ubisoft", label: "Ubisoft Connect" },
-  { value: "rockstar", label: "Rockstar Social Club" },
+  { value: "fortnite", label: "Fortnite / Epic Games" },
+  { value: "rocketleague", label: "Rocket League / Epic Games" },
+  { value: "wow", label: "World of Warcraft / Battle.net" },
+  { value: "overwatch2", label: "Overwatch 2 / Battle.net" },
+  { value: "diablo4", label: "Diablo IV / Battle.net" },
+  { value: "destiny2", label: "Destiny 2 / Bungie" },
+  { value: "minecraft", label: "Minecraft / Microsoft" },
+];
+const STATS_PROVIDERS = [
+  { value: "apex", label: "Apex Legends" }, { value: "fortnite", label: "Fortnite" },
+  { value: "cod", label: "Call of Duty" }, { value: "wow", label: "World of Warcraft" },
+  { value: "overwatch2", label: "Overwatch 2" }, { value: "diablo4", label: "Diablo IV" },
+  { value: "destiny2", label: "Destiny 2" }, { value: "valorant", label: "VALORANT" },
+  { value: "leagueoflegends", label: "League of Legends" }, { value: "rocketleague", label: "Rocket League" },
+  { value: "gtaonline", label: "GTA Online" }, { value: "minecraft", label: "Minecraft" },
   { value: "custom", label: "Custom / Other" },
 ];
-const STATS_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["apex", "fortnite", "cod", "wow", "overwatch2", "diablo4", "destiny2", "valorant", "leagueoflegends", "rocketleague", "gtaonline", "minecraft", "custom"].includes(entry.value));
-const MAP_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["apex", "cod", "overwatch2"].includes(entry.value));
-const ADAPTER_PROVIDERS = LINK_PROVIDERS.filter((entry) => ["steam", "epic", "xbox", "battlenet", "playstation", "destiny2"].includes(entry.value));
+const MAP_PROVIDERS = STATS_PROVIDERS.filter((entry) => ["apex", "cod", "overwatch2"].includes(entry.value));
+const SYNC_PROVIDERS = LINK_PROVIDERS;
 const ROLE_SYNC_GAMES = [
   { key: "apex", label: "Apex Role Map", tiers: ["rookie", "bronze", "silver", "gold", "platinum", "diamond", "master", "predator"] },
   { key: "fortnite", label: "Fortnite Role Map", tiers: ["bronze", "silver", "gold", "platinum", "diamond", "elite", "champion", "unreal"] },
@@ -217,9 +209,6 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   const playtimeClaims = listRows(engines.playtime.details?.claims);
   const statRows = listRows(engines.gameProvider.details?.stats);
   const mapRows = listRows(engines.gameProvider.details?.mapRotations);
-  const providerCapabilities = listRows(engines.gameProvider.details?.capabilities);
-  const launcherReadiness = listRows(engines.gameProvider.details?.launcherReadiness);
-  const providerHealth = listRows(engines.gameProvider.details?.syncHealth);
   const authProviders = listRows(engines.gameIdentity.details?.authProviders);
   const playstationProfile = engines.gameIdentity.details?.playstationProfile || null;
   const showoffRows = listRows(engines.showoff.details?.previews);
@@ -317,26 +306,20 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                 <div style={{ display: "grid", gap: 8 }}>
                   <input style={input} value={identityForm.userId} readOnly />
                   <select style={input} value={identityForm.providerKey} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{LINK_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
-                  <input style={input} placeholder={identityForm.providerKey === "playstation" ? "PlayStation Online ID" : "Gamertag / handle"} value={identityForm.handle} onChange={(event) => setIdentityForm((prev) => ({ ...prev, handle: event.target.value }))} />
-                  {identityForm.providerKey !== "playstation" ? <select style={input} value={identityForm.platform} onChange={(event) => setIdentityForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select> : null}
-                  {identityForm.providerKey !== "playstation" ? <input style={input} placeholder="Account ID / UID" value={identityForm.accountId} onChange={(event) => setIdentityForm((prev) => ({ ...prev, accountId: event.target.value }))} /> : <div style={{ color: "#ffb3b3", fontSize: 11 }}>Possum resolves your permanent PSN account ID automatically. Members only enter their Online ID.</div>}
-                  {["rockstar", "steam"].includes(identityForm.providerKey) ? (
-                    <>
-                      <input style={input} placeholder="Public profile URL (optional)" value={identityForm.profileUrl} onChange={(event) => setIdentityForm((prev) => ({ ...prev, profileUrl: event.target.value }))} />
-                      <div style={{ color: "#ffb3b3", fontSize: 11 }}>Saved as a public link only. It does not verify ownership or unlock private stats.</div>
-                    </>
-                  ) : null}
-                  {identityForm.providerKey !== "playstation" ? <select style={input} value={identityForm.visibility} onChange={(event) => setIdentityForm((prev) => ({ ...prev, visibility: event.target.value }))}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select> : <div style={{ color: "#ffb3b3", fontSize: 11 }}>Only your Online ID is needed. The link uses your current default visibility.</div> }
+                  {identityForm.providerKey === "playstation" ? <input style={input} placeholder="PlayStation Online ID" value={identityForm.handle} onChange={(event) => setIdentityForm((prev) => ({ ...prev, handle: event.target.value }))} /> : <div style={{ color: "#ffb3b3", fontSize: 11 }}>Connect securely through the platform sign-in below. No gamertag, account ID, or profile URL is needed.</div> }
+                  
+                  {identityForm.providerKey === "playstation" ? <div style={{ color: "#ffb3b3", fontSize: 11 }}>Possum resolves your permanent PSN account ID automatically.</div> : null}
+                  <div style={{ color: "#ffb3b3", fontSize: 11 }}>Your account uses your saved privacy settings. Change sharing below at any time.</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "upsertIdentity", identityForm, "Saved your linked identity.")}>{identityForm.providerKey === "playstation" ? "Find & Link PSN" : "Save My Link"}</button>
+                  {identityForm.providerKey === "playstation" ? <button type="button" style={button} disabled={saving || !identityForm.handle.trim()} onClick={() => void runAction("gameIdentity", "upsertIdentity", identityForm, "Found and linked your PlayStation account.")}>Find & Link PSN</button> : null}
                   <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "removeIdentity", identityForm, "Removed your linked identity.")}>Remove My Link</button>
                   {identityForm.providerKey !== "playstation" ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("gameIdentity", "requestVerification", identityForm, "Verification challenge created.")}>Start Verification</button> : null}
                 </div>
                 <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 800 }}>Provider Login Buttons</div>
                   <div style={{ color: "#ffb3b3", fontSize: 12 }}>
-                    Steam OpenID and Microsoft / Xbox browser login are supported. Epic and Battle.net need owner-configured credentials. PlayStation uses Possum central PSN lookup: members enter only an Online ID. Rockstar remains a manual identity link.
+                    Connect Steam, Microsoft / Xbox, Epic Games, Battle.net, and Bungie with their network sign-in. PlayStation uses Possum's central service account, so members enter only an Online ID.
                   </div>
                   {currentAuthProvider ? (
                     <div style={{ ...card, marginBottom: 0 }}>
@@ -441,24 +424,6 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
               <label><input type="checkbox" checked={Boolean(getValue(engines.gameIdentity, ["allowSelfLink"], true))} onChange={(event) => updateConfig("gameIdentity", { allowSelfLink: event.target.checked })} /> Allow self link</label>
               <input style={input} type="number" placeholder="Max links per member" value={getValue(engines.gameIdentity, ["maxLinksPerMember"], 8)} onChange={(event) => updateConfig("gameIdentity", { maxLinksPerMember: Number(event.target.value || 0) })} />
               <select style={input} value={getValue(engines.gameIdentity, ["defaultVisibility"], "server")} onChange={(event) => updateConfig("gameIdentity", { defaultVisibility: event.target.value })}>{VISIBILITY.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 8 }}>Linkable providers</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", gap: 8 }}>
-                {LINK_PROVIDERS.map((entry) => {
-                  const current = Array.isArray(engines.gameIdentity.config?.allowedProviders) ? engines.gameIdentity.config?.allowedProviders : [];
-                  return (
-                    <label key={`identity-provider-${entry.value}`} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={current.includes(entry.value)}
-                        onChange={() => updateConfig("gameIdentity", { allowedProviders: toggleProviderList(current, entry.value) })}
-                      />
-                      <span>{entry.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,220px),1fr))", gap: 10, marginTop: 10 }}>
               <label><input type="checkbox" checked={Boolean(getValue(engines.privacyConsent, ["enabled"], true))} onChange={(event) => updateConfig("privacyConsent", { enabled: event.target.checked })} /> Privacy engine enabled</label>
@@ -571,7 +536,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
                   <select style={input} value={mapForm.sourceKey} onChange={(event) => setMapForm((prev) => ({ ...prev, sourceKey: event.target.value }))}>{SOURCES.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <input style={input} value={rankSyncForm.userId || viewerUserId || ""} readOnly />
                   <select style={input} value={rankSyncForm.gameKey} onChange={(event) => setRankSyncForm((prev) => ({ ...prev, gameKey: event.target.value }))}><option value="">All games</option>{ROLE_SYNC_GAMES.map((entry) => <option key={entry.key} value={entry.key}>{entry.label.replace(" Role Map", "")}</option>)}</select>
-                  <select style={input} value={refreshForm.providerKey} onChange={(event) => setRefreshForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{ADAPTER_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
+                  <select style={input} value={refreshForm.providerKey} onChange={(event) => setRefreshForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{SYNC_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <select style={input} value={refreshForm.platform} onChange={(event) => setRefreshForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>

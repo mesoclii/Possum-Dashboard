@@ -17,7 +17,7 @@ type EnginePayload = {
 };
 type GuildChannel = { id: string; name: string; type: number; parentId?: string | null; position?: number };
 type GuildRole = { id: string; name: string; position?: number };
-type Props = { guildId: string; guildName: string };
+type Props = { guildId: string; guildName: string; mode: "member" | "admin" };
 
 const card: CSSProperties = { border: "1px solid rgba(255,0,0,.22)", borderRadius: 12, padding: 12, background: "rgba(30,8,12,.42)", marginBottom: 10 };
 const input: CSSProperties = { width: "100%", background: "#070707", border: "1px solid rgba(255,0,0,.45)", color: "#ffd3d3", borderRadius: 10, padding: "10px 12px" };
@@ -127,7 +127,7 @@ function formatChannelLabel(channel: GuildChannel, channels: GuildChannel[]) {
   return parent?.name ? `${parent.name} / #${channel.name}` : `#${channel.name}`;
 }
 
-export default function GameSocialClient({ guildId, guildName }: Props) {
+export default function GameSocialClient({ guildId, guildName, mode }: Props) {
   const context = useMemo(() => resolveGuildContext(), []);
   const viewerUserId = context.userId;
   const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({ gameIdentity: {}, privacyConsent: {}, presenceFusion: {}, playtime: {}, squadFinder: {}, gameProvider: {}, showoff: {}, searchAnything: {} });
@@ -162,7 +162,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
       }));
       const next = Object.fromEntries(results) as Record<EngineKey, EnginePayload>;
       const accessScope = Object.values(next).find((payload) => payload.details?.viewerScope)?.details?.viewerScope;
-      const memberPortalView = String(accessScope || (viewerUserId ? "member_gaming_portal" : "admin")) !== "admin";
+      const memberPortalView = mode === "member" || String(accessScope || "") !== "admin";
       let guildData: any = {};
       let guildDataError = "";
       if (!memberPortalView) {
@@ -188,7 +188,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [viewerUserId]);
+  }, [mode, viewerUserId]);
 
   useEffect(() => { void loadAll(guildId); }, [guildId, loadAll]);
   useEffect(() => {
@@ -227,7 +227,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     engines.presenceFusion.details?.viewerScope ||
     engines.playtime.details?.viewerScope ||
     engines.searchAnything.details?.viewerScope ||
-    (viewerUserId ? "member_gaming_portal" : "admin")
+    "member_gaming_portal"
   );
   const canManageGaming = viewerScope === "admin";
   const canManageServer = Object.values(engines).some((payload) => payload.details?.adminControlsAvailable === true);
@@ -283,12 +283,12 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
   }, [guildId, viewerUserId]);
 
   useEffect(() => {
-    if (loading || canManageGaming) return;
+    if (loading || mode === "admin") return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void pollMemberActivity();
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [guildId, loading, canManageGaming, pollMemberActivity]);
+  }, [guildId, loading, mode, pollMemberActivity]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -310,7 +310,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
     return <div role="status" style={{ width: "100%", padding: 24, color: "#a9c5d1" }}>Loading Gaming Hub…</div>;
   }
 
-  if (!loading && !canManageGaming) {
+  if (!loading && mode === "member") {
     return (
       <MemberGamingHub
         key={`${guildId}:${viewerUserId || ""}`}
@@ -327,6 +327,15 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
         onAction={runAction}
         buildConnectHref={buildConnectHref}
       />
+    );
+  }
+
+  if (!loading && !canManageGaming) {
+    return (
+      <div role="alert" style={{ ...card, color: "#ff9e9e" }}>
+        Server gaming settings are available to authorized staff only.{" "}
+        <Link href={memberHubHref} style={{ color: "#ff2e75" }}>Open the member Gaming Hub</Link>
+      </div>
     );
   }
 

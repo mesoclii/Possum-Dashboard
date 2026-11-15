@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { resolveGuildContext } from "@/lib/liveRuntime";
 import GameSocialClient from "@/components/possum/GameSocialClient";
 
-export default function GamesClient() {
+type GamesClientProps = { mode: "member" | "admin" };
+
+export default function GamesClient({ mode }: GamesClientProps) {
   const [guildContext, setGuildContext] = useState({ guildId: "", guildName: "", userId: "" });
   const guildId = guildContext.guildId;
   const guildName = guildContext.guildName;
@@ -39,7 +41,7 @@ export default function GamesClient() {
 
   return (
     <div style={{ width: "100%", minWidth: 0 }}>
-      <GameSocialClient guildId={guildId} guildName={guildName} />
+      <GameSocialClient guildId={guildId} guildName={guildName} mode={mode} />
     </div>
   );
 }

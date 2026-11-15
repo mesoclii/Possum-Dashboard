@@ -82,7 +82,7 @@ export function MarketingFooter() {
             Designed by
           </span>
           <strong style={{ color: "#ff3636", fontSize: "clamp(23px, 4.5vw, 42px)", lineHeight: 1.15, fontWeight: 950, letterSpacing: ".015em", textShadow: "0 0 22px rgba(255,54,54,.38)" }}>
-            aStonedPossum <span aria-hidden="true">&amp;</span> aCityRaccoon
+            aStonedPossum • aCityRaccoon • FluffyBnny
           </strong>
         </div>
       </div>

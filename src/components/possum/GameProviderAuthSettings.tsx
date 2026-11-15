@@ -173,7 +173,9 @@ export default function GameProviderAuthSettings({ onSaved }: Props) {
               <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
                 {loading ? "Checking setup..." : providerStatus("playstation")?.ready ? "Central PSN service account ready" : "Needs one owner-managed PSN NPSSO. Members only enter their Online ID."}
                 {" | "}
-                <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noreferrer">Open Sony service-account credential endpoint</a>
+                <a href="https://www.playstation.com/" target="_blank" rel="noreferrer">Sign in to the central PSN service account</a>
+                {" | "}
+                <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noreferrer">Get its NPSSO</a>
               </div>
               <input style={input} type="password" autoComplete="new-password" placeholder="Central PSN service account NPSSO" value={credentials.playstation.npsso} onChange={(event) => updateCredential("playstation", "npsso", event.target.value)} />
               <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 6 }}>Treat NPSSO like a password. It is encrypted in the bot server-side vault and never returned to the browser.</div>

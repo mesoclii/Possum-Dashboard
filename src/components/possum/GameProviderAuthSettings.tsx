@@ -1,0 +1,210 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
+
+type ProviderStatus = {
+  key: "steam" | "battlenet" | "epic" | "bungie" | "playstation";
+  label: string;
+  ready: boolean;
+  missing: string[];
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasDeploymentId?: boolean;
+  hasApiKey?: boolean;
+  hasNpsso?: boolean;
+};
+
+type ProviderCredentials = {
+  steam: { apiKey: string };
+  battlenet: { clientId: string; clientSecret: string };
+  epic: { clientId: string; clientSecret: string; deploymentId: string };
+  bungie: { clientId: string; clientSecret: string; apiKey: string };
+  playstation: { npsso: string };
+};
+
+type Props = { onSaved: () => void };
+
+const initialCredentials: ProviderCredentials = {
+  steam: { apiKey: "" },
+  battlenet: { clientId: "", clientSecret: "" },
+  epic: { clientId: "", clientSecret: "", deploymentId: "" },
+  bungie: { clientId: "", clientSecret: "", apiKey: "" },
+  playstation: { npsso: "" },
+};
+
+const panel: CSSProperties = {
+  border: "1px solid rgba(255,0,0,.35)",
+  borderRadius: 12,
+  padding: 14,
+  background: "rgba(90,0,0,.10)",
+  marginBottom: 12,
+};
+const input: CSSProperties = {
+  width: "100%",
+  background: "#070707",
+  border: "1px solid rgba(255,0,0,.45)",
+  color: "#ffd3d3",
+  borderRadius: 10,
+  padding: "10px 12px",
+};
+const button: CSSProperties = { ...input, width: "auto", fontWeight: 800, cursor: "pointer" };
+
+export default function GameProviderAuthSettings({ onSaved }: Props) {
+  const [statuses, setStatuses] = useState<ProviderStatus[]>([]);
+  const [credentials, setCredentials] = useState<ProviderCredentials>(initialCredentials);
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/games/auth/settings", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json();
+        if (!response.ok || json?.success === false) {
+          throw new Error(json?.error || "Could not load provider setup status.");
+        }
+        if (active) {
+          setStatuses(Array.isArray(json.providers) ? json.providers : []);
+          setAuthorized(true);
+        }
+      })
+      .catch((error: any) => {
+        if (active) setMessage(error?.message || "Could not load provider setup status.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function updateCredential(provider: keyof ProviderCredentials, field: string, value: string) {
+    setCredentials((current) => ({
+      ...current,
+      [provider]: { ...current[provider], [field]: value },
+    }));
+  }
+
+  async function saveCredentials(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/games/auth/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providers: credentials }),
+      });
+      const json = await response.json();
+      if (!response.ok || json?.success === false) {
+        throw new Error(json?.error || "Could not save provider credentials.");
+      }
+      setStatuses(Array.isArray(json.providers) ? json.providers : []);
+      setCredentials(initialCredentials);
+      setMessage("Saved. Secret values are encrypted on the bot server and are never shown again.");
+      onSaved();
+    } catch (error: any) {
+      setMessage(error?.message || "Could not save provider credentials.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function providerStatus(key: ProviderStatus["key"]) {
+    return statuses.find((provider) => provider.key === key);
+  }
+
+  return (
+    <section style={panel}>
+      <h3 style={{ marginTop: 0, color: "#ff6666", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        Bot Owner: Provider Login Setup
+      </h3>
+      {authorized ? (
+        <>
+          <p style={{ color: "#ffb7b7", fontSize: 12 }}>
+            Add provider credentials here instead of editing .env. Secrets are sent over HTTPS, encrypted on the bot server, and never returned to the dashboard. Blank fields keep the saved value.
+          </p>
+          <p style={{ color: "#ffb7b7", fontSize: 12 }}>
+            Battle.net login requests the WoW profile permission for character discovery. Existing Battle.net links must reconnect once to approve that added permission. Epic login verifies Epic identity; Fortnite stats still require a supported stats data source.
+          </p>
+          <form onSubmit={saveCredentials} style={{ display: "grid", gap: 12 }}>
+            <div style={panel}>
+              <strong>Steam</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                Steam sign-in works without a key. Add a Steam Web API key to sync public profile details and owned-game playtime.
+                {" | "}
+                <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer">Get a Steam Web API key</a>
+                <div style={{ marginTop: 4 }}>{loading ? "Checking setup..." : providerStatus("steam")?.hasApiKey ? "Library sync key saved" : "Library sync key not configured"}</div>
+              </div>
+              <input style={input} type="password" autoComplete="new-password" placeholder="Steam Web API key" value={credentials.steam.apiKey} onChange={(event) => updateCredential("steam", "apiKey", event.target.value)} />
+            </div>
+            <div style={panel}>
+              <strong>Battle.net</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("battlenet")?.ready ? "Ready for login" : `Needs: ${providerStatus("battlenet")?.missing.join(", ") || "client ID and client secret"}`}
+                {" | "}
+                <a href="https://develop.battle.net/access/clients" target="_blank" rel="noreferrer">Open Battle.net developer portal</a>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input style={input} autoComplete="off" placeholder="Battle.net client ID" value={credentials.battlenet.clientId} onChange={(event) => updateCredential("battlenet", "clientId", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Battle.net client secret" value={credentials.battlenet.clientSecret} onChange={(event) => updateCredential("battlenet", "clientSecret", event.target.value)} />
+              </div>
+            </div>
+            <div style={panel}>
+              <strong>Epic Games</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("epic")?.ready ? "Ready for login" : `Needs: ${providerStatus("epic")?.missing.join(", ") || "client ID, client secret, and EOS deployment ID"}`}
+                {" | "}
+                <a href="https://dev.epicgames.com/portal/" target="_blank" rel="noreferrer">Open Epic developer portal</a>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input style={input} autoComplete="off" placeholder="Epic Games client ID" value={credentials.epic.clientId} onChange={(event) => updateCredential("epic", "clientId", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Epic Games client secret" value={credentials.epic.clientSecret} onChange={(event) => updateCredential("epic", "clientSecret", event.target.value)} />
+                <input style={input} autoComplete="off" placeholder="Epic EOS deployment ID" value={credentials.epic.deploymentId} onChange={(event) => updateCredential("epic", "deploymentId", event.target.value)} />
+              </div>
+            </div>
+            <div style={panel}>
+              <strong>Bungie / Destiny 2</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("bungie")?.ready ? "Ready for login" : `Needs: ${providerStatus("bungie")?.missing.join(", ") || "client ID, client secret, and API key"}`}
+                {" | "}
+                <a href="https://www.bungie.net/en/Application" target="_blank" rel="noreferrer">Open Bungie application portal</a>
+              </div>
+              <div style={{ display: "grid", gap: 8 }}>
+                <input style={input} autoComplete="off" placeholder="Bungie OAuth client ID" value={credentials.bungie.clientId} onChange={(event) => updateCredential("bungie", "clientId", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Bungie OAuth client secret" value={credentials.bungie.clientSecret} onChange={(event) => updateCredential("bungie", "clientSecret", event.target.value)} />
+                <input style={input} type="password" autoComplete="new-password" placeholder="Bungie API key" value={credentials.bungie.apiKey} onChange={(event) => updateCredential("bungie", "apiKey", event.target.value)} />
+              </div>
+            </div>
+            <div style={panel}>
+              <strong>PlayStation Network (central service account)</strong>
+              <div style={{ color: "#ffb7b7", fontSize: 12, margin: "4px 0 10px" }}>
+                {loading ? "Checking setup..." : providerStatus("playstation")?.ready ? "Central PSN service account ready" : "Needs one owner-managed PSN NPSSO. Members only enter their Online ID."}
+                {" | "}
+                <a href="https://www.playstation.com/" target="_blank" rel="noreferrer">Sign in to the central PSN service account</a>
+                {" | "}
+                <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noreferrer">Get its NPSSO</a>
+              </div>
+              <input style={input} type="password" autoComplete="new-password" placeholder="Central PSN service account NPSSO" value={credentials.playstation.npsso} onChange={(event) => updateCredential("playstation", "npsso", event.target.value)} />
+              <div style={{ color: "#ffb3b3", fontSize: 11, marginTop: 6 }}>Treat NPSSO like a password. It is encrypted in the bot server-side vault and never returned to the browser.</div>
+            </div>
+            <div>
+              <button type="submit" style={button} disabled={saving || loading}>
+                {saving ? "Saving securely..." : "Save provider credentials"}
+              </button>
+              {message ? <div role="status" style={{ marginTop: 8, color: "#ffb3f0" }}>{message}</div> : null}
+            </div>
+          </form>
+        </>
+      ) : (
+        <div role={loading ? "status" : "alert"} style={{ color: "#ffb7b7", fontSize: 12 }}>
+          {loading ? "Checking bot owner access..." : message || "Only bot owners can manage provider credentials."}
+        </div>
+      )}
+    </section>
+  );
+}

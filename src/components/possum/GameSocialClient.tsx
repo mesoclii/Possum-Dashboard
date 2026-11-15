@@ -653,7 +653,7 @@ export default function GameSocialClient({ guildId, guildName }: Props) {
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-              {playtimeRecords.length ? playtimeRecords.map((entry) => <div key={entry.id} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>{canManageGaming ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("playtime", "removeRecord", { recordId: entry.id }, "Playtime record removed.")}>Remove</button> : null}</div></div>) : <div style={{ color: "#ffb3b3" }}>No playtime records yet.</div>}
+              {playtimeRecords.length ? playtimeRecords.map((entry) => <div key={entry.id} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div>{entry.updatedAt ? <div style={{ color: "#ff9e9e", fontSize: 11, marginTop: 3 }}>Last played / synced {new Date(entry.updatedAt).toLocaleString()}</div> : null}</div>{canManageGaming ? <button type="button" style={button} disabled={saving} onClick={() => void runAction("playtime", "removeRecord", { recordId: entry.id }, "Playtime record removed.")}>Remove</button> : null}</div></div>) : <div style={{ color: "#ffb3b3" }}>No playtime records yet.</div>}
             </div>
           </div>
 

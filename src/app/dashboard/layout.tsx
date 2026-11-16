@@ -4,10 +4,11 @@ import PossumSidebar from "@/components/possum/PossumSidebar";
 import DashboardAccessGate from "@/components/possum/DashboardAccessGate";
 import GuildNameBootstrap from "@/components/possum/GuildNameBootstrap";
 import DashboardBanner from "@/components/possum/DashboardBanner";
+import "./dashboard-theme.css";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen possum-bg text-red-300">
+    <div className="possum-dashboard min-h-screen possum-bg text-red-300">
       <div className="flex min-h-screen w-full flex-col lg:flex-row">
         <aside className="flex w-full shrink-0 flex-col self-stretch border-b possum-divider bg-black/80 p-3 backdrop-blur possum-scroll lg:sticky lg:top-0 lg:h-screen lg:max-h-screen lg:w-80 lg:min-w-80 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
           <PossumSidebar />

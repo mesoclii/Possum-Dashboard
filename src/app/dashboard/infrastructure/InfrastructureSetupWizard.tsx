@@ -147,6 +147,7 @@ type ApiResponse = {
     loggingWarnings?: string[];
     role?: { id: string; name: string };
     deferred?: number;
+    reviewPanel?: { status?: string; message?: string } | null;
     message?: string;
     ok?: boolean;
     complete?: boolean;
@@ -646,12 +647,16 @@ export default function InfrastructureSetupWizard() {
       const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
       const failuresById = new Map<string, CreationFailure>();
       const loggingWarnings = new Set<string>();
+      let reviewPanelStatus = "";
+      let reviewPanelDeployed = false;
       const maxBatches = 100;
       let completed = false;
       for (let batch = 1; batch <= maxBatches; batch += 1) {
         setBatchProgress(`Creating approved resources (batch ${batch}; ${allCreated.length} created so far)…`);
-        const data = await callApi({ action: "provision", confirmed: true });
+        const data = await callApi({ action: "provision", confirmed: true, deployReviewPanel: previewSnapshot.features.includes("reviews") });
         const result = data.result || {};
+        if (result.reviewPanel?.status) reviewPanelStatus = result.reviewPanel.status;
+        if (result.reviewPanel?.status === "deployed") reviewPanelDeployed = true;
         const batchCreated = result.created || [];
         allCreated.push(...batchCreated);
         for (const warning of result.loggingWarnings || []) loggingWarnings.add(warning);
@@ -668,6 +673,9 @@ export default function InfrastructureSetupWizard() {
         }
         const deferred = Number(result.deferred || 0);
         if (deferred <= 0) {
+          if (reviewPanelStatus === "waiting") {
+            failuresById.set("reviews:panelMessage", { id: "reviews:panelMessage", name: "Review panel", error: "The review panel channel is not mapped; map it and retry setup." });
+          }
           completed = true;
           break;
         }
@@ -720,7 +728,7 @@ export default function InfrastructureSetupWizard() {
       setCreationFailures(finalFailures);
       setMessage(finalFailures.length
         ? `Setup created ${allCreated.length} resource(s), but ${finalFailures.length} resource(s) still need attention. See the failed resources below.`
-        : `Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty. Autopilot is ${autopilotEnabled ? "on" : "off"}; automatic resource creation is ${automaticProvisioningEnabled ? "on" : "off"}.${loggingWarnings.size ? ` Setup logs need attention: ${[...loggingWarnings].join("; ")}` : ""}`);
+        : `Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty.${reviewPanelDeployed ? " Review panel deployed." : reviewPanelStatus === "existing" ? " Existing review panel left unchanged." : ""} Autopilot is ${autopilotEnabled ? "on" : "off"}; automatic resource creation is ${automaticProvisioningEnabled ? "on" : "off"}.${loggingWarnings.size ? ` Setup logs need attention: ${[...loggingWarnings].join("; ")}` : ""}`);
       setBatchProgress("");
       if (!refreshed) throw new Error("Setup finished, but the refreshed infrastructure report could not be loaded.");
     } catch (cause: unknown) {
@@ -1099,7 +1107,7 @@ export default function InfrastructureSetupWizard() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Review and rename the proposed channels, categories, and roles before approval. Review and self-role channels are destinations only; deploy their panels separately.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Review and rename proposed resources before approval. Selected Reviews will deploy its panel only in an empty channel; existing or uncertain panels are left for review. Self-role panels are deployed separately.</p>
             </div>
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">
               {resourcesToCreate} resources to create · {roleProposals.reduce((count, proposal) => count + (
@@ -1262,7 +1270,7 @@ export default function InfrastructureSetupWizard() {
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
-            <button type="button" disabled={busy || previewDirty || (resourcesToCreate === 0 && mappingCount === 0)} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
+            <button type="button" disabled={busy || previewDirty || (resourcesToCreate === 0 && mappingCount === 0 && !previewSnapshot.features.includes("reviews"))} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
           </div>
         </section>
       ) : null}
@@ -1272,6 +1280,7 @@ export default function InfrastructureSetupWizard() {
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
             <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create {resourcesToCreate} missing channels, categories, and roles for this server. New channels are grouped by system category. {vipPrivateCreateCount ? `${vipPrivateCreateCount} selected new resource(s) will deny @everyone and allow the configured VIP role while preserving staff access.` : ""} Nothing will be deleted.</p>
+            {previewSnapshot.features.includes("reviews") ? <p className="mt-2 text-sm text-pink-100/80">Setup will also deploy a review panel in the mapped channel if it can verify that the channel is empty and no panel is already recorded. Otherwise it will ask for manual review.</p> : null}
             <details className="mt-3 rounded-lg border border-pink-900/40 p-3">
               <summary className="cursor-pointer text-sm font-bold">Show the full creation and mapping list</summary>
               <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-sm">

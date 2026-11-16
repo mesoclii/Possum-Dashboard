@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { resolveGuildContext } from "@/lib/liveRuntime";
+import PodcastVoiceBotSelect from "@/components/possum/PodcastVoiceBotSelect";
+import { readPodcastVoiceLane, type PodcastVoiceLane } from "@/lib/podcastVoiceLane";
 
 type Episode = { id: string; title: string; state: string; published: boolean; sourceEpisodeId?: string; reviewedAt?: string };
 type Control = { state: string; voiceLane: string; lastError: string; missingConsent: number; isAdmin: boolean; hostRoles: string[]; episodes: Episode[]; participants: { userId: string; displayName: string; consented: boolean }[]; accessConfig: { channelId: string; roleId: string; accessIntro?: string; consentIntro?: string } | null };
@@ -21,7 +23,7 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
   const [guildRoles, setGuildRoles] = useState<Role[]>([]);
   const [selectedHostRoles, setSelectedHostRoles] = useState<string[]>([]);
   const [title, setTitle] = useState("");
-  const [voiceLane, setVoiceLane] = useState("main");
+  const [voiceLane, setVoiceLane] = useState<PodcastVoiceLane | "">("main");
   const [panelTextChannel, setPanelTextChannel] = useState("");
   const [panelVoiceChannel, setPanelVoiceChannel] = useState("");
   const [panelRole, setPanelRole] = useState("");
@@ -72,7 +74,7 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
     setPanelTextChannel("");
     setPanelVoiceChannel("");
     setPanelRole("");
-    setVoiceLane("main");
+    setVoiceLane(readPodcastVoiceLane(window.location.search, guildId));
     setAccessIntro("");
     setConsentIntro("");
     void load();
@@ -173,17 +175,11 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
         ) : null}
         <p><a href={`/podcasts/${guildId}`} style={{ color: "#ff83aa" }}>Public listening page</a> · <a href={`/api/podcast/${guildId}/feed.xml`} style={{ color: "#ff83aa" }}>RSS feed</a></p>
         <label>Episode title <input style={field} maxLength={150} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Name your episode" /></label>
-        <label>Voice recording bot
-          <select style={field} value={voiceLane} onChange={(event) => setVoiceLane(event.target.value)} disabled={busy || (control?.state !== "idle")}>
-            <option value="main">Main bot (default)</option>
-            <option value="custom">Custom bot</option>
-            <option value="custom2">Second custom bot</option>
-            <option value="custom3">Third custom bot</option>
-          </select>
-        </label>
-        <p style={muted}>The selected bot must be ready and able to join this voice channel. Music and speech must be stopped while a podcast is prepared.</p>
+        <PodcastVoiceBotSelect style={field} value={voiceLane} onChange={setVoiceLane} disabled={busy || (control?.state !== "idle")} />
+        {!voiceLane ? <p role="alert">Choose a valid voice recording bot before preparing.</p> : null}
+        <p style={muted}>This selection applies only to the next prepared session. The selected bot must be ready and able to join this voice channel. Music and speech must be stopped while a podcast is prepared.</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
-          <button type="button" style={secondaryButton} disabled={busy || !control} onClick={() => void send("control", { action: "prepare", voiceLane })}>Prepare in my voice channel</button>
+          <button type="button" style={secondaryButton} disabled={busy || !control || !voiceLane} onClick={() => void send("control", { action: "prepare", voiceLane })}>Prepare in my voice channel</button>
           <button type="button" style={button} disabled={busy || !control} onClick={() => void send("control", { action: "start", title })}>Start / resume</button>
           <button type="button" style={secondaryButton} disabled={busy || !control} onClick={() => void send("control", { action: "stop" })}>Stop and save privately</button>
         </div>

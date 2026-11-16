@@ -1,5 +1,8 @@
 "use client";
 
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import { useGuildEmojis } from "@/components/possum/useGuildEmojis";
+
 import type { CSSProperties, ReactNode } from "react";
 import { useMemo, useState } from "react";
 
@@ -279,6 +282,7 @@ export default function VerificationClient() {
     reload,
     runAction,
   } = useGuildEngineEditor<VerificationConfig>("verification", DEFAULTS);
+  const emojis = useGuildEmojis(guildId);
 
   const [tab, setTab] = useState<TabKey>("overview");
   const [roleQuery, setRoleQuery] = useState("");
@@ -562,23 +566,23 @@ export default function VerificationClient() {
             </div>
             <div style={{ ...s.grid(300), marginTop: 10 }}>
               <Field label="Panel title">
-                <input style={s.input} value={cfg.panelTitle || ""} onChange={(e) => setCfg({ ...cfg, panelTitle: e.target.value })} />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, panelTitle: value }))}><input style={s.input} value={cfg.panelTitle || ""} onChange={(e) => setCfg({ ...cfg, panelTitle: e.target.value })} /></GuildEmojiField>
               </Field>
               <Field label="Panel footer">
-                <input style={s.input} value={cfg.panelFooter || ""} onChange={(e) => setCfg({ ...cfg, panelFooter: e.target.value })} />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, panelFooter: value }))}><input style={s.input} value={cfg.panelFooter || ""} onChange={(e) => setCfg({ ...cfg, panelFooter: e.target.value })} /></GuildEmojiField>
               </Field>
             </div>
             <div style={{ marginTop: 12 }}>
               <Field label="Panel description">
-                <textarea style={s.area} value={cfg.panelDescription || ""} onChange={(e) => setCfg({ ...cfg, panelDescription: e.target.value })} />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, panelDescription: value }))}><textarea style={s.area} value={cfg.panelDescription || ""} onChange={(e) => setCfg({ ...cfg, panelDescription: e.target.value })} /></GuildEmojiField>
               </Field>
             </div>
             <div style={{ ...s.grid(300), marginTop: 12 }}>
               <Field label="Arrival announcement" help="Posted above the gate message.">
-                <textarea style={s.area} value={cfg.gateAnnouncementTemplate || ""} onChange={(e) => setCfg({ ...cfg, gateAnnouncementTemplate: e.target.value })} />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, gateAnnouncementTemplate: value }))}><textarea style={s.area} value={cfg.gateAnnouncementTemplate || ""} onChange={(e) => setCfg({ ...cfg, gateAnnouncementTemplate: e.target.value })} /></GuildEmojiField>
               </Field>
               <Field label="Welcome DM" help="Sent once on join.">
-                <textarea style={s.area} value={cfg.dmTemplate || ""} onChange={(e) => setCfg({ ...cfg, dmTemplate: e.target.value })} />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, dmTemplate: value }))}><textarea style={s.area} value={cfg.dmTemplate || ""} onChange={(e) => setCfg({ ...cfg, dmTemplate: e.target.value })} /></GuildEmojiField>
               </Field>
             </div>
           </div>

@@ -160,7 +160,10 @@ export function createOauthState() {
 export function sanitizeDashboardReturnTo(rawValue: string | undefined | null) {
   const value = String(rawValue || "").trim();
   if (!value) return "/guilds";
-  if (!value.startsWith("/") || value.startsWith("//")) return "/guilds";
+  if (!value.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(value)) return "/guilds";
+  try {
+    if (new URL(value, "https://dashboard.invalid").origin !== "https://dashboard.invalid") return "/guilds";
+  } catch { return "/guilds"; }
   return value;
 }
 

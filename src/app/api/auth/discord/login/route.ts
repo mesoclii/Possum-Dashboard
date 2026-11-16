@@ -35,9 +35,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const state = createOauthState();
-  const response = NextResponse.redirect(buildDiscordOauthUrl(state));
-  response.headers.set("Cache-Control", "no-store, private");
   const referer = String(request.headers.get("referer") || "").trim();
   let inferredReturnTo = request.nextUrl.searchParams.get("returnTo") || "";
   if (!inferredReturnTo && referer) {
@@ -49,6 +46,19 @@ export async function GET(request: NextRequest) {
     } catch {}
   }
   const returnTo = sanitizeDashboardReturnTo(inferredReturnTo);
+  const canonical = new URL(String(process.env.DISCORD_REDIRECT_URI).trim());
+  const host = String(request.headers.get("host") || request.nextUrl.host).toLowerCase();
+  if (host !== canonical.host.toLowerCase()) {
+    const url = new URL("/api/auth/discord/login", canonical.origin);
+    url.searchParams.set("returnTo", returnTo);
+    const response = NextResponse.redirect(url);
+    response.headers.set("Cache-Control", "no-store, private");
+    return response;
+  }
+
+  const state = createOauthState();
+  const response = NextResponse.redirect(buildDiscordOauthUrl(state));
+  response.headers.set("Cache-Control", "no-store, private");
 
   response.cookies.set(dashboardOAuthStateCookieName(state), state, {
     httpOnly: true,

@@ -306,6 +306,7 @@ export default function GuildsPage() {
         >
           Choose a server you can access, or invite the bot to a server you manage.
         </p>
+        <p><a href="/api/personal-social/dashboard">Personal social accounts and server visibility</a></p>
 
         {loading ? <p style={{ color: "#ffd7d7" }}>Loading...</p> : null}
         {msg ? <p style={{ color: "#ff9a9a" }}>{msg}</p> : null}

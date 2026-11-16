@@ -1,0 +1,47 @@
+.possum-dashboard.possum-bg {
+  background:
+    radial-gradient(ellipse at 10% 0%, rgba(255, 0, 123, 0.19), transparent 38%),
+    radial-gradient(ellipse at 90% 15%, rgba(255, 31, 57, 0.17), transparent 42%),
+    #090008;
+}
+
+.possum-dashboard > div > aside {
+  border-color: rgba(255, 47, 134, 0.7);
+  background: linear-gradient(180deg, rgba(28, 0, 20, 0.97), rgba(8, 0, 8, 0.98));
+  box-shadow: 0 0 24px rgba(255, 0, 102, 0.18);
+}
+
+.possum-dashboard .possum-header {
+  background: rgba(20, 0, 14, 0.92);
+}
+
+.possum-dashboard .possum-border,
+.possum-dashboard .possum-nav-section {
+  border-color: rgba(255, 47, 134, 0.65) !important;
+  box-shadow: 0 0 12px rgba(255, 0, 112, 0.2), inset 0 0 16px rgba(255, 25, 65, 0.06) !important;
+}
+
+.possum-dashboard .possum-nav-active {
+  border-color: #ff2e91;
+  background: linear-gradient(90deg, rgba(255, 0, 119, 0.38), rgba(255, 27, 55, 0.18));
+  box-shadow: 0 0 18px rgba(255, 0, 119, 0.48), inset 0 0 14px rgba(255, 46, 89, 0.18);
+}
+
+.possum-dashboard .possum-red,
+.possum-dashboard h1,
+.possum-dashboard h2,
+.possum-dashboard main h3 {
+  background-image: linear-gradient(100deg, #ffadd3, #ff42a4 45%, #ff304b);
+  filter: drop-shadow(0 0 6px rgba(255, 0, 120, 0.45));
+}
+
+.possum-dashboard .possum-banner {
+  border-color: rgba(255, 46, 145, 0.8);
+  background: linear-gradient(100deg, rgba(153, 0, 64, 0.55), rgba(18, 0, 14, 0.92) 58%, rgba(150, 0, 38, 0.35));
+  box-shadow: 0 0 28px rgba(255, 0, 115, 0.38), 0 0 48px rgba(255, 30, 55, 0.17);
+}
+
+.possum-dashboard :focus-visible {
+  outline: 2px solid #ff9fce;
+  outline-offset: 3px;
+}

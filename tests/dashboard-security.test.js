@@ -41,6 +41,25 @@ function response() {
   };
 }
 
+test("dashboard access configuration rejects unsigned requests before proxying", async () => {
+  let calls = 0;
+  const handler = load("pages/api/bot/dashboard-access-config.ts", {
+    "@/lib/botApi": {
+      BOT_API: "http://bot", readActorUserId: async () => "",
+      buildBotApiHeaders: async () => { calls++; return {}; },
+      readJsonSafe: async () => ({}),
+    },
+    "@/lib/dashboardAudit": { auditDashboardEvent() {} },
+    "@/lib/rateLimiter": { enforceDashboardRateLimit: async () => {}, isRateLimitError: () => false },
+  }).default;
+  for (const method of ["GET", "POST", "PUT"]) {
+    const res = response();
+    await handler({ method, query: { guildId }, body: { guildId } }, res);
+    assert.equal(res.statusCode, 401);
+  }
+  assert.equal(calls, 0);
+});
+
 test.after(() => {
   for (const [key, value] of Object.entries(previous)) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;

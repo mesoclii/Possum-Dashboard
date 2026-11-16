@@ -34,6 +34,9 @@ export default function PrivacyPage() {
                 <b>Dashboard login:</b> when you sign in with Discord we receive your Discord ID, name and the list of servers you manage.
               </li>
               <li>
+                <b>Personal social profiles:</b> if you link one, we store your Discord ID, provider account ID, public profile name and URL, and your server visibility choices. Profiles are private by default. Server members can see a profile only when you choose to share it there; you can remove it and its sharing choices in Personal social accounts. Provider tokens are used temporarily for verification, not saved, and revocation is attempted after verification.
+              </li>
+              <li>
                 <b>Billing:</b> Stripe customer and subscription identifiers and plan status. We do not see or store full card numbers.
               </li>
               <li>

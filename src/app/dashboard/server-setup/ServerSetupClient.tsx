@@ -64,6 +64,7 @@ type ApiResponse = {
     created?: { id?: string; name?: string; engine?: string; field?: string }[];
     failed?: { name?: string; error?: string; reason?: string }[];
     deferred?: number;
+    reviewPanel?: { status?: string; message?: string } | null;
     message?: string;
   };
 };
@@ -305,12 +306,17 @@ export default function ServerSetupClient() {
       });
 
       const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
+      const deployReviewPanel = previewSnapshot.features.includes("reviews");
+      let reviewPanelStatus = "";
+      let reviewPanelDeployed = false;
       const maxBatches = 100;
       let completed = false;
       for (let batch = 1; batch <= maxBatches; batch += 1) {
         setBatchProgress(`Creating approved resources (batch ${batch}; ${allCreated.length} created so far)…`);
-        const data = await callApi({ action: "provision", confirmed: true });
+        const data = await callApi({ action: "provision", confirmed: true, deployReviewPanel });
         const result = data.result || {};
+        reviewPanelStatus = result.reviewPanel?.status || "";
+        if (reviewPanelStatus === "deployed") reviewPanelDeployed = true;
         const batchCreated = result.created || [];
         allCreated.push(...batchCreated);
         setCreated([...allCreated]);
@@ -321,8 +327,19 @@ export default function ServerSetupClient() {
           const details = first.error || first.reason || "Discord refused a resource operation.";
           throw new Error(`${allCreated.length} resource(s) were created before setup paused: ${details}`);
         }
+        if (result.duplicate) {
+          throw new Error(result.message || "Setup is already running. Review its result before retrying.");
+        }
+        if (deployReviewPanel && (reviewPanelStatus === "review" || reviewPanelStatus === "disabled")) {
+          throw new Error(result.reviewPanel?.message || "The review panel needs manual attention.");
+        }
         const deferred = Number(result.deferred || 0);
         if (deferred <= 0) {
+          if (deployReviewPanel && !["deployed", "existing"].includes(reviewPanelStatus)) {
+            throw new Error(reviewPanelStatus === "waiting"
+              ? "The review panel channel is not mapped; map it and retry setup."
+              : "Review panel status is unavailable. Check backend support and the channel before deploying manually.");
+          }
           completed = true;
           break;
         }
@@ -336,7 +353,7 @@ export default function ServerSetupClient() {
 
       const refreshed = await loadReport();
       setPreviewSnapshot(null);
-      setMessage(`Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty.`);
+      setMessage(`Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty.${reviewPanelDeployed ? " Review panel deployed." : reviewPanelStatus === "existing" ? " Existing review panel left unchanged." : ""}`);
       setBatchProgress("");
       if (!refreshed) throw new Error("Setup finished, but the refreshed infrastructure report could not be loaded.");
     } catch (cause: unknown) {
@@ -450,7 +467,7 @@ export default function ServerSetupClient() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Edit proposed names before approval. Discord channel names are saved as lowercase words joined by hyphens.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Edit proposed names before approval. Selected Reviews will deploy its panel only in an empty channel; existing or uncertain panels are left for review. Self-role panels are deployed separately.</p>
             </div>
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">{createProposals.length} to create · {mappingCount} existing mappings to fill</span>
           </div>
@@ -507,7 +524,7 @@ export default function ServerSetupClient() {
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
-            <button type="button" disabled={busy || previewDirty || (createProposals.length === 0 && mappingCount === 0)} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
+            <button type="button" disabled={busy || previewDirty || (createProposals.length === 0 && mappingCount === 0 && !previewSnapshot.features.includes("reviews"))} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
           </div>
         </section>
       ) : null}
@@ -517,6 +534,7 @@ export default function ServerSetupClient() {
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
             <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create up to {createProposals.length} missing channel(s), category resources, or roles for this server. Creation runs in small batches. Nothing will be deleted.</p>
+            {previewSnapshot.features.includes("reviews") ? <p className="mt-2 text-sm text-pink-100/80">Setup will also deploy a review panel in the mapped channel if it can verify that the channel is empty and no panel is already recorded. Otherwise it will ask for manual review.</p> : null}
             <ul className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded-lg border border-pink-900/40 p-3 text-sm">
               {createProposals.map((proposal) => <li key={proposal.id}>{proposal.resourceType || "channel"}: <strong>{resourceName(proposal, names)}</strong></li>)}
               {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}

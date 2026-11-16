@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { fetchGuildData, fetchRuntimeEngine, peekGuildData, peekRuntimeEngine } from "@/lib/liveRuntime";
+import { mergePersonalizerSave } from "@/lib/personalizerSaveMerge";
 
 export type GuildRole = { id: string; name: string; position?: number; color?: string };
 export type GuildChannel = { id: string; name: string; type?: number | string; parentId?: string | null };
@@ -40,6 +41,11 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
   const [viewerUserId, setViewerUserId] = useState(initialViewerUserId);
   const [guildName, setGuildName] = useState(String((initialGuild as any)?.guild?.name || "").trim());
   const [config, setConfig] = useState<T>({ ...(defaults as any), ...(initialRuntime?.config || {}) });
+  const editRevision = useRef(0);
+  const setDraftConfig: Dispatch<SetStateAction<T>> = useCallback((value) => {
+    editRevision.current += 1;
+    setConfig(value);
+  }, []);
   const [channels, setChannels] = useState<GuildChannel[]>(Array.isArray((initialGuild as any)?.channels) ? (initialGuild as any).channels : []);
   const [roles, setRoles] = useState<GuildRole[]>(() => {
     const nextRoles: GuildRole[] = Array.isArray((initialGuild as any)?.roles) ? (initialGuild as any).roles : [];
@@ -49,7 +55,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
   const [botUser, setBotUser] = useState<GuildBotUser | null>(((initialGuild as any)?.botUser && typeof (initialGuild as any).botUser === "object") ? (initialGuild as any).botUser : null);
   const [summary, setSummary] = useState<EngineSummaryItem[]>(Array.isArray(initialRuntime?.summary) ? initialRuntime.summary : []);
   const [details, setDetails] = useState<EngineDetails>((initialRuntime?.details && typeof initialRuntime.details === "object") ? initialRuntime.details : {});
-  const [loading, setLoading] = useState(!(initialRuntime || initialGuild));
+  const [loading, setLoading] = useState(engine === "botPersonalizer" ? !initialRuntime : !(initialRuntime || initialGuild));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -65,6 +71,13 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         return;
       }
       contextRef.current = { guildId: nextGuildId, viewerUserId: nextUserId };
+      if (engine === "botPersonalizer") {
+        setConfig({ ...(defaultsRef.current as any) });
+        setSummary([]);
+        setDetails({});
+        setGuildName("");
+        setLoading(true);
+      }
       if (nextGuildId) {
         localStorage.setItem("activeGuildId", nextGuildId);
       }
@@ -82,7 +95,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       window.removeEventListener("focus", syncContext);
       document.removeEventListener("visibilitychange", syncContext);
     };
-  }, []);
+  }, [engine]);
 
   useEffect(() => {
     defaultsRef.current = defaults;
@@ -94,6 +107,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       return;
     }
     const warmRuntime = peekRuntimeEngine(targetGuildId, engine, targetUserId);
+    const revisionAtLoad = editRevision.current;
     const warmGuild = peekGuildData(targetGuildId, targetUserId);
     const hasWarmPayload = Boolean(warmRuntime || warmGuild);
 
@@ -117,7 +131,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       }
     }
 
-    setLoading(!hasWarmPayload);
+    setLoading(engine === "botPersonalizer" ? !warmRuntime : !hasWarmPayload);
     setMessage("");
     try {
       const [runtimeResult, guildResult] = await Promise.allSettled([
@@ -125,11 +139,16 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         fetchGuildData(targetGuildId, targetUserId),
       ]);
 
+      if (engine === "botPersonalizer" &&
+          (contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId)) return;
       const loadErrors: string[] = [];
 
       if (runtimeResult.status === "fulfilled") {
         const runtimeJson = runtimeResult.value;
-        setConfig({ ...(defaultsRef.current as any), ...(runtimeJson?.config || {}) });
+        if (engine !== "botPersonalizer" || (revisionAtLoad === editRevision.current &&
+          contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId)) {
+          setConfig({ ...(defaultsRef.current as any), ...(runtimeJson?.config || {}) });
+        }
         setSummary(Array.isArray(runtimeJson?.summary) ? runtimeJson.summary : []);
         setDetails((runtimeJson?.details && typeof runtimeJson.details === "object") ? runtimeJson.details : {});
       } else {
@@ -158,9 +177,12 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         setMessage(loadErrors.join(" | "));
       }
     } catch (err: any) {
+      if (engine === "botPersonalizer" &&
+          (contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId)) return;
       setMessage(err?.message || "Failed to load engine.");
     } finally {
-      setLoading(false);
+      if (engine !== "botPersonalizer" ||
+          (contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId)) setLoading(false);
     }
   }, [engine, guildId, viewerUserId]);
 
@@ -178,7 +200,11 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     setSaving(true);
     setMessage("");
     try {
+      const submittedDraft = config;
       const patch = { ...(config as any), ...(nextPatch || {}) };
+      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, patch, userId: viewerUserId })).length > 4 * 1024 * 1024) {
+        throw new Error("Personalizer save exceeds the 4 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
+      }
       const validateRes = await fetch("/api/runtime/engine-validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -212,14 +238,22 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || "Save failed");
       }
-      setConfig({ ...(defaultsRef.current as any), ...(json?.config || patch) });
+      if (engine === "botPersonalizer" &&
+          (contextRef.current.guildId !== guildId || contextRef.current.viewerUserId !== viewerUserId)) return null;
+      const savedConfig = { ...(defaultsRef.current as any), ...(json?.config || patch) };
+      if (engine === "botPersonalizer") {
+        setConfig((current) => mergePersonalizerSave(submittedDraft, current, savedConfig) as T);
+      } else {
+        setConfig(savedConfig);
+      }
       setSummary(Array.isArray(json?.summary) ? json.summary : []);
       setDetails((json?.details && typeof json.details === "object") ? json.details : {});
       const saveWarnings = Array.isArray(json?.validation?.warnings) ? json.validation.warnings.filter(Boolean) : [];
       setMessage(saveWarnings.length ? `Saved. ${saveWarnings.join(" | ")}` : "Saved.");
       return json;
     } catch (err: any) {
-      setMessage(err?.message || "Save failed.");
+      if (engine !== "botPersonalizer" ||
+          (contextRef.current.guildId === guildId && contextRef.current.viewerUserId === viewerUserId)) setMessage(err?.message || "Save failed.");
       return null;
     } finally {
       setSaving(false);
@@ -231,6 +265,9 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     setSaving(true);
     setMessage("");
     try {
+      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, action, payload, userId: viewerUserId })).length > 4 * 1024 * 1024) {
+        throw new Error("Personalizer action exceeds the 4 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
+      }
       const res = await fetch("/api/runtime/engine-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -240,8 +277,12 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || "Action failed");
       }
+      if (engine === "botPersonalizer" &&
+          (contextRef.current.guildId !== guildId || contextRef.current.viewerUserId !== viewerUserId)) return null;
       const result = json?.result ?? null;
-      setConfig({ ...(defaultsRef.current as any), ...(result?.config || json?.config || config) });
+      if (engine !== "botPersonalizer") {
+        setConfig({ ...(defaultsRef.current as any), ...(result?.config || json?.config || config) });
+      }
       setSummary(Array.isArray(json?.summary) ? json.summary : []);
       setDetails((json?.details && typeof json.details === "object") ? json.details : {});
       const warnings = Array.isArray(result?.warnings) ? result.warnings.filter(Boolean) : [];
@@ -265,7 +306,8 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       }
       return result;
     } catch (err: any) {
-      setMessage(err?.message || "Action failed.");
+      if (engine !== "botPersonalizer" ||
+          (contextRef.current.guildId === guildId && contextRef.current.viewerUserId === viewerUserId)) setMessage(err?.message || "Action failed.");
       return null;
     } finally {
       setSaving(false);
@@ -277,7 +319,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     viewerUserId,
     guildName,
     config,
-    setConfig,
+    setConfig: setDraftConfig,
     channels,
     roles,
     botUser,

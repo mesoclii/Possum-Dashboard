@@ -18,6 +18,7 @@ export type GuildDataPayload = {
   guild?: { id?: string; name?: string };
   channels?: GuildChannel[];
   roles?: GuildRole[];
+  emojis?: import("@/components/possum/GuildEmojiPicker").GuildEmoji[];
 };
 
 const GUILD_DATA_TTL_MS = 120_000;
@@ -122,7 +123,8 @@ function resolveViewerUserId(explicitUserId = "") {
 
 function resolveRoutePath() {
   if (typeof window === "undefined") return "/dashboard";
-  return String(window.location.pathname || "/dashboard").trim() || "/dashboard";
+  const path = String(window.location.pathname || "/dashboard").trim() || "/dashboard";
+  return path === "/gaming" ? "/dashboard/games" : path;
 }
 
 export function peekGuildData(guildId: string, explicitUserId = "") {
@@ -158,6 +160,7 @@ export async function fetchGuildData(guildId: string, explicitUserId = "") {
       const value = {
         guild: json?.guild || null,
         channels: Array.isArray(json?.channels) ? json.channels : [],
+        emojis: Array.isArray(json?.emojis) ? json.emojis : [],
         roles,
         botUser: json?.botUser || null,
       } as GuildDataPayload & { botUser?: unknown };

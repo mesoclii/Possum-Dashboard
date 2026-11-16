@@ -1,5 +1,8 @@
 "use client";
 
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import { useGuildEmojis } from "@/components/possum/useGuildEmojis";
+
 import ConfigJsonEditor from "@/components/possum/ConfigJsonEditor";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -92,6 +95,7 @@ export default function PreOnboardingClient() {
     save,
     reload,
   } = useGuildEngineEditor<PreOnboardingConfig>("preOnboarding", DEFAULTS);
+  const emojis = useGuildEmojis(guildId);
 
   const textChannels = (channels as GuildChannel[]).filter(
     (channel) => Number(channel?.type) === 0 || Number(channel?.type) === 5 || String(channel?.type || "").toLowerCase().includes("text")
@@ -158,7 +162,7 @@ export default function PreOnboardingClient() {
 
       <div style={styles.card}>
         <h3 style={{ marginTop: 0, color: "#ff4444" }}>Removal DM</h3>
-        <textarea style={styles.area} value={cfg.banDmTemplate || ""} onChange={(e) => setCfg({ ...cfg, banDmTemplate: e.target.value })} />
+        <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, banDmTemplate: value }))}><textarea style={styles.area} value={cfg.banDmTemplate || ""} onChange={(e) => setCfg({ ...cfg, banDmTemplate: e.target.value })} /></GuildEmojiField>
         <div style={{ marginTop: 8, color: "#ffb8b8", fontSize: 12 }}>
           Tokens: <code>{'{{reason}}'}</code>, <code>{'{{type}}'}</code>, <code>{'{{contactUser}}'}</code>
         </div>

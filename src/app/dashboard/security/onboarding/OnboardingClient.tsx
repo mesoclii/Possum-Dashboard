@@ -1,5 +1,8 @@
 "use client";
 
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import { useGuildEmojis } from "@/components/possum/useGuildEmojis";
+
 import ConfigJsonEditor from "@/components/possum/ConfigJsonEditor";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -158,6 +161,7 @@ export default function OnboardingClient() {
     save,
     reload,
   } = useGuildEngineEditor<OnboardingConfig>("onboarding", DEFAULTS);
+  const emojis = useGuildEmojis(guildId);
 
   const textChannels = (channels as GuildChannel[]).filter(
     (channel) => Number(channel?.type) === 0 || Number(channel?.type) === 5 || String(channel?.type || "").toLowerCase().includes("text")
@@ -243,23 +247,23 @@ export default function OnboardingClient() {
         <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
           <div>
             <label>Welcome DM</label>
-            <textarea style={styles.area} value={cfg.dmTemplate || ""} onChange={(e) => setCfg({ ...cfg, dmTemplate: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, dmTemplate: value }))}><textarea style={styles.area} value={cfg.dmTemplate || ""} onChange={(e) => setCfg({ ...cfg, dmTemplate: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>Gate panel title</label>
-            <input style={styles.input} value={cfg.panelTitle || ""} onChange={(e) => setCfg({ ...cfg, panelTitle: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, panelTitle: value }))}><input style={styles.input} value={cfg.panelTitle || ""} onChange={(e) => setCfg({ ...cfg, panelTitle: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>Gate panel description</label>
-            <textarea style={styles.area} value={cfg.panelDescription || ""} onChange={(e) => setCfg({ ...cfg, panelDescription: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, panelDescription: value }))}><textarea style={styles.area} value={cfg.panelDescription || ""} onChange={(e) => setCfg({ ...cfg, panelDescription: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>Gate panel footer</label>
-            <input style={styles.input} value={cfg.panelFooter || ""} onChange={(e) => setCfg({ ...cfg, panelFooter: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, panelFooter: value }))}><input style={styles.input} value={cfg.panelFooter || ""} onChange={(e) => setCfg({ ...cfg, panelFooter: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>Arrival announcement</label>
-            <textarea style={styles.area} value={cfg.gateAnnouncementTemplate || ""} onChange={(e) => setCfg({ ...cfg, gateAnnouncementTemplate: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, gateAnnouncementTemplate: value }))}><textarea style={styles.area} value={cfg.gateAnnouncementTemplate || ""} onChange={(e) => setCfg({ ...cfg, gateAnnouncementTemplate: e.target.value })} /></GuildEmojiField>
           </div>
         </div>
       </div>
@@ -350,19 +354,19 @@ export default function OnboardingClient() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
           <div>
             <label>ID panel title</label>
-            <input style={styles.input} value={cfg.idPanelTitle || ""} onChange={(e) => setCfg({ ...cfg, idPanelTitle: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, idPanelTitle: value }))}><input style={styles.input} value={cfg.idPanelTitle || ""} onChange={(e) => setCfg({ ...cfg, idPanelTitle: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>ID panel description</label>
-            <textarea style={styles.area} value={cfg.idPanelDescription || ""} onChange={(e) => setCfg({ ...cfg, idPanelDescription: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, idPanelDescription: value }))}><textarea style={styles.area} value={cfg.idPanelDescription || ""} onChange={(e) => setCfg({ ...cfg, idPanelDescription: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>ID panel header content</label>
-            <textarea style={styles.area} value={cfg.idPanelContent || ""} onChange={(e) => setCfg({ ...cfg, idPanelContent: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, idPanelContent: value }))}><textarea style={styles.area} value={cfg.idPanelContent || ""} onChange={(e) => setCfg({ ...cfg, idPanelContent: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>Post-verify message</label>
-            <textarea style={styles.area} value={cfg.postVerifyTemplate || ""} onChange={(e) => setCfg({ ...cfg, postVerifyTemplate: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, postVerifyTemplate: value }))}><textarea style={styles.area} value={cfg.postVerifyTemplate || ""} onChange={(e) => setCfg({ ...cfg, postVerifyTemplate: e.target.value })} /></GuildEmojiField>
           </div>
           <div>
             <label>Post-verify auto-delete minutes (0 = keep)</label>
@@ -415,7 +419,7 @@ export default function OnboardingClient() {
           </div>
           <div>
             <label>Decline reply message</label>
-            <textarea style={styles.area} value={cfg.declineReplyTemplate || ""} onChange={(e) => setCfg({ ...cfg, declineReplyTemplate: e.target.value })} />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((current) => ({ ...current, declineReplyTemplate: value }))}><textarea style={styles.area} value={cfg.declineReplyTemplate || ""} onChange={(e) => setCfg({ ...cfg, declineReplyTemplate: e.target.value })} /></GuildEmojiField>
           </div>
         </div>
       </div>

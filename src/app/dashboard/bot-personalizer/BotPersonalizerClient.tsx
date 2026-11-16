@@ -5,8 +5,11 @@ import Link from "next/link";
 import type { CSSProperties, ChangeEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
+import PodcastVoiceBotSelect from "@/components/possum/PodcastVoiceBotSelect";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 import { buildDashboardHref } from "@/lib/dashboardContext";
+import { podcastStudioHref, type PodcastVoiceLane } from "@/lib/podcastVoiceLane";
+import { mergePersonalizerSave } from "@/lib/personalizerSaveMerge";
 
 type AvatarPreset = {
   url: string;
@@ -227,7 +230,7 @@ function normalizeAvatarLibrary(raw: unknown): AvatarPreset[] {
     const row = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
     const url = safePreviewUrl(row.url || row.imageUrl || "");
     if (!url) continue;
-    const key = url.slice(0, 512).toLowerCase();
+    const key = url;
     if (seen.has(key)) continue;
     seen.add(key);
     output.push({
@@ -352,6 +355,29 @@ const hint: CSSProperties = {
   fontSize: 13,
   lineHeight: 1.7,
 };
+
+function CustomBotSetupGuidance() {
+  return (
+    <div style={{ ...hint, marginTop: 10 }}>
+      This bot requests the Presence, Server Members, and Message Content privileged intents. Enable them in its Discord Developer Portal; Discord approval may also be required.
+      Portal settings are not verified here. For the standard bot invite, disable &quot;Requires OAuth2 Code Grant&quot;.
+      A redirect URI and client secret are not used by this token runtime or its standard invite; keep any existing values needed for other OAuth flows.
+    </div>
+  );
+}
+
+function TokenBotHealth({ rows, label }: { rows: Array<{ title?: string; value?: string }>; label: string }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 12 }}>
+      {rows.length ? rows.map((row, index) => (
+        <div key={`${label}_${row.title || "runtime"}_${index}`} style={{ border: "1px solid rgba(255,0,0,.24)", borderRadius: 10, padding: 12, background: "rgba(0,0,0,.24)" }}>
+          <div style={{ color: "#ff9b9b", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}>{row.title || `State ${index + 1}`}</div>
+          <div style={{ color: "#ffd7d7", fontSize: 13, lineHeight: 1.6, marginTop: 8 }}>{row.value || "No runtime data yet."}</div>
+        </div>
+      )) : <div style={{ ...hint, gridColumn: "1 / -1" }}>No {label} runtime data yet. Save the token, then run a start or refresh check.</div>}
+    </div>
+  );
+}
 
 function previewName(cfg: PersonaConfig, botUser?: { globalName?: string; username?: string } | null) {
   return String(
@@ -486,6 +512,7 @@ function laneChanged(keys: readonly string[], current: PersonaConfig, baseline: 
 export default function BotPersonalizerClient() {
   const {
     guildId,
+    viewerUserId,
     guildName,
     config: rawCfg,
     setConfig: setCfg,
@@ -500,12 +527,21 @@ export default function BotPersonalizerClient() {
   } = useGuildEngineEditor<PersonaConfig>("botPersonalizer", DEFAULT_CFG);
 
   const cfg = useMemo(() => sanitizeConfig(rawCfg), [rawCfg]);
+  const [podcastChoice, setPodcastChoice] = useState<{ guildId: string; lane: PodcastVoiceLane }>({ guildId: "", lane: "main" });
+  const podcastLane = podcastChoice.guildId === guildId ? podcastChoice.lane : "main";
   const syncedCfgRef = useRef<PersonaConfig | null>(null);
+  const syncedContextRef = useRef({ guildId, viewerUserId });
   useEffect(() => {
+    if (syncedContextRef.current.guildId !== guildId || syncedContextRef.current.viewerUserId !== viewerUserId) {
+      syncedContextRef.current = { guildId, viewerUserId };
+      syncedCfgRef.current = null;
+    }
     if (!loading && !syncedCfgRef.current) syncedCfgRef.current = sanitizeConfig(rawCfg);
-  }, [loading, rawCfg]);
+  }, [guildId, viewerUserId, loading, rawCfg]);
   const possumAiHref = buildDashboardHref("/dashboard/ai/learning");
   const customBotRuntimeRows = Array.isArray((details as any)?.customBotRuntime) ? ((details as any).customBotRuntime as Array<{ title?: string; value?: string }>) : [];
+  const customBot2RuntimeRows = Array.isArray((details as any)?.customBot2Runtime) ? ((details as any).customBot2Runtime as Array<{ title?: string; value?: string }>) : [];
+  const customBot3RuntimeRows = Array.isArray((details as any)?.customBot3Runtime) ? ((details as any).customBot3Runtime as Array<{ title?: string; value?: string }>) : [];
   const standardPreviewName = String(cfg.guildNickname || botUser?.globalName || botUser?.username || "Possum").trim();
   const standardPreviewAvatar = safePreviewUrl(cfg.botAvatarUrl) || safePreviewUrl((botUser as any)?.avatarUrl || "");
   const webhookPreviewAvatar = safePreviewUrl(cfg.webhookAvatarUrl);
@@ -524,6 +560,10 @@ export default function BotPersonalizerClient() {
 
   function updateCfg(patch: Partial<PersonaConfig>) {
     setCfg((prev) => sanitizeConfig({ ...(prev || {}), ...patch }));
+  }
+
+  function updateCfgIfUnchanged(patch: Partial<PersonaConfig>, before: PersonaConfig) {
+    setCfg((prev) => sanitizeConfig(mergePersonalizerSave(before, prev, { ...prev, ...patch })));
   }
 
   function setAvatarSource(url: string, notice: string) {
@@ -549,6 +589,10 @@ export default function BotPersonalizerClient() {
     const source = safePreviewUrl(url);
     if (!source) {
       setAvatarLibraryMessage("Webhook avatar source must be an image URL or an uploaded image.");
+      return;
+    }
+    if (cfg.avatarLibrary.length >= 24 && !cfg.avatarLibrary.some((entry) => entry.url === source)) {
+      setAvatarLibraryMessage("The avatar library is full. Remove an image before adding another.");
       return;
     }
     setCfg((prev) => {
@@ -605,40 +649,43 @@ export default function BotPersonalizerClient() {
   }
 
   async function saveGuildPersonalizer() {
-    // Only lanes whose identity fields changed since the last sync are re-applied (avoids Discord avatar rate limits).
-    // Routing-only edits are persisted by the final config save.
     const baseline = syncedCfgRef.current;
+    const saved = await save(cfg);
+    if (!saved) return;
     if (laneChanged(MAIN_IDENTITY_KEYS, cfg, baseline)) {
-      const mainResult = await runAction("applyProfile", { scope: "main", patch: buildMainBotPatch(cfg) });
+      const mainResult = await runAction("applyProfile", { scope: "main" });
       if (!mainResult) return;
       setMainAvatarPreviewFailedFor("");
       setAvatarPreviewFailedFor("");
     }
 
     if (laneChanged(WEBHOOK_IDENTITY_KEYS, cfg, baseline)) {
-      const webhookResult = await runAction("applyProfile", { scope: "webhook", patch: buildWebhookPatch(cfg) });
+      const webhookResult = await runAction("applyProfile", { scope: "webhook" });
       if (!webhookResult) return;
     }
 
     if (cfg.customBotEnabled && laneChanged(CUSTOM_BOT_IDENTITY_KEYS, cfg, baseline)) {
-      const customResult = await runAction("refreshCustomBot", { patch: buildCustomBotPatch(cfg) });
+      const customResult = await runAction("startCustomBot");
       if (!customResult) return;
     }
 
     if (cfg.customBot2Enabled && laneChanged(CUSTOM_BOT2_IDENTITY_KEYS, cfg, baseline)) {
-      const custom2Result = await runAction("refreshCustomBot2", { patch: buildCustomBot2Patch(cfg) });
+      const custom2Result = await runAction("startCustomBot2");
       if (!custom2Result) return;
-      updateCfg({ customBot2Token: "" });
     }
 
     if (cfg.customBot3Enabled && laneChanged(CUSTOM_BOT3_IDENTITY_KEYS, cfg, baseline)) {
-      const custom3Result = await runAction("refreshCustomBot3", { patch: buildCustomBot3Patch(cfg) });
+      const custom3Result = await runAction("startCustomBot3");
       if (!custom3Result) return;
-      updateCfg({ customBot3Token: "" });
     }
 
-    await save(cfg);
-    syncedCfgRef.current = sanitizeConfig({ ...cfg, customBot2Token: "", customBot3Token: "" });
+    syncedCfgRef.current = sanitizeConfig(saved.config || cfg);
+  }
+
+  function markLaneSaved(keys: readonly string[], value: PersonaConfig) {
+    const baseline = { ...(syncedCfgRef.current || value) } as Record<string, unknown>;
+    for (const key of keys) baseline[key] = (value as unknown as Record<string, unknown>)[key];
+    syncedCfgRef.current = sanitizeConfig(baseline as Partial<PersonaConfig>);
   }
 
   async function saveAndApplyMainBotIdentity() {
@@ -647,7 +694,7 @@ export default function BotPersonalizerClient() {
       patch: buildMainBotPatch(cfg),
     });
     if (!result) return;
-    syncedCfgRef.current = cfg;
+    markLaneSaved(MAIN_IDENTITY_KEYS, cfg);
     setMainAvatarPreviewFailedFor("");
     setAvatarPreviewFailedFor("");
   }
@@ -663,8 +710,8 @@ export default function BotPersonalizerClient() {
       patch: buildWebhookPatch(webhookPatch),
     });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ useWebhookPersona: true, guildMessageAuthority: "webhook" });
+    markLaneSaved(WEBHOOK_IDENTITY_KEYS, webhookPatch);
+    updateCfgIfUnchanged({ useWebhookPersona: true, guildMessageAuthority: "webhook" }, cfg);
     setAvatarPreviewFailedFor("");
   }
 
@@ -672,16 +719,18 @@ export default function BotPersonalizerClient() {
     const patch = buildCustomBot2Patch(sanitizeConfig({ ...cfg, customBot2Enabled: true }));
     const result = await runAction("refreshCustomBot2", { patch });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ customBot2Enabled: true, customBot2Token: "" });
+    const savedCfg = sanitizeConfig({ ...cfg, customBot2Enabled: true, customBot2Token: "", customBot2ClearToken: false });
+    markLaneSaved(CUSTOM_BOT2_IDENTITY_KEYS, savedCfg);
+    updateCfgIfUnchanged({ customBot2Enabled: true, customBot2Token: "", customBot2ClearToken: false, customBot2HasToken: cfg.customBot2ClearToken ? false : Boolean(cfg.customBot2Token || cfg.customBot2HasToken) }, cfg);
   }
 
   async function saveAndDeployCustomBot3() {
     const patch = buildCustomBot3Patch(sanitizeConfig({ ...cfg, customBot3Enabled: true }));
     const result = await runAction("refreshCustomBot3", { patch });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ customBot3Enabled: true, customBot3Token: "" });
+    const savedCfg = sanitizeConfig({ ...cfg, customBot3Enabled: true, customBot3Token: "", customBot3ClearToken: false });
+    markLaneSaved(CUSTOM_BOT3_IDENTITY_KEYS, savedCfg);
+    updateCfgIfUnchanged({ customBot3Enabled: true, customBot3Token: "", customBot3ClearToken: false, customBot3HasToken: cfg.customBot3ClearToken ? false : Boolean(cfg.customBot3Token || cfg.customBot3HasToken) }, cfg);
   }
 
   async function saveAndDeployCustomBot() {
@@ -693,8 +742,9 @@ export default function BotPersonalizerClient() {
       patch: buildCustomBotPatch(customPatch),
     });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ customBotEnabled: true });
+    const savedCfg = sanitizeConfig({ ...cfg, customBotEnabled: true, customBotToken: "", customBotClientSecret: "", customBotClearToken: false, customBotClearClientSecret: false });
+    markLaneSaved(CUSTOM_BOT_IDENTITY_KEYS, savedCfg);
+    updateCfgIfUnchanged({ customBotEnabled: true, customBotToken: "", customBotClientSecret: "", customBotClearToken: false, customBotClearClientSecret: false, customBotHasToken: cfg.customBotClearToken ? false : Boolean(cfg.customBotToken || cfg.customBotHasToken), customBotHasClientSecret: cfg.customBotClearClientSecret ? false : Boolean(cfg.customBotClientSecret || cfg.customBotHasClientSecret) }, cfg);
   }
 
   if (!guildId) {
@@ -744,6 +794,13 @@ export default function BotPersonalizerClient() {
 
       {!loading ? (
         <>
+          <section style={card}>
+            <h2 style={{ marginTop: 0, color: "#ff6666" }}>Podcast recording bot</h2>
+            <PodcastVoiceBotSelect value={podcastLane} onChange={(lane) => setPodcastChoice({ guildId, lane })} style={input} />
+            <p style={hint}>Choose the bot for your next session, then open Podcast Studio to prepare it. This does not save a server-wide default or start recording. Save and deploy a custom bot above or below first; it must be ready and able to join your voice channel.</p>
+            <p style={hint}>Every voice participant must consent before capture; live audio is public and recordings stay private until published.</p>
+            <Link href={podcastStudioHref(guildId, podcastLane)} style={{ ...action, textDecoration: "none", display: "inline-block" }}>Open Podcast Studio</Link>
+          </section>
           <EngineInsights summary={summary} details={details} />
 
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(320px,0.8fr)", gap: 12 }}>
@@ -1113,11 +1170,7 @@ export default function BotPersonalizerClient() {
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 12, marginTop: 12 }}>
-                    <label><input type="checkbox" checked={cfg.customBotIntentsConfirmed} onChange={(e) => updateCfg({ customBotIntentsConfirmed: e.target.checked })} /> Required intents are enabled: Presence, Server Members, Message Content</label>
-                    <label><input type="checkbox" checked={cfg.customBotOauthGrantDisabledConfirmed} onChange={(e) => updateCfg({ customBotOauthGrantDisabledConfirmed: e.target.checked })} /> &quot;Requires OAuth2 Code Grant&quot; is disabled in the Discord Developer Portal</label>
-                    <label><input type="checkbox" checked={cfg.customBotRedirectConfiguredConfirmed} onChange={(e) => updateCfg({ customBotRedirectConfiguredConfirmed: e.target.checked })} /> The correct redirect URI is added in OAuth2 settings</label>
-                  </div>
+                  <CustomBotSetupGuidance />
 
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 12 }}>
                     <div>
@@ -1130,16 +1183,16 @@ export default function BotPersonalizerClient() {
                       />
                     </div>
                     <div>
-                      <label>Custom bot redirect URI</label>
+                      <label>Custom bot redirect URI (optional; not used by runtime)</label>
                       <input
                         style={input}
                         value={cfg.customBotRedirectUri || ""}
                         onChange={(e) => updateCfg({ customBotRedirectUri: e.target.value })}
-                        placeholder="https://your-domain/api/auth/custom-bot/callback"
+                        placeholder="Optional existing OAuth redirect URI"
                       />
                     </div>
                     <div>
-                      <label>Custom bot client secret</label>
+                      <label>Custom bot client secret (optional; not used by runtime)</label>
                       <input
                         style={input}
                         type="password"
@@ -1198,6 +1251,7 @@ export default function BotPersonalizerClient() {
                   A fully separate second Discord-portal bot with its own token, name, avatar and presence. It never shares state with the Custom Token Bot,
                   and does nothing until you route a feature to it above. Yearly subscribers. Lifetime subscribers have this bot too. Invite it to the server like any bot.
                 </div>
+                <CustomBotSetupGuidance />
                 <label style={{ display: "block", marginTop: 10, fontWeight: 800 }}>
                   <input type="checkbox" checked={cfg.customBot2Enabled} onChange={(e) => updateCfg({ customBot2Enabled: e.target.checked })} /> Enable second token bot
                 </label>
@@ -1260,6 +1314,11 @@ export default function BotPersonalizerClient() {
                     {cfg.customBot2ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
                   </button>
                 </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("startCustomBot2")}>Start Check</button>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("refreshCustomBot2")}>Refresh Runtime</button>
+                </div>
+                <TokenBotHealth rows={customBot2RuntimeRows} label="second-bot" />
               </div>
 
               <div id="third-token-bot" style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>
@@ -1270,6 +1329,7 @@ export default function BotPersonalizerClient() {
                   A fully separate third Discord-portal bot with its own token, name, avatar and presence. It never shares state with the Custom Token Bot,
                   and does nothing until you route a feature to it above. Lifetime subscribers only. Invite it to the server like any bot.
                 </div>
+                <CustomBotSetupGuidance />
                 <label style={{ display: "block", marginTop: 10, fontWeight: 800 }}>
                   <input type="checkbox" checked={cfg.customBot3Enabled} onChange={(e) => updateCfg({ customBot3Enabled: e.target.checked })} /> Enable third token bot
                 </label>
@@ -1332,6 +1392,11 @@ export default function BotPersonalizerClient() {
                     {cfg.customBot3ClearToken ? "Token Will Be Cleared" : "Clear Stored Token"}
                   </button>
                 </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("startCustomBot3")}>Start Check</button>
+                  <button type="button" style={subAction} disabled={saving} onClick={() => void runAction("refreshCustomBot3")}>Refresh Runtime</button>
+                </div>
+                <TokenBotHealth rows={customBot3RuntimeRows} label="third-bot" />
               </div>
 
               <div style={{ ...card, marginBottom: 0, marginTop: 12, background: "rgba(22, 3, 3, 0.7)" }}>

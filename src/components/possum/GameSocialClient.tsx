@@ -17,7 +17,7 @@ type EnginePayload = {
 };
 type GuildChannel = { id: string; name: string; type: number; parentId?: string | null; position?: number };
 type GuildRole = { id: string; name: string; position?: number };
-type Props = { guildId: string; guildName: string; mode: "member" | "admin" };
+type Props = { guildId: string; guildName: string; mode: "member" | "admin"; authenticatedUserId?: string };
 
 const card: CSSProperties = { border: "1px solid rgba(255,0,0,.22)", borderRadius: 12, padding: 12, background: "rgba(30,8,12,.42)", marginBottom: 10 };
 const input: CSSProperties = { width: "100%", background: "#070707", border: "1px solid rgba(255,0,0,.45)", color: "#ffd3d3", borderRadius: 10, padding: "10px 12px" };
@@ -127,9 +127,9 @@ function formatChannelLabel(channel: GuildChannel, channels: GuildChannel[]) {
   return parent?.name ? `${parent.name} / #${channel.name}` : `#${channel.name}`;
 }
 
-export default function GameSocialClient({ guildId, guildName, mode }: Props) {
+export default function GameSocialClient({ guildId, guildName, mode, authenticatedUserId }: Props) {
   const context = useMemo(() => resolveGuildContext(), []);
-  const viewerUserId = context.userId;
+  const viewerUserId = authenticatedUserId || context.userId;
   const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({ gameIdentity: {}, privacyConsent: {}, presenceFusion: {}, playtime: {}, squadFinder: {}, gameProvider: {}, showoff: {}, searchAnything: {} });
   const [channels, setChannels] = useState<GuildChannel[]>([]);
   const [roles, setRoles] = useState<GuildRole[]>([]);

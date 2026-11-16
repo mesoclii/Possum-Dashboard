@@ -1,5 +1,8 @@
 "use client";
 
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import { useGuildEmojis } from "@/components/possum/useGuildEmojis";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
@@ -13,6 +16,7 @@ const input: CSSProperties = { width: "100%", padding: "10px 12px", background: 
 
 export default function OnboardingBuilderClient() {
   const [guildId, setGuildId] = useState("");
+  const emojis = useGuildEmojis(guildId);
   const [guildName, setGuildName] = useState("");
   const [onboarding, setOnboarding] = useState<Record<string, any>>({});
   const [verification, setVerification] = useState<Record<string, any>>({});
@@ -269,15 +273,15 @@ export default function OnboardingBuilderClient() {
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Panel title</label>
-              <input style={input} value={String(verification.panelTitle || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelTitle: event.target.value }))} placeholder="Welcome to the Safe Zone (18+)" />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, panelTitle: value }))}><input style={input} value={String(verification.panelTitle || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelTitle: event.target.value }))} placeholder="Welcome to the Safe Zone (18+)" /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Panel description</label>
-              <textarea style={{ ...input, minHeight: 90 }} value={String(verification.panelDescription || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelDescription: event.target.value }))} placeholder="Read the rules, confirm you are 18 or older, then verify to enter." />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, panelDescription: value }))}><textarea style={{ ...input, minHeight: 90 }} value={String(verification.panelDescription || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelDescription: event.target.value }))} placeholder="Read the rules, confirm you are 18 or older, then verify to enter." /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Panel footer</label>
-              <input style={input} value={String(verification.panelFooter || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelFooter: event.target.value }))} placeholder="Verification comes first. Onboarding comes after this step." />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, panelFooter: value }))}><input style={input} value={String(verification.panelFooter || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelFooter: event.target.value }))} placeholder="Verification comes first. Onboarding comes after this step." /></GuildEmojiField>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(200px,1fr))", gap: 10, marginTop: 10 }}>
               <div>
@@ -339,12 +343,12 @@ export default function OnboardingBuilderClient() {
               </div>
               <div>
                 <label>Ticket panel title</label>
-                <input style={input} value={String(tickets.panelTitle || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelTitle: event.target.value }))} placeholder="Support Tickets" />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setTickets((current) => ({ ...current, panelTitle: value }))}><input style={input} value={String(tickets.panelTitle || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelTitle: event.target.value }))} placeholder="Support Tickets" /></GuildEmojiField>
               </div>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Ticket panel description</label>
-              <textarea style={{ ...input, minHeight: 80 }} value={String(tickets.panelDescription || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelDescription: event.target.value }))} placeholder="Choose a ticket type below." />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setTickets((current) => ({ ...current, panelDescription: value }))}><textarea style={{ ...input, minHeight: 80 }} value={String(tickets.panelDescription || "")} onChange={(event) => setTickets((prev) => ({ ...prev, panelDescription: event.target.value }))} placeholder="Choose a ticket type below." /></GuildEmojiField>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
               <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("tickets", tickets, "Saved the ticket panel.")}>Save Ticket Panel</button>
@@ -359,15 +363,15 @@ export default function OnboardingBuilderClient() {
             <h3 style={{ marginTop: 0 }}>Messages + Copy</h3>
             <div style={{ marginBottom: 10 }}>
               <label>Welcome DM template</label>
-              <textarea style={{ ...input, minHeight: 80 }} value={String(verification.dmTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, dmTemplate: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, dmTemplate: value }))}><textarea style={{ ...input, minHeight: 80 }} value={String(verification.dmTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, dmTemplate: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginBottom: 10 }}>
               <label>Gate announcement template</label>
-              <textarea style={{ ...input, minHeight: 80 }} value={String(verification.gateAnnouncementTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, gateAnnouncementTemplate: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, gateAnnouncementTemplate: value }))}><textarea style={{ ...input, minHeight: 80 }} value={String(verification.gateAnnouncementTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, gateAnnouncementTemplate: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginBottom: 10 }}>
               <label>Post-verified message</label>
-              <textarea style={{ ...input, minHeight: 80 }} value={String(onboarding.postVerifyTemplate || "")} onChange={(event) => setOnboarding((prev) => ({ ...prev, postVerifyTemplate: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setOnboarding((current) => ({ ...current, postVerifyTemplate: value }))}><textarea style={{ ...input, minHeight: 80 }} value={String(onboarding.postVerifyTemplate || "")} onChange={(event) => setOnboarding((prev) => ({ ...prev, postVerifyTemplate: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }} onClick={() => void saveEngine("verification", verification, "Saved verification copy.")}>Save Verification Copy</button>

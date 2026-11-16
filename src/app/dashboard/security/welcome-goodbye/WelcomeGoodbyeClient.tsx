@@ -1,5 +1,8 @@
 "use client";
 
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import { useGuildEmojis } from "@/components/possum/useGuildEmojis";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -26,6 +29,7 @@ const input: CSSProperties = {
 
 export default function WelcomeGoodbyeClient() {
   const [guildId, setGuildId] = useState("");
+  const emojis = useGuildEmojis(guildId);
   const [guildName, setGuildName] = useState("");
   const [verification, setVerification] = useState<Record<string, any>>({});
   const [onboarding, setOnboarding] = useState<Record<string, any>>({});
@@ -178,23 +182,23 @@ export default function WelcomeGoodbyeClient() {
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Welcome DM / gate message</label>
-              <textarea style={{ ...input, minHeight: 90 }} value={String(verification.dmTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, dmTemplate: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, dmTemplate: value }))}><textarea style={{ ...input, minHeight: 90 }} value={String(verification.dmTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, dmTemplate: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Welcome panel title</label>
-              <input style={input} value={String(verification.panelTitle || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelTitle: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, panelTitle: value }))}><input style={input} value={String(verification.panelTitle || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelTitle: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Welcome panel description</label>
-              <textarea style={{ ...input, minHeight: 90 }} value={String(verification.panelDescription || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelDescription: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, panelDescription: value }))}><textarea style={{ ...input, minHeight: 90 }} value={String(verification.panelDescription || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelDescription: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Welcome panel footer</label>
-              <input style={input} value={String(verification.panelFooter || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelFooter: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, panelFooter: value }))}><input style={input} value={String(verification.panelFooter || "")} onChange={(event) => setVerification((prev) => ({ ...prev, panelFooter: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Gate announcement / hero line</label>
-              <textarea style={{ ...input, minHeight: 90 }} value={String(verification.gateAnnouncementTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, gateAnnouncementTemplate: event.target.value }))} />
+              <GuildEmojiField emojis={emojis} onInsert={(value) => setVerification((current) => ({ ...current, gateAnnouncementTemplate: value }))}><textarea style={{ ...input, minHeight: 90 }} value={String(verification.gateAnnouncementTemplate || "")} onChange={(event) => setVerification((prev) => ({ ...prev, gateAnnouncementTemplate: event.target.value }))} /></GuildEmojiField>
             </div>
             <div style={{ marginTop: 10, border: "1px solid #5f0000", borderRadius: 8, padding: 10, background: "#120000" }}>
               {welcomePreview || "Welcome preview"}
@@ -219,12 +223,12 @@ export default function WelcomeGoodbyeClient() {
               />{" "}
               Send post-verification welcome message
             </label>
-            <textarea
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setOnboarding((current) => ({ ...current, postVerifyTemplate: value }))}><textarea
               aria-label="Post-verification welcome message"
               style={{ ...input, minHeight: 280, fontFamily: "monospace", whiteSpace: "pre-wrap" }}
               value={String(onboarding.postVerifyTemplate || "")}
               onChange={(event) => setOnboarding((current) => ({ ...current, postVerifyTemplate: event.target.value }))}
-            />
+            /></GuildEmojiField>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button
                 type="button"

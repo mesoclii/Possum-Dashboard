@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import GuildEmojiPicker, { type GuildEmoji } from "@/components/possum/GuildEmojiPicker";
 
 type Role = { id: string; name: string; position?: number };
 type Channel = { id: string; name: string; type: number };
@@ -271,6 +273,7 @@ export default function TicketsClient() {
   const [guildName, setGuildName] = useState("");
   const [roles, setRoles] = useState<Role[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [emojis, setEmojis] = useState<GuildEmoji[]>([]);
   const [cfg, setCfg] = useState<TicketsConfig>(defaultConfig());
   const [orig, setOrig] = useState<TicketsConfig>(defaultConfig());
   const [loading, setLoading] = useState(true);
@@ -315,6 +318,7 @@ export default function TicketsClient() {
         setGuildName(String(guildJson?.guild?.name || guildId));
         setRoles(roleList);
         setChannels(Array.isArray(guildJson?.channels) ? guildJson.channels : []);
+        setEmojis(Array.isArray(guildJson?.emojis) ? guildJson.emojis : []);
         setCfg(loaded);
         setOrig(loaded);
       } catch {
@@ -552,11 +556,13 @@ export default function TicketsClient() {
             </div>
 
             <div style={{ marginTop: 10 }}>Fallback Panel Description</div>
-            <textarea
-              style={{ ...input, minHeight: 90 }}
-              value={cfg.panelDescription}
-              onChange={(event) => setCfg((prev) => ({ ...prev, panelDescription: event.target.value }))}
-            />
+            <GuildEmojiField emojis={emojis} onInsert={(value) => setCfg((prev) => ({ ...prev, panelDescription: value }))}>
+              <textarea
+                style={{ ...input, minHeight: 90 }}
+                value={cfg.panelDescription}
+                onChange={(event) => setCfg((prev) => ({ ...prev, panelDescription: event.target.value }))}
+              />
+            </GuildEmojiField>
 
             <RolePicker
               label="Staff Roles"
@@ -579,13 +585,13 @@ export default function TicketsClient() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 180px 1fr 180px", gap: 10 }}>
               <input style={input} value={cfg.controls.claimLabel} placeholder="Claim label" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, claimLabel: event.target.value } }))} />
-              <input style={input} value={cfg.controls.claimEmoji} placeholder="Claim emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, claimEmoji: event.target.value } }))} />
+              <div><input style={input} value={cfg.controls.claimEmoji} placeholder="Claim emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, claimEmoji: event.target.value } }))} /><GuildEmojiPicker emojis={emojis} onInsert={(token) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, claimEmoji: token } }))} /></div>
               <input style={input} value={cfg.controls.closeLabel} placeholder="Close label" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, closeLabel: event.target.value } }))} />
-              <input style={input} value={cfg.controls.closeEmoji} placeholder="Close emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, closeEmoji: event.target.value } }))} />
+              <div><input style={input} value={cfg.controls.closeEmoji} placeholder="Close emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, closeEmoji: event.target.value } }))} /><GuildEmojiPicker emojis={emojis} onInsert={(token) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, closeEmoji: token } }))} /></div>
               <input style={input} value={cfg.controls.reopenLabel} placeholder="Reopen label" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, reopenLabel: event.target.value } }))} />
-              <input style={input} value={cfg.controls.reopenEmoji} placeholder="Reopen emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, reopenEmoji: event.target.value } }))} />
+              <div><input style={input} value={cfg.controls.reopenEmoji} placeholder="Reopen emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, reopenEmoji: event.target.value } }))} /><GuildEmojiPicker emojis={emojis} onInsert={(token) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, reopenEmoji: token } }))} /></div>
               <input style={input} value={cfg.controls.deleteLabel} placeholder="Delete label" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, deleteLabel: event.target.value } }))} />
-              <input style={input} value={cfg.controls.deleteEmoji} placeholder="Delete emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, deleteEmoji: event.target.value } }))} />
+              <div><input style={input} value={cfg.controls.deleteEmoji} placeholder="Delete emoji" onChange={(event) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, deleteEmoji: event.target.value } }))} /><GuildEmojiPicker emojis={emojis} onInsert={(token) => setCfg((prev) => ({ ...prev, controls: { ...prev.controls, deleteEmoji: token } }))} /></div>
             </div>
           </div>
 
@@ -629,6 +635,7 @@ export default function TicketsClient() {
                   <div>
                     <div>Button Emoji</div>
                     <input style={input} value={typeCfg.panelButtonEmoji} onChange={(event) => setType(key, { panelButtonEmoji: event.target.value })} />
+                    <GuildEmojiPicker emojis={emojis} onInsert={(token) => setType(key, { panelButtonEmoji: token })} />
                   </div>
                   <div>
                     <div>Panel Button Label</div>
@@ -703,18 +710,22 @@ export default function TicketsClient() {
                 </div>
 
                 <div style={{ marginTop: 10 }}>Panel Description</div>
-                <textarea
-                  style={{ ...input, minHeight: 80 }}
-                  value={typeCfg.panelDescription}
-                  onChange={(event) => setType(key, { panelDescription: event.target.value })}
-                />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setType(key, { panelDescription: value })}>
+                  <textarea
+                    style={{ ...input, minHeight: 80 }}
+                    value={typeCfg.panelDescription}
+                    onChange={(event) => setType(key, { panelDescription: event.target.value })}
+                  />
+                </GuildEmojiField>
 
                 <div style={{ marginTop: 10 }}>Intro Message</div>
-                <textarea
-                  style={{ ...input, minHeight: 110 }}
-                  value={typeCfg.introMessage}
-                  onChange={(event) => setType(key, { introMessage: event.target.value })}
-                />
+                <GuildEmojiField emojis={emojis} onInsert={(value) => setType(key, { introMessage: value })}>
+                  <textarea
+                    style={{ ...input, minHeight: 110 }}
+                    value={typeCfg.introMessage}
+                    onChange={(event) => setType(key, { introMessage: event.target.value })}
+                  />
+                </GuildEmojiField>
               </div>
             );
           })}

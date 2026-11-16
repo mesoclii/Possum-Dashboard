@@ -74,6 +74,35 @@ function bootstrapWithSqlite() {
     );
 
     CREATE INDEX IF NOT EXISTS "GuildDiscoveryCache_kind_expiresAt_idx" ON "GuildDiscoveryCache"("kind", "expiresAt");
+
+    CREATE TABLE IF NOT EXISTS "PersonalSocialAccount" (
+      "userId" TEXT NOT NULL, "provider" TEXT NOT NULL, "providerId" TEXT NOT NULL,
+      "label" TEXT NOT NULL, "url" TEXT NOT NULL,
+      PRIMARY KEY ("userId", "provider")
+    );
+    CREATE TABLE IF NOT EXISTS "PersonalSocialRevision" (
+      "userId" TEXT NOT NULL, "provider" TEXT NOT NULL, "revision" TEXT NOT NULL,
+      PRIMARY KEY ("userId", "provider")
+    );
+    INSERT OR IGNORE INTO "PersonalSocialRevision" ("userId", "provider", "revision")
+      SELECT "userId", "provider", lower(hex(randomblob(16))) FROM "PersonalSocialAccount";
+    CREATE TABLE IF NOT EXISTS "PersonalSocialVisibility" (
+      "userId" TEXT NOT NULL, "provider" TEXT NOT NULL, "guildId" TEXT NOT NULL,
+      PRIMARY KEY ("userId", "provider", "guildId")
+    );
+    CREATE INDEX IF NOT EXISTS "PersonalSocialVisibility_guild_idx"
+      ON "PersonalSocialVisibility"("guildId", "userId", "provider");
+    CREATE TABLE IF NOT EXISTS "PersonalSocialOAuthState" (
+      "stateHash" TEXT NOT NULL PRIMARY KEY, "sessionHash" TEXT NOT NULL,
+      "userId" TEXT NOT NULL, "expiresAt" INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS "PersonalSocialOAuthAttempt" (
+      "stateHash" TEXT NOT NULL PRIMARY KEY, "sessionHash" TEXT NOT NULL,
+      "userId" TEXT NOT NULL, "provider" TEXT NOT NULL, "expiresAt" INTEGER NOT NULL,
+      "claimed" INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS "PersonalSocialOAuthAttempt_owner_idx"
+      ON "PersonalSocialOAuthAttempt"("userId", "provider");
   `);
 
   db.close();

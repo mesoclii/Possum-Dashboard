@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildDiscordOauthUrl, getDiscordOauthConfigurationIssue } from "@/lib/discordOAuth";
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
-import { getDashboardPublicOrigin } from "@/lib/dashboardUrl";
 import {
   createOauthState,
   dashboardOAuthStateCookieName,
@@ -13,17 +12,6 @@ import {
 } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
-  const dashboardOrigin = getDashboardPublicOrigin(request);
-  if (dashboardOrigin !== request.nextUrl.origin) {
-    const loginUrl = new URL(
-      `${request.nextUrl.pathname}${request.nextUrl.search}`,
-      dashboardOrigin
-    );
-    const response = NextResponse.redirect(loginUrl);
-    response.headers.set("Cache-Control", "no-store, private");
-    return response;
-  }
-
   try {
     await enforceDashboardRateLimit(request, "oauth_login");
   } catch (error: any) {
@@ -47,9 +35,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const state = createOauthState();
-  const response = NextResponse.redirect(buildDiscordOauthUrl(state));
-  response.headers.set("Cache-Control", "no-store, private");
   const referer = String(request.headers.get("referer") || "").trim();
   let inferredReturnTo = request.nextUrl.searchParams.get("returnTo") || "";
   if (!inferredReturnTo && referer) {
@@ -61,6 +46,19 @@ export async function GET(request: NextRequest) {
     } catch {}
   }
   const returnTo = sanitizeDashboardReturnTo(inferredReturnTo);
+  const canonical = new URL(String(process.env.DISCORD_REDIRECT_URI).trim());
+  const host = String(request.headers.get("host") || request.nextUrl.host).toLowerCase();
+  if (host !== canonical.host.toLowerCase()) {
+    const url = new URL("/api/auth/discord/login", canonical.origin);
+    url.searchParams.set("returnTo", returnTo);
+    const response = NextResponse.redirect(url);
+    response.headers.set("Cache-Control", "no-store, private");
+    return response;
+  }
+
+  const state = createOauthState();
+  const response = NextResponse.redirect(buildDiscordOauthUrl(state));
+  response.headers.set("Cache-Control", "no-store, private");
 
   response.cookies.set(dashboardOAuthStateCookieName(state), state, {
     httpOnly: true,

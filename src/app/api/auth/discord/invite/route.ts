@@ -28,6 +28,16 @@ export async function GET(req: NextRequest) {
         );
       }
 
+      const canonical = new URL(String(process.env.DISCORD_REDIRECT_URI).trim());
+      const host = String(req.headers.get("host") || req.nextUrl.host).toLowerCase();
+      if (host !== canonical.host.toLowerCase()) {
+        const url = new URL("/api/auth/discord/invite", canonical.origin);
+        if (guildId) url.searchParams.set("guildId", guildId);
+        const redirect = NextResponse.redirect(url);
+        redirect.headers.set("Cache-Control", "no-store, private");
+        return redirect;
+      }
+
       const cookieOptions = {
         httpOnly: true,
         sameSite: "lax" as const,

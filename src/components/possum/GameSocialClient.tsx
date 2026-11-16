@@ -289,7 +289,7 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
     return `/api/games/auth/start?${params.toString()}`;
   }, [guildId, viewerUserId]);
   const pollMemberActivity = useCallback(async () => {
-    const liveKeys: EngineKey[] = ["presenceFusion", "squadFinder"];
+    const liveKeys: EngineKey[] = ["presenceFusion", "playtime", "gameProvider", "squadFinder"];
     invalidateRuntimeEngines(guildId, liveKeys);
     const results = await Promise.all(liveKeys.map(async (engine) => {
       try {

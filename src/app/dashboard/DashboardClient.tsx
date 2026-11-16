@@ -40,10 +40,9 @@ type DashboardSection =
   | "Guild Control"
   | "Automation"
   | "Utilities"
-  | "Social Alerts"
   | "Security"
   | "Economy"
-  | "Gaming"
+  | "Social"
   | "Fun + Games"
   | "Possum Pro";
 
@@ -51,10 +50,9 @@ const SECTION_ORDER: DashboardSection[] = [
   "Guild Control",
   "Automation",
   "Utilities",
-  "Social Alerts",
   "Security",
   "Economy",
-  "Gaming",
+  "Social",
   "Fun + Games",
   "Possum Pro",
 ];
@@ -321,7 +319,6 @@ function getCardSection(card: Card): DashboardSection {
     href === "/dashboard/bot-personalizer" ||
     href === "/dashboard/bot-masters" ||
     href === "/dashboard/channels" ||
-    href === "/dashboard/ai/learning" ||
     href === "/dashboard/giveaways" ||
     href === "/dashboard/jed" ||
     href === "/dashboard/music" ||
@@ -335,24 +332,27 @@ function getCardSection(card: Card): DashboardSection {
     href === "/dashboard/automations/studio" ||
     href === "/dashboard/commands" ||
     href === "/dashboard/slash-commands" ||
-    href === "/dashboard/event-reactor" ||
-    href === "/dashboard/runtime-router"
+    href === "/dashboard/event-reactor"
   ) {
     return "Automation";
   }
   if (
     href === "/dashboard/utilities" ||
     href === "/dashboard/reviews" ||
-    href === "/dashboard/community-studio" ||
     href === "/dashboard/channel-flow"
   ) {
     return "Utilities";
   }
   if (
+    href === "/dashboard/games" ||
+    href === "/dashboard/wow" ||
+    href === "/dashboard/podcast" ||
+    href === "/dashboard/community-studio" ||
+    href === "/dashboard/bump-reminder" ||
     href === "/dashboard/social-alerts" ||
     href === "/dashboard/signal-relay"
   ) {
-    return "Social Alerts";
+    return "Social";
   }
   if (
     href === "/dashboard/security" ||
@@ -377,14 +377,11 @@ function getCardSection(card: Card): DashboardSection {
     return "Economy";
   }
   if (
-    href === "/dashboard/games" ||
-    href === "/dashboard/games/wilds" ||
-    href === "/dashboard/wow"
-  ) {
-    return "Gaming";
-  }
-  if (
     href === "/dashboard/premium-features" ||
+    href === "/dashboard/ai/learning" ||
+    href === "/dashboard/runtime-router" ||
+    href === "/dashboard/games/wilds" ||
+    href === "/dashboard/analytics" ||
     href === "/dashboard/heist" ||
     href === "/dashboard/tts" ||
     href === "/dashboard/ai/persona" ||
@@ -540,9 +537,9 @@ const CARDS: Card[] = [
   { href: "/dashboard/community-studio", title: "Community Studio", description: "Bulletin drops, pulse polls, reminder loops, and lookup shelf answers.", toggle: engineController("communityStudio", ["active"]) },
   { href: "/dashboard/channel-flow", title: "Channel Flow", description: "Live counter channels and room-flow temporary voice spaces.", toggle: engineController("channelFlow", ["active"]) },
   { href: "/dashboard/bump-reminder", title: "Bump Reminder", description: "Ping a role when Disboard or Discadia can be bumped again.", goOnly: true, goLabel: "Go" },
-  { href: "/dashboard/search-anything", title: "Search Anything", description: "Guild-level search routes for web, video, wiki, meme, anime, and creator lookups.", toggle: engineController("searchAnything", ["enabled"]), premiumRequired: true },
-  { href: "/dashboard/social-alerts", title: "Social Alerts", description: "Provider cards for RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick.", goOnly: true, goLabel: "Go", premiumRequired: true },
-  { href: "/dashboard/signal-relay", title: "Signal Relay", description: "Provider-aware creator and community dispatches with bridge routes, direct feeds, and live checks.", toggle: engineController("signalRelay", ["active"]), premiumRequired: true },
+  { href: "/dashboard/search-anything", title: "Search Anything", description: "Guild-level search routes for web, video, wiki, meme, anime, and creator lookups.", toggle: engineController("searchAnything", ["enabled"]) },
+  { href: "/dashboard/social-alerts", title: "Social Alerts", description: "Provider cards for RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick.", goOnly: true, goLabel: "Go" },
+  { href: "/dashboard/signal-relay", title: "Signal Relay", description: "Provider-aware creator and community dispatches with bridge routes, direct feeds, and live checks.", toggle: engineController("signalRelay", ["active"]) },
   { href: "/dashboard/moderator", title: "Moderator", description: "Separate automod, audit logging, and moderation controls.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/pre-onboarding", title: "Pre-Onboarding", description: "Blacklist rejoin, refusal-role, and pre-entry enforcement before onboarding begins.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/security/onboarding", title: "Onboarding", description: "Join flow, welcome routing, and onboarding channel behavior.", goOnly: true, goLabel: "Go" },
@@ -759,7 +756,7 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
 
   const premiumUnlocked = !premiumEnforced || Boolean(subscription?.active || subscription?.developerBypass);
   const navGroup = useMemo(
-    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner).find((s) => getSectionSlug(s.label) === groupSlug) || null : null),
+    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner).find((s) => getSectionSlug(s.label) === (groupSlug === "gaming" || groupSlug === "social-alerts" ? "social" : groupSlug)) || null : null),
     [featureVisibility, groupSlug, isMasterOwner, isPrimaryOwner]
   );
   const baseHref = (href: string) => href.split("?")[0].split("#")[0];

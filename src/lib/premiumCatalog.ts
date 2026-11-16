@@ -93,24 +93,6 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Free tier keeps a smaller cap. Premium expands rule depth and scale."
   },
   {
-    id: "signal-relay",
-    label: "Social Alerts + Signal Relay",
-    route: "/dashboard/social-alerts",
-    summary: "Twitch, YouTube and other feed alerts posted automatically to your channels.",
-    premiumLabel: "Pro Alerts",
-    includedIn: ["Pro"],
-    pricingNote: "Feed polling uses server resources, so it is a Pro feature."
-  },
-  {
-    id: "search-anything",
-    label: "Search Anything",
-    route: "/dashboard/search-anything",
-    summary: "Search across your server's content and tools from one command and dashboard.",
-    premiumLabel: "Pro Search",
-    includedIn: ["Pro"],
-    pricingNote: "Included with Pro."
-  },
-  {
     id: "alert-inbox",
     label: "Pro Alert Inbox",
     route: "/dashboard/alert-inbox",
@@ -196,8 +178,6 @@ export const PLAN_COMMON_FEATURES: string[] = [
   "Possum Wilds",
   "Advanced Security + Governance Suite",
   "Automation + Custom Commands Suite",
-  "Social Alerts + Signal Relay (Twitch, YouTube, feeds)",
-  "Search Anything",
   "Analytics (growth, activity, retention, mod actions)",
   "Config Backup + Restore",
   "Limited monthly AI usage included (add-ons available)",

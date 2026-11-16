@@ -158,6 +158,30 @@ test("premium mutation rejects missing or non-owner actor even when called direc
   assert.equal(writes, 0);
 });
 
+test("Social Alerts and Search Anything are free with premium enforcement enabled", () => {
+  const subscription = load("lib/subscription.ts", {
+    "@/lib/dashboardOwner": {},
+    "@/lib/guildDiscoveryCache": {},
+    "@/lib/prisma": {},
+    "@/lib/botApiServer": {},
+    "@/lib/premiumMode": { isPremiumEnforcementEnabled: () => true },
+  });
+  assert.equal(subscription.featureRequiresPremium("signal-relay"), false);
+  assert.equal(subscription.featureRequiresPremium("search-anything"), false);
+  assert.equal(subscription.featureRequiresPremium("tts"), true);
+});
+
+test("Social navigation keeps alerts and podcast together outside Possum Pro", () => {
+  const nav = load("lib/dashboard/navigation.ts", { "@/lib/premiumCatalog": { PREMIUM_FEATURES: [] } });
+  const sections = nav.getDashboardNavSections(true, undefined, true);
+  const social = sections.find((section) => section.label === "Social");
+  const pro = sections.find((section) => section.label === "Possum Pro");
+  for (const route of ["/dashboard/games", "/dashboard/podcast", "/dashboard/social-alerts", "/dashboard/signal-relay"]) {
+    assert.ok(social.items.some((item) => item.href === route), route);
+    assert.ok(!pro.items.some((item) => item.href === route), route);
+  }
+});
+
 test("engine config errors do not disclose another actor's cached config", async () => {
   let actor = owner;
   let mode = "ok";

@@ -6,6 +6,7 @@ import ProjectUpdateTimes from "@/components/possum/ProjectUpdateTimes";
 
 const navigation = [
   { href: "/features", label: "Features" },
+  { href: "/gaming", label: "Gaming Hub" },
   { href: "/security", label: "Security" },
   { href: "/community", label: "Community" },
   { href: "/docs", label: "Guides" },

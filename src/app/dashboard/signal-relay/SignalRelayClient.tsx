@@ -70,6 +70,7 @@ const PROVIDERS = [
   { key: "reddit", label: "Reddit", hint: "Subreddit or Reddit username" },
   { key: "bluesky", label: "Bluesky", hint: "Profile handle through built-in bridge routes" },
   { key: "x", label: "X", hint: "Account handle through built-in bridge routes" },
+  { key: "facebook", label: "Facebook Page", hint: "Public Page name or ID through a third-party feed bridge" },
   { key: "instagram", label: "Instagram", hint: "Creator handle through built-in bridge routes" },
   { key: "tiktok", label: "TikTok", hint: "Creator handle through built-in bridge routes" },
   { key: "kick", label: "Kick", hint: "Channel handle through built-in bridge routes" },
@@ -125,6 +126,7 @@ function resolveSourceRoute(source: SignalSource) {
     twitch: "twitch/channel",
     tiktok: "tiktok/user",
     x: "twitter/user",
+    facebook: "facebook/page",
     bluesky: "bsky/profile",
     instagram: "instagram/user",
     kick: "kick/channel",
@@ -176,6 +178,8 @@ function resourceOptionsFor(provider: string) {
         { value: "subreddit", label: "Subreddit" },
         { value: "user", label: "User" },
       ];
+    case "facebook":
+      return [{ value: "page", label: "Facebook Page" }];
     case "rss":
     case "podcast":
       return [{ value: "feed", label: "Feed URL" }];
@@ -268,7 +272,7 @@ export default function SignalRelayClient() {
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Signal Relay</h1>
       <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
-        Provider-aware creator and community dispatches. Signal Relay now resolves built-in provider routes for YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick so you are not forced to paste raw feed URLs for everything.
+        Follow public creator and community feeds in Discord. Facebook Pages and other supported providers may require a working third-party feed bridge.
       </div>
       {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
 

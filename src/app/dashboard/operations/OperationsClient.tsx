@@ -297,11 +297,12 @@ export default function OperationsClient() {
 
       {error ? (
         <section style={{ ...panel, borderColor: "#ff4a4a" }}>
-          <div style={label}>Agent unreachable</div>
+          <div style={label}>Operations data unavailable</div>
           <p style={{ margin: "8px 0 0" }}>{error}</p>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "#c99090" }}>
-            Start it with: pm2 start ops/ecosystem.ops.config.js. Set OPS_AGENT_TOKEN first.
+            The dashboard retries automatically every 10 seconds. A temporary gateway error does not necessarily mean the agent is stopped.
           </p>
+          <button type="button" onClick={() => void loadOverview()} style={{ marginTop: 10 }}>Retry now</button>
         </section>
       ) : null}
 

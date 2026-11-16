@@ -725,6 +725,7 @@ export default function MemberGamingHub({
         <h1 style={{ margin: "8px 0 4px", fontSize: "clamp(25px, 5vw, 38px)", letterSpacing: "-.03em" }}>Gaming Hub</h1>
         <div style={{ color: colors.muted }}>{guildName || guildId} · players, profiles, sessions, and teams</div>
         {viewer.name ? <div style={{ color: colors.text, marginTop: 10 }}>Welcome back, {viewer.name}</div> : null}
+        <a href="/gaming" style={{ display: "inline-block", marginTop: 12, marginRight: 16, color: colors.accent, fontSize: 13, fontWeight: 700 }}>Public Gaming Hub &amp; sharing</a>
         {adminHref ? <a href={adminHref} style={{ display: "inline-block", marginTop: 12, color: colors.accent, fontSize: 13, fontWeight: 700 }}>Server gaming settings</a> : null}
       </header>
 

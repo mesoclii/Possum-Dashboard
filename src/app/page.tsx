@@ -173,6 +173,9 @@ export default function Home() {
               <a href="/features" style={secondaryButton}>
                 Features
               </a>
+              <a href="/gaming" style={secondaryButton}>
+                Public Gaming Hub
+              </a>
               <a href={entryHref} style={primaryButton}>
                 {entryLabel}
               </a>

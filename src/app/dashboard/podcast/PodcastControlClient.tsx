@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { resolveGuildContext } from "@/lib/liveRuntime";
 
 type Episode = { id: string; title: string; state: string; published: boolean };
-type Control = { state: string; missingConsent: number; isAdmin: boolean; hostRoles: string[]; episodes: Episode[]; accessConfig: { channelId: string; roleId: string } | null };
+type Control = { state: string; missingConsent: number; isAdmin: boolean; hostRoles: string[]; episodes: Episode[]; participants: { userId: string; displayName: string; consented: boolean }[]; accessConfig: { channelId: string; roleId: string } | null };
 type Channel = { id: string; name: string; type: number | string };
 type Role = { id: string; name: string; managed: boolean; permissions: string };
 
@@ -145,6 +145,14 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
       <section style={card}>
         <h2 style={{ fontSize: 20, marginTop: 0 }}>Recording</h2>
         <p>Status: <strong>{control?.state || "loading"}</strong>{control?.missingConsent ? ` · ${control.missingConsent} awaiting consent` : ""}</p>
+        {control?.participants.length ? (
+          <div>
+            <strong>Voice participant consent</strong>
+            <ul style={{ marginTop: 6 }}>
+              {control.participants.map((person) => <li key={person.userId}>{person.displayName} — {person.consented ? "consented" : "waiting for consent"}</li>)}
+            </ul>
+          </div>
+        ) : null}
         <p><a href={`/podcasts/${guildId}`} style={{ color: "#ff83aa" }}>Public listening page</a> · <a href={`/api/podcast/${guildId}/feed.xml`} style={{ color: "#ff83aa" }}>RSS feed</a></p>
         <label>Episode title <input style={field} maxLength={150} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Name your episode" /></label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
@@ -215,8 +223,15 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
         <h2 style={{ fontSize: 20, marginTop: 0 }}>Episodes</h2>
         {control && control.episodes.length === 0 ? <p style={muted}>Your saved episodes will appear here.</p> : null}
         {(control?.episodes || []).map((episode) => (
-          <div key={episode.id} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 0" }}>
+          <div key={episode.id} style={{ borderTop: "1px solid #6d1834", padding: "14px 0" }}>
             <span><strong>{episode.title}</strong> · {episode.state} · {episode.published ? "public" : "private"}</span>
+            {["completed", "failed"].includes(episode.state) ? (
+              <div>
+                <p style={muted}>Private host preview{episode.state === "failed" ? " · recording ended with an error and may be incomplete" : ""}</p>
+                <audio controls preload="none" aria-label={`Preview ${episode.title}`} src={`/api/podcast/${guildId}/episodes/${episode.id}/preview`} onError={() => setError(`Could not load the recording for "${episode.title}".`)} style={{ width: "100%", maxWidth: 480 }} />
+                <p><a style={{ color: "#ff83aa" }} href={`/api/podcast/${guildId}/episodes/${episode.id}/preview`} download={`podcast-${episode.id}.mp3`}>Download recording</a></p>
+              </div>
+            ) : null}
             <button type="button" style={secondaryButton} disabled={busy || (episode.state !== "completed" && !episode.published)} onClick={() => void send("publication", { episodeId: episode.id, published: !episode.published })}>
               {episode.published ? "Make private" : "Publish"}
             </button>

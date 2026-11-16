@@ -29,9 +29,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const isLive = path === "live";
   const isEpisodes = path === "episodes";
   const isAudio = parts.length === 3 && parts[0] === "episodes" && validEpisodeId(parts[1]) && parts[2] === "audio";
+  const isPreview = parts.length === 3 && parts[0] === "episodes" && validEpisodeId(parts[1]) && parts[2] === "preview";
   const isControl = path === "control";
   const isPublication = path === "publication";
-  if (!isFeed && !isLive && !isEpisodes && !isAudio && !isControl && !isPublication) {
+  if (!isFeed && !isLive && !isEpisodes && !isAudio && !isPreview && !isControl && !isPublication) {
     return res.status(404).json({ success: false, error: "Podcast route not found." });
   }
   if ((!isControl && !isPublication && req.method !== "GET") ||
@@ -45,11 +46,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const token = String(process.env.DASHBOARD_API_TOKEN || "").trim();
   if (!token) return res.status(503).json({ success: false, error: "Podcast service is not configured." });
   let headers: Record<string, string> = { "x-dashboard-token": token };
-  if (isControl || isPublication) {
+  if (isControl || isPublication || isPreview) {
     if (!await readActorUserId(req)) return res.status(401).json({ success: false, error: "Sign in to manage podcasts." });
     headers = await buildBotApiHeaders(req, { json: req.method === "POST" });
   }
-  if (isAudio && typeof req.headers.range === "string") headers.range = req.headers.range;
+  if ((isAudio || isPreview) && typeof req.headers.range === "string") headers.range = req.headers.range;
   const upstreamPath = isFeed ? "episodes" : path;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);

@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { BOT_API, buildBotApiHeaders, readActorUserId, readJsonSafe } from "@/lib/botApi";
-import { FALLBACK_GUILD_NAMES } from "@/lib/dashboardOwner";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -29,17 +28,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         icon: guild?.icon || null,
         botPresent: guild?.botPresent !== false,
       });
-    }
-
-    for (const [guildId, guildName] of Object.entries(FALLBACK_GUILD_NAMES)) {
-      if (!guilds.has(guildId)) {
-        guilds.set(guildId, {
-          id: guildId,
-          name: guildName,
-          icon: null,
-          botPresent: false,
-        });
-      }
     }
 
     return res.status(upstream.ok ? 200 : upstream.status).json({

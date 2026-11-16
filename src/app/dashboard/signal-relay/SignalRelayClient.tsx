@@ -276,6 +276,46 @@ export default function SignalRelayClient() {
         <div style={card}>Loading Signal Relay...</div>
       ) : (
         <>
+          <section id="link-accounts" style={{ ...card, borderColor: "#ff3b70" }}>
+            <h2 style={{ margin: "0 0 8px" }}>Add a social link or feed</h2>
+            <div style={micro}>Choose a platform, enter its public handle or feed, select the Discord channel, turn Signal Relay on, and save. This follows public feeds; it does not sign in to or connect your account. Some platforms depend on third-party feed bridges and may not always work.</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
+              <button type="button" style={button} onClick={() => { setCfg((prev) => ({ ...prev, sources: [...prev.sources, createSource()] })); setSelectedSourceIndex(cfg.sources.length); }}>Add a link</button>
+              <button type="button" style={button} disabled={!activeSource} onClick={() => activeSource && removeSource(activeSourceIndex)}>Remove selected link</button>
+              <label><input type="checkbox" checked={cfg.active} onChange={(e) => setCfg((prev) => ({ ...prev, active: e.target.checked }))} /> Signal Relay on</label>
+              {activeSource ? <label><input type="checkbox" checked={activeSource.enabled !== false} onChange={(e) => updateSource(activeSourceIndex, { enabled: e.target.checked })} /> Selected link on</label> : null}
+              <button type="button" style={button} disabled={saving} onClick={() => void save(cfg)}>{saving ? "Saving..." : "Save links"}</button>
+            </div>
+            {activeSource ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12 }}>
+                <label>Editing link
+                  <select style={input} value={activeSourceIndex} onChange={(e) => setSelectedSourceIndex(Number(e.target.value))}>
+                    {cfg.sources.map((source, index) => <option key={source.id || index} value={index}>{source.label || `Source ${index + 1}`}</option>)}
+                  </select>
+                </label>
+                <label>Platform
+                  <select style={input} value={String(activeSource.provider || "rss")} onChange={(e) => applyPreset(activeSourceIndex, e.target.value)}>
+                    {PROVIDERS.map((provider) => <option key={provider.key} value={provider.key}>{provider.label}</option>)}
+                  </select>
+                </label>
+                <label>Link type
+                  <select style={input} value={String(activeSource.resourceType || resourceOptionsFor(String(activeSource.provider || "rss"))[0]?.value || "feed")} onChange={(e) => updateSource(activeSourceIndex, { resourceType: e.target.value })}>
+                    {resourceOptionsFor(String(activeSource.provider || "rss")).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label>{["rss", "podcast"].includes(String(activeSource.provider || "rss")) ? "Feed URL" : "Public handle or profile link"}
+                  <input style={input} value={String(["rss", "podcast"].includes(String(activeSource.provider || "rss")) ? activeSource.feedUrl || "" : activeSource.sourceRef || "")} onChange={(e) => updateSource(activeSourceIndex, ["rss", "podcast"].includes(String(activeSource.provider || "rss")) ? { feedUrl: e.target.value } : { sourceRef: e.target.value })} placeholder={["rss", "podcast"].includes(String(activeSource.provider || "rss")) ? "https://example.com/feed.xml" : "@creator or profile URL"} />
+                </label>
+                <label>Post to Discord channel
+                  <select style={input} value={String(activeSource.channelId || "")} onChange={(e) => updateSource(activeSourceIndex, { channelId: e.target.value })}>
+                    <option value="">Select text channel</option>
+                    {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                  </select>
+                </label>
+              </div>
+            ) : <div style={micro}>No links yet. Select “Add a link” to get started.</div>}
+            <div style={{ ...micro, marginTop: 10 }}>For YouTube playlists, select Playlist ID and enter the ID rather than the full playlist URL. Advanced options and source removal are below.</div>
+          </section>
           <EngineInsights summary={summary} details={details} showDetails />
 
           <section id="defaults" style={card}>
@@ -387,7 +427,7 @@ export default function SignalRelayClient() {
                     </div>
                     <div>
                       <div style={{ marginBottom: 6 }}>{sourceRefLabel(String(activeSource.provider || "rss"))}</div>
-                      <input style={input} value={String(activeSource.sourceRef || "")} onChange={(e) => updateSource(activeSourceIndex, { sourceRef: e.target.value })} />
+                      <input style={input} value={String(["rss", "podcast"].includes(String(activeSource.provider || "rss")) ? activeSource.feedUrl || "" : activeSource.sourceRef || "")} onChange={(e) => updateSource(activeSourceIndex, ["rss", "podcast"].includes(String(activeSource.provider || "rss")) ? { feedUrl: e.target.value } : { sourceRef: e.target.value })} />
                     </div>
                     <div>
                       <div style={{ marginBottom: 6 }}>Bridge Base URL</div>

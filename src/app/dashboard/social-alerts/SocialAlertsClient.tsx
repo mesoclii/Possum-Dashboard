@@ -68,6 +68,7 @@ const PROVIDERS = [
   { key: "twitch", label: "Twitch Alerts", detail: "Live stream notifications using creator handles and built-in bridge routes.", anchor: "#sources" },
   { key: "tiktok", label: "TikTok Alerts", detail: "Creator upload notices using provider-aware route resolution.", anchor: "#sources" },
   { key: "x", label: "X Alerts", detail: "Post alerts using account handles or direct feed overrides.", anchor: "#sources" },
+  { key: "facebook", label: "Facebook Page Alerts", detail: "Public Page posts through a third-party feed bridge; availability may vary.", anchor: "#sources" },
   { key: "bluesky", label: "Bluesky Alerts", detail: "Bluesky notices using profile handles through Signal Relay.", anchor: "#sources" },
   { key: "reddit", label: "Reddit Alerts", detail: "Subreddit and topic feeds dispatched into server channels.", anchor: "#sources" },
   { key: "instagram", label: "Instagram Alerts", detail: "Image-post notices through the relay source list.", anchor: "#sources" },
@@ -84,7 +85,7 @@ function createSource(provider: string): SignalSource {
     channelId: "",
     feedUrl: "",
     sourceRef: "",
-    resourceType: provider === "reddit" ? "subreddit" : provider === "youtube" ? "handle" : provider === "rss" || provider === "podcast" ? "feed" : "handle",
+    resourceType: provider === "reddit" ? "subreddit" : provider === "facebook" ? "page" : provider === "youtube" ? "handle" : provider === "rss" || provider === "podcast" ? "feed" : "handle",
     bridgeBaseUrl: "https://rsshub.app",
     color: provider === "youtube" ? "#ff3838" : provider === "twitch" ? "#7c3aed" : "#4fd1c5",
     pingRoleId: "",
@@ -230,7 +231,7 @@ export default function SocialAlertsClient() {
         <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Social Alerts</h1>
         <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
         <div style={{ ...micro, marginTop: 6 }}>
-          This recreates the social-alert grid without splitting your bot into ten throwaway engines. RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick all stay under Signal Relay, but provider cards now map to real provider-aware routes instead of dead feed-only copy.
+          Follow public social feeds in Discord using Signal Relay. Some platforms require a third-party feed bridge and may not always work.
         </div>
         <Link href={buildDashboardHref("/dashboard/signal-relay#link-accounts")} style={{ ...linkButton, marginTop: 12 }}>Add or edit social links</Link>
         {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}

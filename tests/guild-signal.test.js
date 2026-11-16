@@ -99,3 +99,25 @@ test("quick relay setup saves feed URLs and social handles in the correct fields
     assert.equal(config.sources[0][provider === "youtube" ? "sourceRef" : "feedUrl"], "example", provider);
   }
 });
+
+test("Operations proxy accepts Unicode display names without placing them in HTTP headers", async () => {
+  const originalFetch = global.fetch;
+  const originalToken = process.env.OPS_AGENT_TOKEN;
+  process.env.OPS_AGENT_TOKEN = "x".repeat(32);
+  global.fetch = async (_url, options) => {
+    const headers = new Headers(options.headers);
+    assert.equal(headers.get("x-ops-actor"), "123456789012345678");
+    return new Response(JSON.stringify({ success: true, data: {} }), { status: 200 });
+  };
+  try {
+    const { callAgent } = load("lib/opsProxy.ts", {
+      "@/lib/session": {},
+      "@/lib/dashboardOwner": {},
+    });
+    const result = await callAgent({ path: "/v1/overview", actor: { userId: "123456789012345678", label: "🦝 Tester" } });
+    assert.equal(result.ok, true);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.OPS_AGENT_TOKEN; else process.env.OPS_AGENT_TOKEN = originalToken;
+  }
+});

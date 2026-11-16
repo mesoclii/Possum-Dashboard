@@ -115,7 +115,7 @@ export async function callAgent(options: {
         authorization: `Bearer ${token}`,
         accept: "application/json",
         ...(options.body ? { "content-type": "application/json" } : {}),
-        ...(options.actor ? { "x-ops-actor": options.actor.label } : {}),
+        ...(options.actor ? { "x-ops-actor": options.actor.userId } : {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),

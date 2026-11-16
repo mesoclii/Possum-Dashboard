@@ -59,6 +59,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/giveaways", label: "Giveaways" },
         { href: "/dashboard/jed", label: "Jed" },
         { href: "/dashboard/music", label: "Music" },
+        { href: "/dashboard/podcast", label: "Podcast Studio" },
         { href: "/dashboard/vip", label: "VIP" },
         { href: "/dashboard/tickets", label: "Tickets" },
         { href: "/dashboard/selfroles", label: "Self Roles" },

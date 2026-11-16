@@ -34,6 +34,9 @@ export async function proxyAiBilling(request: NextRequest, path: string, method:
 
   try {
     const headers = buildServerBotApiHeaders(actorUserId, { allowFallback: false });
+    if (path === "/api/ai-personas/test" && method === "POST" && session?.accessToken) {
+      headers["x-persona-discord-token"] = session.accessToken;
+    }
     const res =
       method === "GET"
         ? await fetchServerBotApi(`${SERVER_BOT_API}${path}?${new URLSearchParams(payload as Record<string, string>).toString()}`, { headers, cache: "no-store" })

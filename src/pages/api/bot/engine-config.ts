@@ -8,14 +8,6 @@ import {
 import { BOT_API, buildBotApiHeaders, fetchBotApi, readActorUserId, readJsonSafe } from "@/lib/botApi";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import { requirePremiumAccess } from "@/lib/premiumGuard";
-import { deleteServerCachePrefix, readServerCache, writeServerCache } from "@/lib/serverCache";
-
-const ENGINE_CONFIG_PROXY_TTL_MS = Math.max(1_000, Number(process.env.ENGINE_CONFIG_PROXY_TTL_MS || 10_000));
-
-type CachedEngineConfig = {
-  status: number;
-  body: unknown;
-};
 
 function normalizeWriteBody(req: NextApiRequest, guildId: string) {
   const body = req.body && typeof req.body === "object" ? { ...req.body } : {};
@@ -63,29 +55,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const query = new URLSearchParams({ guildId });
       if (engine) query.set("engine", engine);
-      const cacheKey = `engine-config:${guildId}:${engine || "__all__"}`;
-      const cached = readServerCache<CachedEngineConfig>(cacheKey);
-
-      try {
-        const upstream = await fetchBotApi(`${BOT_API}/engine-config?${query.toString()}`, {
-          headers: await buildBotApiHeaders(req),
-          cache: "no-store",
-        });
-
-        const data = await readJsonSafe(upstream);
-        if (upstream.ok && data?.success !== false) {
-          writeServerCache(cacheKey, { status: upstream.status, body: data }, ENGINE_CONFIG_PROXY_TTL_MS);
-        }
-        if (upstream.status >= 500 && cached?.body) {
-          return res.status(cached.status || 200).json(cached.body);
-        }
-        return res.status(upstream.status).json(data);
-      } catch (error: any) {
-        if (cached?.body) {
-          return res.status(cached.status || 200).json(cached.body);
-        }
-        throw error;
-      }
+      const upstream = await fetchBotApi(`${BOT_API}/engine-config?${query.toString()}`, {
+        headers: await buildBotApiHeaders(req),
+        cache: "no-store",
+      });
+      return res.status(upstream.status).json(await readJsonSafe(upstream));
     }
 
     if (req.method === "POST" || req.method === "PUT") {
@@ -109,7 +83,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       const data = await readJsonSafe(upstream);
-      deleteServerCachePrefix(`engine-config:${guildId}:`);
       void auditDashboardEvent({
         guildId,
         actorUserId: String(req.headers["x-dashboard-user-id"] || req.body?.userId || req.query?.userId || "").trim() || null,

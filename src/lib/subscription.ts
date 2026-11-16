@@ -1,4 +1,4 @@
-import { MASTER_OWNER_USER_ID, isDashboardControlGuild, isDashboardControlOwner } from "@/lib/dashboardOwner";
+import { isDashboardControlGuild, isDashboardControlOwner } from "@/lib/dashboardOwner";
 import { writeGuildDiscoveryCache } from "@/lib/guildDiscoveryCache";
 import prisma from "@/lib/prisma";
 import { buildServerBotApiHeaders, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
@@ -8,7 +8,7 @@ const PREMIUM_FEATURES = new Set(["tts", "heist", "persona", "secondbot", "third
 const SYNC_TTL_MS = 60_000;
 
 function normalizeActorUserId(actorUserId?: string) {
-  return String(actorUserId || MASTER_OWNER_USER_ID).trim() || MASTER_OWNER_USER_ID;
+  return String(actorUserId || "").trim();
 }
 
 function globalSubscriptionId(actorUserId?: string) {
@@ -145,7 +145,7 @@ export async function getGuildSubscriptionStatus(guildId: string, actorUserId?: 
   let syncedRecord = existing;
   if (shouldSync) {
     try {
-      const botPremium = await readBotPremium(id, String(actorUserId || MASTER_OWNER_USER_ID).trim() || MASTER_OWNER_USER_ID);
+      const botPremium = await readBotPremium(id, normalizedActorUserId);
       syncedRecord = await prisma.guildSubscription
         .upsert({
           where: { guildId: id },
@@ -211,6 +211,9 @@ export async function setGuildSubscriptionStatus(
   }
   const scope = options?.scope === "global" ? "global" : "guild";
   const normalizedActorUserId = normalizeActorUserId(actorUserId);
+  if (!isDashboardControlOwner(normalizedActorUserId)) {
+    throw new Error("Only a configured owner can change premium plan state.");
+  }
   const targetId = scope === "global" ? globalSubscriptionId(normalizedActorUserId) : id;
   const source =
     String(

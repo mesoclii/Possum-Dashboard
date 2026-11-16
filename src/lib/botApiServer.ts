@@ -1,5 +1,3 @@
-import { MASTER_OWNER_USER_ID } from "@/lib/dashboardOwner";
-
 export const SERVER_BOT_API = String(process.env.BOT_API_URL || "http://127.0.0.1:3001").trim();
 const SERVER_BOT_API_TIMEOUT_MS = Math.max(5_000, Number(process.env.BOT_API_TIMEOUT_MS || 45_000));
 
@@ -7,15 +5,13 @@ const DASHBOARD_TOKEN = String(process.env.DASHBOARD_API_TOKEN || "").trim();
 
 export function buildServerBotApiHeaders(
   userId?: string,
-  options: { allowFallback?: boolean } = {}
+  _options: { allowFallback?: boolean } = {}
 ) {
   const headers: Record<string, string> = {};
   if (DASHBOARD_TOKEN) headers["x-dashboard-token"] = DASHBOARD_TOKEN;
   const normalizedUserId = String(userId || "").trim();
   if (normalizedUserId) {
     headers["x-dashboard-user-id"] = normalizedUserId;
-  } else if (options.allowFallback !== false) {
-    headers["x-dashboard-user-id"] = MASTER_OWNER_USER_ID;
   }
   return headers;
 }

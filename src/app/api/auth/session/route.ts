@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const actorUserId = String(session.user.id || MASTER_OWNER_USER_ID).trim() || MASTER_OWNER_USER_ID;
+  const actorUserId = String(session.user.id || "").trim();
   const isMasterOwner = isDashboardControlOwner(actorUserId);
-  const isPrimaryOwner = actorUserId === MASTER_OWNER_USER_ID;
+  const isPrimaryOwner = Boolean(actorUserId && actorUserId === MASTER_OWNER_USER_ID);
 
   if (brief) {
     return NextResponse.json({

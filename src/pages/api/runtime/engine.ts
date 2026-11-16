@@ -5,14 +5,6 @@ import { BOT_API, buildBotApiHeaders, fetchBotApi, readActorUserId, readJsonSafe
 import { requirePremiumAccess } from "@/lib/premiumGuard";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import { normalizeEngineKey } from "@/lib/engineKeys";
-import { deleteServerCachePrefix, readServerCache, writeServerCache } from "@/lib/serverCache";
-
-const RUNTIME_ENGINE_PROXY_TTL_MS = Math.max(1_000, Number(process.env.RUNTIME_ENGINE_PROXY_TTL_MS || 10_000));
-
-type CachedRuntimeEngine = {
-  status: number;
-  body: unknown;
-};
 
 export const config = {
   api: {
@@ -63,36 +55,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === "GET") {
       const routePath = String(req.query.routePath || req.query.route || "").trim();
-      const cacheKey = `runtime-engine:${guildId}:${normalizedEngine}:${actorUserId || "anon"}:${routePath || "/"}`;
-      const cached = readServerCache<CachedRuntimeEngine>(cacheKey);
-
-      try {
-        const query = new URLSearchParams();
-        query.set("guildId", guildId);
-        query.set("engine", normalizedEngine);
-        if (actorUserId) query.set("userId", actorUserId);
-        if (routePath) query.set("routePath", routePath);
-        const upstream = await fetchBotApi(
-          `${BOT_API}/engine-runtime?${query.toString()}`,
-          {
-            headers: await buildBotApiHeaders(req),
-            cache: "no-store",
-          }
-        );
-        const json = await readJsonSafe(upstream);
-        if (upstream.ok && json?.success !== false) {
-          writeServerCache(cacheKey, { status: upstream.status, body: json }, RUNTIME_ENGINE_PROXY_TTL_MS);
+      const query = new URLSearchParams();
+      query.set("guildId", guildId);
+      query.set("engine", normalizedEngine);
+      if (actorUserId) query.set("userId", actorUserId);
+      if (routePath) query.set("routePath", routePath);
+      const upstream = await fetchBotApi(
+        `${BOT_API}/engine-runtime?${query.toString()}`,
+        {
+          headers: await buildBotApiHeaders(req),
+          cache: "no-store",
         }
-        if (upstream.status >= 500 && cached?.body) {
-          return res.status(cached.status || 200).json(cached.body);
-        }
-        return res.status(upstream.status).json(json);
-      } catch (error: any) {
-        if (cached?.body) {
-          return res.status(cached.status || 200).json(cached.body);
-        }
-        throw error;
-      }
+      );
+      return res.status(upstream.status).json(await readJsonSafe(upstream));
     }
 
     if (req.method === "POST" || req.method === "PUT") {
@@ -108,7 +83,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }),
       });
       const json = await readJsonSafe(upstream);
-      deleteServerCachePrefix(`runtime-engine:${guildId}:${normalizedEngine}:`);
       void auditDashboardEvent({
         guildId,
         actorUserId,

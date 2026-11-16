@@ -182,7 +182,9 @@ export default function MemberGamingHub({
   const players = rows(identity.details?.players);
   const livePlayers = rows(engines.presenceFusion?.details?.livePlayers);
   const sessions = rows(engines.presenceFusion?.details?.sessions);
-  const ownSessions = sessions.filter((entry) => String(entry.userId) === viewerUserId);
+  const viewer = identity.details?.viewer || {};
+  const authenticatedViewerId = String(viewer.userId || memberState.userId || viewerUserId);
+  const ownSessions = sessions.filter((entry) => String(entry.userId) === authenticatedViewerId);
   const ownIdentities = rows(memberState.identities);
   const notifications = rows(memberState.notifications);
   const providers = rows(identity.details?.authProviders);
@@ -191,7 +193,8 @@ export default function MemberGamingHub({
   const playtimeRecords = rows(engines.playtime?.details?.records);
   const squads = rows(engines.squadFinder?.details?.activeSquads);
   const enabledSearchProviders = rows(searchConfig.providers).filter((entry) => entry.enabled !== false);
-  const viewer = identity.details?.viewer || {};
+  const presenceDetails = engines.presenceFusion?.details;
+  const ownPresence = presenceDetails?.viewerPresence;
   const totalHours = getSummary(engines.playtime, "Total Hours", "0");
 
   function accountProviderKeyFor(value: any) {
@@ -514,7 +517,7 @@ export default function MemberGamingHub({
             <div>
               <h2 style={{ margin: 0 }}>{viewer.name || "My gaming profile"}</h2>
               <div style={{ color: colors.muted, marginTop: 4 }}>{guildName || guildId} · Discord member</div>
-              <div style={{ color: colors.accent, marginTop: 4 }}>{viewer.isPlaying ? `Playing ${viewer.currentGame}` : "Not currently reported as gaming"}</div>
+              <div style={{ color: colors.accent, marginTop: 4 }}>{!presenceDetails ? "Live activity unavailable" : ownPresence?.gameLabel ? `Playing ${ownPresence.gameLabel}` : "Not currently reported as gaming"}</div>
             </div>
           </div>
         </Card>

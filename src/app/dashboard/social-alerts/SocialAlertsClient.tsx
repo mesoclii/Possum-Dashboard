@@ -232,6 +232,7 @@ export default function SocialAlertsClient() {
         <div style={{ ...micro, marginTop: 6 }}>
           This recreates the social-alert grid without splitting your bot into ten throwaway engines. RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick all stay under Signal Relay, but provider cards now map to real provider-aware routes instead of dead feed-only copy.
         </div>
+        <Link href={buildDashboardHref("/dashboard/signal-relay#link-accounts")} style={{ ...linkButton, marginTop: 12 }}>Add or edit social links</Link>
         {message ? <div style={{ color: "#ffb3f0", marginTop: 10 }}>{message}</div> : null}
       </section>
 
@@ -280,7 +281,7 @@ export default function SocialAlertsClient() {
                 </button>
 
                 <Link href={buildDashboardHref(cardDef.href)} style={linkButton}>
-                  Open Signal Relay
+                  Add or edit links
                 </Link>
               </div>
             </section>

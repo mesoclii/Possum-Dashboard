@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FALLBACK_GUILD_NAMES } from "@/lib/dashboardOwner";
 import { buildPublicInviteUrl } from "@/lib/publicLinks";
 
 type Guild = {
@@ -216,18 +215,6 @@ export default function GuildsPage() {
 
         // Always compute invite URLs client-side to avoid stale OAuth params.
 
-        for (const [guildId, guildName] of Object.entries(FALLBACK_GUILD_NAMES)) {
-          if (!merged.has(guildId)) {
-            merged.set(guildId, {
-              id: guildId,
-              name: guildName,
-              icon: null,
-              botPresent: false,
-              manageable: false,
-            });
-          }
-        }
-
         const mergedGuilds = [...merged.values()];
         setGuilds(mergedGuilds);
 
@@ -317,8 +304,7 @@ export default function GuildsPage() {
             marginBottom: 20,
           }}
         >
-          Saviors keeps the full original baseline untouched. Other installed guilds come in standard-ready so owners
-          can finish setup without resetting Saviors. Use this page only to choose a guild or invite the bot.
+          Choose a server you can access, or invite the bot to a server you manage.
         </p>
 
         {loading ? <p style={{ color: "#ffd7d7" }}>Loading...</p> : null}
@@ -350,7 +336,7 @@ export default function GuildsPage() {
                 ? oauthLoggedIn
                   ? "Open shows guilds the bot is already in. Add Bot shows servers you manage that do not have Possum yet."
                   : "Once you log in, this page can show servers you manage even if Possum has not been invited yet."
-                : "Discord OAuth is not configured in the dashboard env yet, so only bot-installed guilds can be shown right now."}
+                : "Discord login is not configured. Server discovery is unavailable."}
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
               {[
@@ -437,6 +423,9 @@ export default function GuildsPage() {
           </div>
         </div>
 
+        {!loading && orderedGuilds.length === 0 ? (
+          <p style={{ color: "#ffd7d7" }}>No accessible servers found. Sign in with Discord or invite the bot to a server you manage.</p>
+        ) : null}
         <div
           style={{
             display: "grid",

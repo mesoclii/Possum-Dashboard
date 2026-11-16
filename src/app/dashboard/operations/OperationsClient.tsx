@@ -146,8 +146,11 @@ export default function OperationsClient() {
   const loadOverview = useCallback(async () => {
     try {
       const response = await fetch("/api/ops/overview", { cache: "no-store" });
+      if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+        throw new Error(`Operations endpoint returned a non-JSON response (HTTP ${response.status}). Check the dashboard session and API routing.`);
+      }
       const body = await response.json();
-      if (!body?.success) {
+      if (!response.ok || !body?.success) {
         setError(String(body?.error || "Operations agent unavailable"));
         setOverview(null);
         return;
@@ -156,6 +159,7 @@ export default function OperationsClient() {
       setOverview(body.data as Overview);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Operations agent unavailable");
+      setOverview(null);
     }
   }, []);
 

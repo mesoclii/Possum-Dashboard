@@ -288,40 +288,49 @@ export default function GameSocialClient({ guildId, guildName, mode }: Props) {
     if (platform) params.set("platform", platform);
     return `/api/games/auth/start?${params.toString()}`;
   }, [guildId, viewerUserId]);
-  const pollMemberActivity = useCallback(async () => {
-    const liveKeys: EngineKey[] = ["presenceFusion", "playtime", "gameProvider", "squadFinder"];
-    invalidateRuntimeEngines(guildId, liveKeys);
-    const results = await Promise.all(liveKeys.map(async (engine) => {
-      try {
-        return [engine, normalizePayload(await fetchRuntimeEngine(guildId, engine, viewerUserId))] as const;
-      } catch (error: any) {
-        return [engine, { loadError: error?.message || "Live activity could not be refreshed." }] as const;
-      }
-    }));
-    setEngines((prev) => {
-      const next = { ...prev };
-      for (const [engine, payload] of results) {
-        if (!payload.loadError) next[engine] = payload;
-      }
-      return next;
-    });
-    const warningKeys = new Set(liveKeys);
-    const nextWarnings = results
-      .filter(([, payload]) => payload.loadError)
-      .map(([engine, payload]) => `${engine}: ${payload.loadError}`);
-    setLoadWarnings((prev) => [
-      ...prev.filter((warning) => ![...warningKeys].some((engine) => warning.startsWith(`${engine}:`))),
-      ...nextWarnings,
-    ]);
-  }, [guildId, viewerUserId]);
-
   useEffect(() => {
-    if (loading || mode === "admin") return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void pollMemberActivity();
+    if (loading || saving || mode === "admin") return;
+    let disposed = false;
+    const pending = new Set<EngineKey>();
+    const poll = async (engine: EngineKey) => {
+      if (document.visibilityState !== "visible" || pending.has(engine)) return;
+      pending.add(engine);
+      let payload: EnginePayload;
+      try {
+        payload = normalizePayload(await fetchRuntimeEngine(guildId, engine, viewerUserId, { fresh: true }));
+      } catch (error: unknown) {
+        payload = { loadError: error instanceof Error ? error.message : "Live activity could not be refreshed." };
+      } finally {
+        pending.delete(engine);
+      }
+      if (disposed) return;
+      setEngines((prev) => payload.loadError && engine !== "presenceFusion" ? prev : { ...prev, [engine]: payload });
+      setLoadWarnings((prev) => [
+        ...prev.filter((warning) => !warning.startsWith(`${engine}:`)),
+        ...(payload.loadError ? [`${engine}: ${payload.loadError}`] : []),
+      ]);
+    };
+    const refreshVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void poll("presenceFusion");
+      void poll("gameIdentity");
+    };
+    const presenceTimer = window.setInterval(() => void poll("presenceFusion"), 5_000);
+    const playersTimer = window.setInterval(() => void poll("gameIdentity"), 10_000);
+    const detailsTimer = window.setInterval(() => {
+      for (const engine of ["playtime", "gameProvider", "squadFinder"] as const) void poll(engine);
     }, 60_000);
-    return () => window.clearInterval(timer);
-  }, [guildId, loading, mode, pollMemberActivity]);
+    window.addEventListener("focus", refreshVisible);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(presenceTimer);
+      window.clearInterval(playersTimer);
+      window.clearInterval(detailsTimer);
+      window.removeEventListener("focus", refreshVisible);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
+  }, [guildId, loading, mode, saving, viewerUserId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

@@ -51,6 +51,14 @@ pm2 start ecosystem.config.cjs --only possum-dashboard
 pm2 save
 ```
 
+## Podcast studio
+
+The podcast engine is disabled by default on the bot and requires private Discord voice testing before enabling it. Set the same `DASHBOARD_API_TOKEN` on both services and configure the dashboard's HTTPS public URL. Hosts can open `/dashboard/podcast`; administrators can select server channels and roles when setting up the access panel. The public listening page and RSS feed are linked there. Live audio is public, but saved episodes are private until a host publishes them. Participants consent and withdraw using the current session's Discord buttons or commands.
+
+Hosts can preview a completed recording, enter up to 32 time ranges in seconds to remove, and render a private edited copy without changing the original or automatically censoring audio. Ranges refer to saved audio time, excluding pauses. Stop all podcast recordings before editing. Preview the copy and confirm review, then publish separately if desired; review is an attestation, not proof of listening. Editing uses the same disk quota and free-space reserve as recording.
+
+The studio shows hosts each voice participant's current consent status and provides private playback and download before publication. A failed recording cannot be published.
+
 ## Safety and troubleshooting
 
 - Keep `.env`, `prisma/dashboard.db`, and their backups private. The database contains dashboard sessions.

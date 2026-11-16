@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CONTROL_OWNER_USER_IDS } from "@/lib/dashboardOwner";
 
 type Role = { id: string; name: string; position?: number };
 
@@ -268,7 +267,7 @@ export default function AccessControlClient() {
           This is the live dashboard access policy. It writes directly to the bot access policy path used during guild dashboard authorization.
         </div>
         <div style={{ color: "#ffb3f0", fontSize: 12, marginTop: 8 }}>
-          Control owner override: {CONTROL_OWNER_USER_IDS.join(", ")}
+          Control owner override is configured on the server.
         </div>
       </div>
 

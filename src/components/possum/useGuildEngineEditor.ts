@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { fetchGuildData, fetchRuntimeEngine, peekGuildData, peekRuntimeEngine } from "@/lib/liveRuntime";
+import type { GuildEmoji } from "@/components/possum/GuildEmojiPicker";
 
 export type GuildRole = { id: string; name: string; position?: number; color?: string };
 export type GuildChannel = { id: string; name: string; type?: number | string; parentId?: string | null };
@@ -40,7 +41,13 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
   const [viewerUserId, setViewerUserId] = useState(initialViewerUserId);
   const [guildName, setGuildName] = useState(String((initialGuild as any)?.guild?.name || "").trim());
   const [config, setConfig] = useState<T>({ ...(defaults as any), ...(initialRuntime?.config || {}) });
+  const editRevision = useRef(0);
+  const setDraftConfig: Dispatch<SetStateAction<T>> = useCallback((value) => {
+    editRevision.current += 1;
+    setConfig(value);
+  }, []);
   const [channels, setChannels] = useState<GuildChannel[]>(Array.isArray((initialGuild as any)?.channels) ? (initialGuild as any).channels : []);
+  const [emojis, setEmojis] = useState<GuildEmoji[]>(Array.isArray((initialGuild as any)?.emojis) ? (initialGuild as any).emojis : []);
   const [roles, setRoles] = useState<GuildRole[]>(() => {
     const nextRoles: GuildRole[] = Array.isArray((initialGuild as any)?.roles) ? (initialGuild as any).roles : [];
     nextRoles.sort((a, b) => (Number(b.position || 0) - Number(a.position || 0)) || a.name.localeCompare(b.name));
@@ -65,6 +72,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         return;
       }
       contextRef.current = { guildId: nextGuildId, viewerUserId: nextUserId };
+      setEmojis([]);
       if (nextGuildId) {
         localStorage.setItem("activeGuildId", nextGuildId);
       }
@@ -94,6 +102,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       return;
     }
     const warmRuntime = peekRuntimeEngine(targetGuildId, engine, targetUserId);
+    const revisionAtLoad = editRevision.current;
     const warmGuild = peekGuildData(targetGuildId, targetUserId);
     const hasWarmPayload = Boolean(warmRuntime || warmGuild);
 
@@ -108,6 +117,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       const nextRoles: GuildRole[] = Array.isArray((warmGuild as any)?.roles) ? (warmGuild as any).roles : [];
       nextRoles.sort((a, b) => (Number(b.position || 0) - Number(a.position || 0)) || a.name.localeCompare(b.name));
       setChannels(nextChannels);
+      setEmojis(Array.isArray((warmGuild as any)?.emojis) ? (warmGuild as any).emojis : []);
       setRoles(nextRoles);
       setBotUser((((warmGuild as any)?.botUser) && typeof (warmGuild as any).botUser === "object") ? (warmGuild as any).botUser : null);
       const warmGuildName = String((warmGuild as any)?.guild?.name || "").trim();
@@ -129,7 +139,10 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
 
       if (runtimeResult.status === "fulfilled") {
         const runtimeJson = runtimeResult.value;
-        setConfig({ ...(defaultsRef.current as any), ...(runtimeJson?.config || {}) });
+        if (engine !== "botPersonalizer" || (revisionAtLoad === editRevision.current &&
+          contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId)) {
+          setConfig({ ...(defaultsRef.current as any), ...(runtimeJson?.config || {}) });
+        }
         setSummary(Array.isArray(runtimeJson?.summary) ? runtimeJson.summary : []);
         setDetails((runtimeJson?.details && typeof runtimeJson.details === "object") ? runtimeJson.details : {});
       } else {
@@ -143,6 +156,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         setBotUser((guildJson?.botUser && typeof guildJson.botUser === "object") ? guildJson.botUser : null);
         nextRoles.sort((a, b) => (Number(b.position || 0) - Number(a.position || 0)) || a.name.localeCompare(b.name));
         setChannels(nextChannels);
+        setEmojis(Array.isArray(guildJson?.emojis) ? guildJson.emojis : []);
         setRoles(nextRoles);
 
         const nextGuildName = String(guildJson?.guild?.name || "").trim();
@@ -179,6 +193,9 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     setMessage("");
     try {
       const patch = { ...(config as any), ...(nextPatch || {}) };
+      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, patch, userId: viewerUserId })).length > 4 * 1024 * 1024) {
+        throw new Error("Personalizer save exceeds the 4 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
+      }
       const validateRes = await fetch("/api/runtime/engine-validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -231,6 +248,9 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     setSaving(true);
     setMessage("");
     try {
+      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, action, payload, userId: viewerUserId })).length > 4 * 1024 * 1024) {
+        throw new Error("Personalizer action exceeds the 4 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
+      }
       const res = await fetch("/api/runtime/engine-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -241,7 +261,9 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         throw new Error(json?.error || "Action failed");
       }
       const result = json?.result ?? null;
-      setConfig({ ...(defaultsRef.current as any), ...(result?.config || json?.config || config) });
+      if (engine !== "botPersonalizer") {
+        setConfig({ ...(defaultsRef.current as any), ...(result?.config || json?.config || config) });
+      }
       setSummary(Array.isArray(json?.summary) ? json.summary : []);
       setDetails((json?.details && typeof json.details === "object") ? json.details : {});
       const warnings = Array.isArray(result?.warnings) ? result.warnings.filter(Boolean) : [];
@@ -277,8 +299,9 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     viewerUserId,
     guildName,
     config,
-    setConfig,
+    setConfig: setDraftConfig,
     channels,
+    emojis,
     roles,
     botUser,
     summary,

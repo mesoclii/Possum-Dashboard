@@ -8,7 +8,8 @@ import {
 
 async function isCreator(request: NextRequest) {
   const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
-  return String(session?.user?.id || "").trim() === MASTER_OWNER_USER_ID;
+  const userId = String(session?.user?.id || "").trim();
+  return Boolean(userId && userId === MASTER_OWNER_USER_ID);
 }
 
 export async function GET(request: NextRequest) {

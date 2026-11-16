@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { resolveGuildContext } from "@/lib/liveRuntime";
 
-type Episode = { id: string; title: string; state: string; published: boolean };
-type Control = { state: string; missingConsent: number; isAdmin: boolean; hostRoles: string[]; episodes: Episode[]; participants: { userId: string; displayName: string; consented: boolean }[]; accessConfig: { channelId: string; roleId: string } | null };
+type Episode = { id: string; title: string; state: string; published: boolean; sourceEpisodeId?: string; reviewedAt?: string };
+type Control = { state: string; missingConsent: number; isAdmin: boolean; hostRoles: string[]; episodes: Episode[]; participants: { userId: string; displayName: string; consented: boolean }[]; accessConfig: { channelId: string; roleId: string; accessIntro?: string; consentIntro?: string } | null };
 type Channel = { id: string; name: string; type: number | string };
 type Role = { id: string; name: string; managed: boolean; permissions: string };
 
@@ -24,6 +24,8 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
   const [panelTextChannel, setPanelTextChannel] = useState("");
   const [panelVoiceChannel, setPanelVoiceChannel] = useState("");
   const [panelRole, setPanelRole] = useState("");
+  const [accessIntro, setAccessIntro] = useState("");
+  const [consentIntro, setConsentIntro] = useState("");
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [directoryError, setDirectoryError] = useState("");
@@ -33,6 +35,7 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const initializedHosts = useRef("");
+  const initializedPanel = useRef("");
   const activeGuild = useRef("");
 
   useEffect(() => { setGuildId(initialGuildId || resolveGuildContext().guildId); }, [initialGuildId]);
@@ -48,6 +51,11 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
         setSelectedHostRoles(body.hostRoles);
         initializedHosts.current = guildId;
       }
+      if (body.isAdmin && initializedPanel.current !== guildId) {
+        setAccessIntro(body.accessConfig?.accessIntro || "");
+        setConsentIntro(body.accessConfig?.consentIntro || "");
+        initializedPanel.current = guildId;
+      }
       setLoadError("");
     } catch (reason) {
       if (activeGuild.current === guildId) setLoadError(reason instanceof Error ? reason.message : "Podcast controls are unavailable.");
@@ -55,6 +63,7 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
   }, [guildId]);
   useEffect(() => {
     activeGuild.current = guildId;
+    initializedPanel.current = "";
     setControl(null);
     setDirectoryReady(false);
     setChannels([]);
@@ -62,6 +71,8 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
     setPanelTextChannel("");
     setPanelVoiceChannel("");
     setPanelRole("");
+    setAccessIntro("");
+    setConsentIntro("");
     void load();
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void load(); }, 10_000);
     return () => { activeGuild.current = ""; window.clearInterval(timer); };
@@ -97,7 +108,7 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
     return () => controller.abort();
   }, [guildId, control?.isAdmin, directoryVersion]);
 
-  async function send(path: "control" | "publication", body: object) {
+  async function send(path: string, body: object) {
     try {
       setBusy(true);
       setError("");
@@ -115,6 +126,10 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
         setDirectoryVersion((value) => value + 1);
       } else if ("action" in body && body.action === "hostRoles") {
         setMessage("Podcast host roles saved.");
+      } else if (path.endsWith("/edit")) {
+        setMessage("Edited copy saved privately. Preview and confirm your review before publishing.");
+      } else if (path.endsWith("/review")) {
+        setMessage("Review confirmed. Publishing is a separate action.");
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Podcast action failed.");
@@ -137,7 +152,7 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
       <p style={muted}>Record together, stream live, and publish episodes when you are ready.</p>
       <div style={{ ...card, borderColor: "#b95743" }}>
         <strong>Consent comes first</strong>
-        <p style={{ ...muted, marginBottom: 0 }}>Everyone in the voice channel must use <code>/podcast consent</code>. A new participant or withdrawn consent pauses capture. Live audio is public; recordings stay private until published.</p>
+        <p style={{ ...muted, marginBottom: 0 }}>Everyone in the voice channel must use the current session&apos;s consent button or <code>/podcast consent</code>. A new participant or withdrawn consent pauses capture. Live audio is public; recordings stay private until published.</p>
       </div>
       {loadError ? <p role="alert" style={{ color: "#ff9aa8" }}>{loadError}</p> : null}
       {error ? <p role="alert" style={{ color: "#ff9aa8" }}>{error}</p> : null}
@@ -191,9 +206,17 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
               </label>
             </div>
             <p style={muted}>{existing ? "Reposting uses the configured channel and role." : "Only dedicated roles with no server-wide permissions are listed. Selecting an existing voice channel changes its permission overwrites."}</p>
+            <label>Access panel introduction
+              <textarea style={field} maxLength={1000} value={accessIntro} onChange={(event) => setAccessIntro(event.target.value)} placeholder="Optional message above the required access and recording warning" />
+            </label>
+            <label>Session consent introduction
+              <textarea style={field} maxLength={1000} value={consentIntro} onChange={(event) => setConsentIntro(event.target.value)} placeholder="Optional message above the required session consent warning" />
+            </label>
+            <p style={muted}>Required consent and public broadcast warnings remain visible. Saving reposts the access panel; the session introduction appears when a host prepares a session.</p>
             <button type="button" style={button} disabled={busy || !directoryReady || !panelTextChannel} onClick={() => void send("control", {
               action: "accessPanel", textChannelId: panelTextChannel,
               channelId: existing?.channelId || panelVoiceChannel, roleId: existing?.roleId || panelRole,
+              accessIntro, consentIntro,
             })}>Set up and post panel</button>
           </section>
           <section style={card}>
@@ -232,12 +255,56 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
                 <p><a style={{ color: "#ff83aa" }} href={`/api/podcast/${guildId}/episodes/${episode.id}/preview`} download={`podcast-${episode.id}.mp3`}>Download recording</a></p>
               </div>
             ) : null}
-            <button type="button" style={secondaryButton} disabled={busy || (episode.state !== "completed" && !episode.published)} onClick={() => void send("publication", { episodeId: episode.id, published: !episode.published })}>
+            {episode.state === "completed" ? <EpisodeEditor episode={episode} busy={busy} send={send} /> : null}
+            {episode.sourceEpisodeId && episode.state === "completed" ? (
+              <p>
+                {episode.reviewedAt ? "Review confirmed." : (
+                  <button type="button" style={secondaryButton} disabled={busy} onClick={() => void send(`episodes/${episode.id}/review`, { reviewed: true })}>I reviewed this edited copy</button>
+                )}
+              </p>
+            ) : null}
+            <button type="button" style={secondaryButton} disabled={busy || (episode.state !== "completed" && !episode.published) || (!!episode.sourceEpisodeId && !episode.reviewedAt && !episode.published)} onClick={() => void send("publication", { episodeId: episode.id, published: !episode.published })}>
               {episode.published ? "Make private" : "Publish"}
             </button>
           </div>
         ))}
       </section>
     </main>
+  );
+}
+
+function EpisodeEditor({ episode, busy, send }: { episode: Episode; busy: boolean; send: (path: string, body: object) => Promise<void> }) {
+  const [cuts, setCuts] = useState([{ start: "", end: "" }]);
+  const [validationError, setValidationError] = useState("");
+
+  function render() {
+    const parsed = cuts.map(({ start, end }) => ({ start: Number(start), end: Number(end) }));
+    if (cuts.some(({ start, end }) => !start.trim() || !end.trim()) ||
+        parsed.some(({ start, end }) => !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start)) {
+      setValidationError("Enter valid start and end seconds for each cut.");
+      return;
+    }
+    setValidationError("");
+    void send(`episodes/${episode.id}/edit`, { cuts: parsed });
+  }
+
+  return (
+    <details style={{ margin: "12px 0" }}>
+      <summary>Edit a separate copy</summary>
+      <p style={muted}>Preview the original above, then enter time ranges to remove in seconds. No automatic censoring is applied; the original is unchanged. Stop all recordings before rendering.</p>
+      {cuts.map((cut, index) => (
+        <div key={index} style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: 8, marginBottom: 8 }}>
+          <label>Cut {index + 1} start (seconds)<input type="number" min="0" step="0.01" style={field} value={cut.start} onChange={(event) => setCuts((current) => current.map((item, i) => i === index ? { ...item, start: event.target.value } : item))} /></label>
+          <label>End (seconds)<input type="number" min="0" step="0.01" style={field} value={cut.end} onChange={(event) => setCuts((current) => current.map((item, i) => i === index ? { ...item, end: event.target.value } : item))} /></label>
+          <button type="button" style={secondaryButton} disabled={busy || cuts.length === 1} onClick={() => setCuts((current) => current.filter((_, i) => i !== index))}>Remove cut</button>
+        </div>
+      ))}
+      {validationError ? <p role="alert">{validationError}</p> : null}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" style={secondaryButton} disabled={busy || cuts.length >= 32} onClick={() => setCuts((current) => [...current, { start: "", end: "" }])}>Add cut</button>
+        <button type="button" style={button} disabled={busy} onClick={render}>Render private copy</button>
+      </div>
+      {busy ? <p role="status">Action in progress; rendering may take several minutes.</p> : null}
+    </details>
   );
 }

@@ -54,6 +54,10 @@ const SECTIONS: Section[] = [
     label: "Onboarding",
     engine: "onboarding",
     fields: [
+      { key: "welcomeChannelId", label: "Join Welcome Channel", type: "text" },
+      { key: "rulesChannelId", label: "Join Rules Channel", type: "text" },
+      { key: "mainChatChannelId", label: "Join Main Chat Channel", type: "text" },
+      { key: "postVerifyChannelId", label: "Post-Verification Message Channel", type: "text" },
       { key: "idChannelId", label: "ID Channel", type: "text" },
       { key: "ticketCategoryId", label: "Ticket Category", type: "category" },
       { key: "transcriptChannelId", label: "Transcript Channel", type: "text" },
@@ -617,6 +621,9 @@ export default function ChannelsClient() {
                         onChange={(e) => updateField(section.key, field, e.target.value)}
                       >
                         <option value="">Select channel</option>
+                        {value && !getOptions(field).some((channel) => channel.id === value) ? (
+                          <option value={value}>Configured channel unavailable ({value})</option>
+                        ) : null}
                         {getOptions(field).map((c) => (
                           <option key={c.id} value={c.id}>
                             {field.type === "voice" ? c.name : field.type === "category" ? c.name : `#${c.name}`}

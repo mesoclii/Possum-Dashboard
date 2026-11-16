@@ -243,7 +243,7 @@ function normalizeAvatarLibrary(raw: unknown): AvatarPreset[] {
     const row = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
     const url = safePreviewUrl(row.url || row.imageUrl || "");
     if (!url) continue;
-    const key = url.slice(0, 512).toLowerCase();
+    const key = url;
     if (seen.has(key)) continue;
     seen.add(key);
     output.push({
@@ -597,6 +597,10 @@ export default function BotPersonalizerClient() {
       setAvatarLibraryMessage("Webhook avatar source must be an image URL or an uploaded image.");
       return;
     }
+    if (cfg.avatarLibrary.length >= 24 && !cfg.avatarLibrary.some((entry) => entry.url === source)) {
+      setAvatarLibraryMessage("The avatar library is full. Remove an image before adding another.");
+      return;
+    }
     setCfg((prev) => {
       const current = sanitizeConfig(prev);
       const existing = current.avatarLibrary.find((entry) => entry.url === source);
@@ -651,40 +655,45 @@ export default function BotPersonalizerClient() {
   }
 
   async function saveGuildPersonalizer() {
-    // Only lanes whose identity fields changed since the last sync are re-applied (avoids Discord avatar rate limits).
-    // Routing-only edits are persisted by the final config save.
     const baseline = syncedCfgRef.current;
+    const saved = await save(cfg);
+    if (!saved) return;
     if (laneChanged(MAIN_IDENTITY_KEYS, cfg, baseline)) {
-      const mainResult = await runAction("applyProfile", { scope: "main", patch: buildMainBotPatch(cfg) });
+      const mainResult = await runAction("applyProfile", { scope: "main" });
       if (!mainResult) return;
       setMainAvatarPreviewFailedFor("");
       setAvatarPreviewFailedFor("");
     }
 
     if (laneChanged(WEBHOOK_IDENTITY_KEYS, cfg, baseline)) {
-      const webhookResult = await runAction("applyProfile", { scope: "webhook", patch: buildWebhookPatch(cfg) });
+      const webhookResult = await runAction("applyProfile", { scope: "webhook" });
       if (!webhookResult) return;
     }
 
     if (cfg.customBotEnabled && laneChanged(CUSTOM_BOT_IDENTITY_KEYS, cfg, baseline)) {
-      const customResult = await runAction("refreshCustomBot", { patch: buildCustomBotPatch(cfg) });
+      const customResult = await runAction("startCustomBot");
       if (!customResult) return;
     }
 
     if (cfg.customBot2Enabled && laneChanged(CUSTOM_BOT2_IDENTITY_KEYS, cfg, baseline)) {
-      const custom2Result = await runAction("refreshCustomBot2", { patch: buildCustomBot2Patch(cfg) });
+      const custom2Result = await runAction("startCustomBot2");
       if (!custom2Result) return;
       updateCfg({ customBot2Token: "" });
     }
 
     if (cfg.customBot3Enabled && laneChanged(CUSTOM_BOT3_IDENTITY_KEYS, cfg, baseline)) {
-      const custom3Result = await runAction("refreshCustomBot3", { patch: buildCustomBot3Patch(cfg) });
+      const custom3Result = await runAction("startCustomBot3");
       if (!custom3Result) return;
       updateCfg({ customBot3Token: "" });
     }
 
-    await save(cfg);
-    syncedCfgRef.current = sanitizeConfig({ ...cfg, customBot2Token: "", customBot3Token: "" });
+    syncedCfgRef.current = sanitizeConfig(saved.config || cfg);
+  }
+
+  function markLaneSaved(keys: readonly string[], value: PersonaConfig) {
+    const baseline = { ...(syncedCfgRef.current || value) } as Record<string, unknown>;
+    for (const key of keys) baseline[key] = (value as unknown as Record<string, unknown>)[key];
+    syncedCfgRef.current = sanitizeConfig(baseline as Partial<PersonaConfig>);
   }
 
   async function saveAndApplyMainBotIdentity() {
@@ -693,7 +702,7 @@ export default function BotPersonalizerClient() {
       patch: buildMainBotPatch(cfg),
     });
     if (!result) return;
-    syncedCfgRef.current = cfg;
+    markLaneSaved(MAIN_IDENTITY_KEYS, cfg);
     setMainAvatarPreviewFailedFor("");
     setAvatarPreviewFailedFor("");
   }
@@ -709,7 +718,7 @@ export default function BotPersonalizerClient() {
       patch: buildWebhookPatch(webhookPatch),
     });
     if (!result) return;
-    syncedCfgRef.current = cfg;
+    markLaneSaved(WEBHOOK_IDENTITY_KEYS, webhookPatch);
     updateCfg({ useWebhookPersona: true, guildMessageAuthority: "webhook" });
     setAvatarPreviewFailedFor("");
   }
@@ -718,16 +727,18 @@ export default function BotPersonalizerClient() {
     const patch = buildCustomBot2Patch(sanitizeConfig({ ...cfg, customBot2Enabled: true }));
     const result = await runAction("refreshCustomBot2", { patch });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ customBot2Enabled: true, customBot2Token: "" });
+    const savedCfg = sanitizeConfig({ ...cfg, customBot2Enabled: true, customBot2Token: "", customBot2ClientSecret: "", customBot2ClearToken: false, customBot2ClearClientSecret: false });
+    markLaneSaved(CUSTOM_BOT2_IDENTITY_KEYS, savedCfg);
+    updateCfg({ customBot2Enabled: true, customBot2Token: "", customBot2ClientSecret: "", customBot2ClearToken: false, customBot2ClearClientSecret: false, customBot2HasToken: cfg.customBot2ClearToken ? false : Boolean(cfg.customBot2Token || cfg.customBot2HasToken), customBot2HasClientSecret: cfg.customBot2ClearClientSecret ? false : Boolean(cfg.customBot2ClientSecret || cfg.customBot2HasClientSecret) });
   }
 
   async function saveAndDeployCustomBot3() {
     const patch = buildCustomBot3Patch(sanitizeConfig({ ...cfg, customBot3Enabled: true }));
     const result = await runAction("refreshCustomBot3", { patch });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ customBot3Enabled: true, customBot3Token: "" });
+    const savedCfg = sanitizeConfig({ ...cfg, customBot3Enabled: true, customBot3Token: "", customBot3ClientSecret: "", customBot3ClearToken: false, customBot3ClearClientSecret: false });
+    markLaneSaved(CUSTOM_BOT3_IDENTITY_KEYS, savedCfg);
+    updateCfg({ customBot3Enabled: true, customBot3Token: "", customBot3ClientSecret: "", customBot3ClearToken: false, customBot3ClearClientSecret: false, customBot3HasToken: cfg.customBot3ClearToken ? false : Boolean(cfg.customBot3Token || cfg.customBot3HasToken), customBot3HasClientSecret: cfg.customBot3ClearClientSecret ? false : Boolean(cfg.customBot3ClientSecret || cfg.customBot3HasClientSecret) });
   }
 
   async function saveAndDeployCustomBot() {
@@ -739,8 +750,9 @@ export default function BotPersonalizerClient() {
       patch: buildCustomBotPatch(customPatch),
     });
     if (!result) return;
-    syncedCfgRef.current = cfg;
-    updateCfg({ customBotEnabled: true });
+    const savedCfg = sanitizeConfig({ ...cfg, customBotEnabled: true, customBotToken: "", customBotClientSecret: "", customBotClearToken: false, customBotClearClientSecret: false });
+    markLaneSaved(CUSTOM_BOT_IDENTITY_KEYS, savedCfg);
+    updateCfg({ customBotEnabled: true, customBotToken: "", customBotClientSecret: "", customBotClearToken: false, customBotClearClientSecret: false, customBotHasToken: cfg.customBotClearToken ? false : Boolean(cfg.customBotToken || cfg.customBotHasToken), customBotHasClientSecret: cfg.customBotClearClientSecret ? false : Boolean(cfg.customBotClientSecret || cfg.customBotHasClientSecret) });
   }
 
   if (!guildId) {

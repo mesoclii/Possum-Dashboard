@@ -190,39 +190,43 @@ export function invalidateRuntimeEngines(guildId: string, engines: string[]) {
   }
 }
 
-export async function fetchRuntimeEngine(guildId: string, engine: string, userId = "") {
+export async function fetchRuntimeEngine(guildId: string, engine: string, userId = "", options: { fresh?: boolean } = {}) {
   const actorUserId = resolveViewerUserId(userId);
   const routePath = resolveRoutePath();
   const cacheKey = `${String(guildId || "").trim()}:${String(engine || "").trim()}:${actorUserId}:${routePath}`;
+  const requestKey = options.fresh ? `${cacheKey}:fresh` : cacheKey;
   const cached = runtimeEngineCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!options.fresh && cached && cached.expiresAt > Date.now()) {
     return cached.value;
   }
-  const inflight = runtimeEngineInflight.get(cacheKey);
+  const inflight = runtimeEngineInflight.get(requestKey);
   if (inflight) return inflight;
 
   const request = (async () => {
     try {
       const json = await fetchJsonOrThrow(
-        `/api/runtime/engine?guildId=${encodeURIComponent(guildId)}&engine=${encodeURIComponent(engine)}${actorUserId ? `&userId=${encodeURIComponent(actorUserId)}` : ""}&routePath=${encodeURIComponent(routePath)}`
+        `/api/runtime/engine?guildId=${encodeURIComponent(guildId)}&engine=${encodeURIComponent(engine)}${actorUserId ? `&userId=${encodeURIComponent(actorUserId)}` : ""}&routePath=${encodeURIComponent(routePath)}${options.fresh ? "&fresh=1" : ""}`,
+        {},
+        options.fresh ? 10_000 : 30_000,
+        options.fresh ? 0 : 2,
       );
       runtimeEngineCache.set(cacheKey, { value: json, expiresAt: Date.now() + RUNTIME_ENGINE_TTL_MS });
-      runtimeEngineInflight.delete(cacheKey);
+      runtimeEngineInflight.delete(requestKey);
       return json;
     } catch (error) {
       const stale = runtimeEngineCache.get(cacheKey);
-      if (stale?.value) {
-        runtimeEngineInflight.delete(cacheKey);
+      if (!options.fresh && stale?.value) {
+        runtimeEngineInflight.delete(requestKey);
         return stale.value;
       }
       throw error;
     }
   })().catch((error) => {
-    runtimeEngineInflight.delete(cacheKey);
+    runtimeEngineInflight.delete(requestKey);
     throw error;
   });
 
-  runtimeEngineInflight.set(cacheKey, request);
+  runtimeEngineInflight.set(requestKey, request);
   return request;
 }
 

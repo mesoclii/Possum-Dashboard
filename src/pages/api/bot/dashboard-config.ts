@@ -15,9 +15,7 @@ import {
   withLegacyFeatureAliases,
 } from "@/lib/dashboard/featureKeys";
 import { BOT_API, buildBotApiHeaders, fetchBotApi, readJsonSafe } from "@/lib/botApi";
-import { deleteServerCache, deleteServerCachePrefix, readOrCreateServerCache } from "@/lib/serverCache";
-
-const DASHBOARD_CONFIG_PROXY_TTL_MS = Math.max(5_000, Number(process.env.DASHBOARD_CONFIG_PROXY_TTL_MS || 60_000));
+import { deleteServerCachePrefix } from "@/lib/serverCache";
 
 export const config = {
   api: {
@@ -130,23 +128,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === "GET") {
       if (!guildId) return res.status(400).json({ success: false, error: "guildId is required" });
 
-      const cacheKey = `bot-dashboard-config:${guildId}`;
-      const cached = await readOrCreateServerCache<{ status: number; body: unknown }>(
-        cacheKey,
-        DASHBOARD_CONFIG_PROXY_TTL_MS,
-        async () => {
-          const upstream = await fetchBotApi(
-            `${BOT_API}/dashboard-config?guildId=${encodeURIComponent(guildId)}`,
-            { headers: await buildBotApiHeaders(req), cache: "no-store" }
-          );
-          const data = await readJsonSafe(upstream);
-          if (isRecord(data) && isRecord(data.config)) {
-            data.config = enrichDashboardFeatures(data.config, guildId);
-          }
-          return { status: upstream.status, body: data };
-        }
+      const upstream = await fetchBotApi(
+        `${BOT_API}/dashboard-config?guildId=${encodeURIComponent(guildId)}`,
+        { headers: await buildBotApiHeaders(req), cache: "no-store" }
       );
-      return res.status(cached.status).json(cached.body);
+      const data = await readJsonSafe(upstream);
+      if (isRecord(data) && isRecord(data.config)) {
+        data.config = enrichDashboardFeatures(data.config, guildId);
+      }
+      return res.status(upstream.status).json(data);
     }
 
     if (req.method === "POST") {
@@ -162,7 +152,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         body: JSON.stringify(normalized.body),
       });
       const data = await readJsonSafe(upstream);
-      deleteServerCache(`bot-dashboard-config:${guildId}`);
       deleteServerCachePrefix(`bot-guild-access:${guildId}:`);
       if (isRecord(data) && normalized.ignoredFeatureKeys.length > 0) {
         data.ignoredFeatureKeys = normalized.ignoredFeatureKeys;

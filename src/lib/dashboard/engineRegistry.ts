@@ -22,7 +22,7 @@ export const ENGINE_REGISTRY: EngineDef[] = [
   { id: "bot-personalizer", label: "Bot Personalizer", description: "Per-guild Possum AI identity, avatar, presence, and webhook branding", group: "Guild Control", route: "/dashboard/bot-personalizer" },
   { id: "bot-masters", label: "Bot Masters", description: "Dashboard role/user access per guild", group: "Guild Control", route: "/dashboard/bot-masters" },
   { id: "channels", label: "Channels", description: "Centralized guild routing and channel assignment surface", group: "Guild Control", route: "/dashboard/channels" },
-  { id: "possum-ai", label: "Possum AI", description: "Homemade adaptive AI, memory, and runtime reply routing", group: "Guild Control", route: "/dashboard/ai/learning" },
+  { id: "possum-ai", label: "Possum AI", description: "Homemade adaptive AI, memory, and runtime reply routing", group: "Premium", route: "/dashboard/ai/learning" },
   { id: "giveaways", label: "Giveaways", description: "Giveaway lifecycle, entrants, rerolls, and controls", group: "Guild Control", route: "/dashboard/giveaways", notes: "Engine-config controlled" },
   { id: "jed", label: "Jed", description: "Sticker, emoji, gif, and asset steal/deploy controls", group: "Guild Control", route: "/dashboard/jed" },
   { id: "music", label: "Music", description: "Always-free multi-route music playback and queue control", group: "Guild Control", route: "/dashboard/music", featureKey: "musicEnabled" },
@@ -49,7 +49,7 @@ export const ENGINE_REGISTRY: EngineDef[] = [
   { id: "commands", label: "!Command Studio", description: "Custom bang-command builder", group: "Automation", route: "/dashboard/commands" },
   { id: "slash-commands", label: "Slash Commands", description: "Native built-in slash command master", group: "Automation", route: "/dashboard/slash-commands" },
   { id: "event-reactor", label: "Event Alerts", description: "Discord event watching, failed-job routing, and extra alert posts", group: "Automation", route: "/dashboard/event-reactor" },
-  { id: "runtime-router", label: "AI Talking Rules", description: "Simple split between free Possum AI replies and Persona AI channels", group: "Automation", route: "/dashboard/runtime-router" },
+  { id: "runtime-router", label: "AI Talking Rules", description: "Simple split between free Possum AI replies and Persona AI channels", group: "Premium", route: "/dashboard/runtime-router" },
 
   { id: "economy", label: "Economy", description: "Economy/store/progression baseline", group: "Economy", route: "/dashboard/economy", featureKey: "economyEnabled" },
   { id: "event-points", label: "Event Points", description: "Separate per-guild event currency, house scoring, and event board runtime", group: "Economy", route: "/dashboard/economy/events", featureKey: "economyEnabled" },

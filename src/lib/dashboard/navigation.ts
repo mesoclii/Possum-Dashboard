@@ -55,11 +55,9 @@ export function getDashboardNavSections(
         { href: "/dashboard/bot-masters", label: "Bot Masters / Dashboard Access" },
         { href: "/dashboard/channels", label: "Channels" },
         { href: "/dashboard/infrastructure", label: "Infrastructure" },
-        { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/giveaways", label: "Giveaways" },
         { href: "/dashboard/jed", label: "Jed" },
         { href: "/dashboard/music", label: "Music" },
-        { href: "/dashboard/podcast", label: "Podcast Studio" },
         { href: "/dashboard/vip", label: "VIP" },
         { href: "/dashboard/tickets", label: "Tickets" },
         { href: "/dashboard/selfroles", label: "Self Roles" },
@@ -72,7 +70,6 @@ export function getDashboardNavSections(
         { href: "/dashboard/commands", label: "!Command Studio" },
         { href: "/dashboard/automations/studio", label: "Automation Studio" },
         { href: "/dashboard/event-reactor", label: "Event Alerts" },
-        { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
       ],
     },
     {
@@ -81,17 +78,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/utilities", label: "Utilities" },
         { href: "/dashboard/reviews", label: "Reviews" },
         { href: "/dashboard/search-anything", label: "Search Anything" },
-        { href: "/dashboard/analytics", label: "Analytics" },
-        { href: "/dashboard/community-studio", label: "Community Studio" },
         { href: "/dashboard/channel-flow", label: "Channel Flow" },
-        { href: "/dashboard/bump-reminder", label: "Bump Reminder" },
-      ],
-    },
-    {
-      label: "Social Alerts",
-      items: [
-        { href: "/dashboard/social-alerts", label: "Social Alerts" },
-        { href: "/dashboard/signal-relay", label: "Signal Relay" },
       ],
     },
     {
@@ -139,11 +126,15 @@ export function getDashboardNavSections(
       ],
     },
     {
-      label: "Gaming",
+      label: "Social",
       items: [
         { href: "/dashboard/games", label: "Gaming Hub" },
-        { href: "/dashboard/games/wilds", label: "Possum Wilds (Pro)" },
         { href: "/dashboard/wow", label: "WoW Groups" },
+        { href: "/dashboard/podcast", label: "Podcast Studio" },
+        { href: "/dashboard/community-studio", label: "Community Studio" },
+        { href: "/dashboard/bump-reminder", label: "Bump Reminder" },
+        { href: "/dashboard/social-alerts", label: "Social Alerts" },
+        { href: "/dashboard/signal-relay", label: "Signal Relay" },
       ],
     },
     {
@@ -165,6 +156,10 @@ export function getDashboardNavSections(
       label: "Possum Pro",
       items: [
         { href: "/dashboard/premium-features", label: "Possum Pro" },
+        { href: "/dashboard/ai/learning", label: "Possum AI" },
+        { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
+        { href: "/dashboard/games/wilds", label: "Possum Wilds (Pro)" },
+        { href: "/dashboard/analytics", label: "Analytics" },
         { href: "/dashboard/heist", label: "Heist" },
         { href: "/dashboard/tts", label: "TTS" },
         { href: "/dashboard/ai/persona", label: "Persona AI" },

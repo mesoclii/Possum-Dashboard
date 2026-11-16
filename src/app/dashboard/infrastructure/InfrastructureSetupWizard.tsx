@@ -70,6 +70,7 @@ type SetupCreatedResource = {
   engine?: string;
   field?: string;
   createdBySetup?: boolean | null;
+  resourceKey?: string;
 };
 
 type UndoResource = {
@@ -125,6 +126,7 @@ type SetupReport = {
     resourceCounts?: Record<string, number>;
     rewardRoleSelections?: string[];
     customRoleNames?: string[];
+    customChannelNames?: string[];
   };
   setupCategories?: { group: string; name: string }[];
 };
@@ -167,6 +169,7 @@ type PreviewSnapshot = {
   selectedRoleMappings: string[];
   rewardRoleSelections: string[];
   customRoleNames: string[];
+  customChannelNames: string[];
   vipPrivateResourceKeys: string[];
   flowChoices: FlowChoices;
   setupTuning: Record<string, number>;
@@ -267,6 +270,7 @@ export default function InfrastructureSetupWizard() {
   const [selectedRoleMappings, setSelectedRoleMappings] = useState<string[]>([]);
   const [rewardRoleSelections, setRewardRoleSelections] = useState<string[]>([]);
   const [customRoleText, setCustomRoleText] = useState("");
+  const [customChannelText, setCustomChannelText] = useState("");
   const [vipPrivateSetupKeys, setVipPrivateSetupKeys] = useState<string[]>([]);
   const [flowChoices, setFlowChoices] = useState<FlowChoices>(DEFAULT_FLOW_CHOICES);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -316,6 +320,7 @@ export default function InfrastructureSetupWizard() {
       setSelectedRoleMappings(sorted(next.settings?.selectedRoleMappings || []));
       setRewardRoleSelections(sorted(next.settings?.rewardRoleSelections || []));
       setCustomRoleText((next.settings?.customRoleNames || []).join("\n"));
+      setCustomChannelText((next.settings?.customChannelNames || []).join("\n"));
       setVipPrivateSetupKeys(sorted(next.settings?.vipPrivateResourceKeys || []));
       setNames(next.settings?.resourceNameOverrides || {});
       setCategoryNames(next.settings?.categoryNameOverrides || {});
@@ -348,6 +353,7 @@ export default function InfrastructureSetupWizard() {
         setSelectedRoleMappings(sorted(next?.settings?.selectedRoleMappings || []));
         setRewardRoleSelections(sorted(next?.settings?.rewardRoleSelections || []));
         setCustomRoleText((next?.settings?.customRoleNames || []).join("\n"));
+        setCustomChannelText((next?.settings?.customChannelNames || []).join("\n"));
         setVipPrivateSetupKeys(sorted(next?.settings?.vipPrivateResourceKeys || []));
         setNames(next?.settings?.resourceNameOverrides || {});
         setCategoryNames(next?.settings?.categoryNameOverrides || {});
@@ -375,6 +381,13 @@ export default function InfrastructureSetupWizard() {
   const previewRoleSelections = sorted(selectedRoleMappings);
   const previewRewardRoleSelections = sorted(rewardRoleSelections);
   const normalizedCustomRoleNames = [...new Set(customRoleText.split(/\r?\n/).map((name) => name.trim()).filter(Boolean))].slice(0, 10);
+  const normalizedCustomChannelNames = customChannelText.split(/\r?\n/).map((name) => name.trim().slice(0, 100)).filter((name, index, all) =>
+    Boolean(name.replace(/[^a-z0-9]+/gi, "")) && all.findIndex((other) => other.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, "")) === index
+  ).slice(0, 10);
+  const pendingCustomChannels = normalizedCustomChannelNames.filter((name) =>
+    !(report?.createdResources || []).some((resource) => resource.resourceKey === `custom-channel:${name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`) &&
+    !(report?.directory?.channels || []).some((channel) => ["text", "announcement"].includes(channel.kind) && channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
+  );
   const availableRewardRoleOptions = (report?.rewardRoleOptions || []).filter((option) => selected.includes(option.engine));
   const selectedRewardRoleOptions = availableRewardRoleOptions.filter((option) => previewRewardRoleSelections.includes(option.id));
   const createProposals = useMemo(
@@ -407,7 +420,7 @@ export default function InfrastructureSetupWizard() {
       ? Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))
       : 1
   ), 0) + (previewSnapshot?.report.setupCategories?.length || 0) +
-    selectedRewardRoleOptions.length + normalizedCustomRoleNames.length;
+    selectedRewardRoleOptions.length + normalizedCustomRoleNames.length + pendingCustomChannels.length;
   const plannedVipSetupKeys = new Set([
     ...createProposals
       .filter((proposal) => proposal.resourceType === "channel" || proposal.resourceType === "category")
@@ -424,6 +437,7 @@ export default function InfrastructureSetupWizard() {
   const roleSelectionsDirty = Boolean(previewSnapshot && previewRoleSelections.join("\n") !== previewSnapshot.selectedRoleMappings.join("\n"));
   const rewardRoleSelectionsDirty = Boolean(previewSnapshot && previewRewardRoleSelections.join("\n") !== previewSnapshot.rewardRoleSelections.join("\n"));
   const customRoleNamesDirty = Boolean(previewSnapshot && normalizedCustomRoleNames.join("\n") !== previewSnapshot.customRoleNames.join("\n"));
+  const customChannelNamesDirty = Boolean(previewSnapshot && normalizedCustomChannelNames.join("\n") !== previewSnapshot.customChannelNames.join("\n"));
   const vipSetupSelectionsDirty = Boolean(previewSnapshot && vipPrivateSetupKeysSorted.join("\n") !== previewSnapshot.vipPrivateResourceKeys.join("\n"));
   const vipResources = useMemo(() => [
     ...(report?.directory?.categories || []).map((resource) => ({ ...resource, kind: "category" })),
@@ -442,6 +456,7 @@ export default function InfrastructureSetupWizard() {
     roleSelectionsDirty ||
     rewardRoleSelectionsDirty ||
     customRoleNamesDirty ||
+    customChannelNamesDirty ||
     vipSetupSelectionsDirty ||
     flowChoicesDirty
   ));
@@ -502,8 +517,8 @@ export default function InfrastructureSetupWizard() {
       setError("Choose a server before starting setup.");
       return;
     }
-    if (!selectedFeatures.length && !normalizedCustomRoleNames.length) {
-      setError("Select a system or enter at least one custom role to preview setup.");
+    if (!selectedFeatures.length && !normalizedCustomRoleNames.length && !normalizedCustomChannelNames.length) {
+      setError("Select a system or enter a custom role or channel to preview setup.");
       return;
     }
     setBusy(true);
@@ -525,6 +540,7 @@ export default function InfrastructureSetupWizard() {
         selectedRoleMappings: previewRoleSelections,
         rewardRoleSelections: previewRewardRoleSelections,
         customRoleNames: normalizedCustomRoleNames,
+        customChannelNames: normalizedCustomChannelNames,
         vipPrivateResourceKeys: vipPrivateSetupKeysSorted,
         setupTuning,
       });
@@ -549,6 +565,8 @@ export default function InfrastructureSetupWizard() {
       setRewardRoleSelections(normalizedRewardSelections);
       const savedCustomRoleNames = next.settings?.customRoleNames || normalizedCustomRoleNames;
       setCustomRoleText(savedCustomRoleNames.join("\n"));
+      const savedCustomChannelNames = next.settings?.customChannelNames || normalizedCustomChannelNames;
+      setCustomChannelText(savedCustomChannelNames.join("\n"));
       setSetupTuning(normalizedSetupTuning);
       setPreviewSnapshot({
         features: sorted(next.settings?.trackedEngines || selectedFeatures),
@@ -558,6 +576,7 @@ export default function InfrastructureSetupWizard() {
         selectedRoleMappings: normalizedRoleSelections,
         rewardRoleSelections: normalizedRewardSelections,
         customRoleNames: savedCustomRoleNames,
+        customChannelNames: savedCustomChannelNames,
         vipPrivateResourceKeys: normalizedVipPrivateKeys,
         flowChoices: { ...flowChoices },
         setupTuning: normalizedSetupTuning,
@@ -593,6 +612,7 @@ export default function InfrastructureSetupWizard() {
         selectedRoleMappings: previewSnapshot.selectedRoleMappings,
         rewardRoleSelections: previewSnapshot.rewardRoleSelections,
         customRoleNames: previewSnapshot.customRoleNames,
+        customChannelNames: previewSnapshot.customChannelNames,
         vipPrivateResourceKeys: previewSnapshot.vipPrivateResourceKeys,
         setupTuning: previewSnapshot.setupTuning,
       });
@@ -618,6 +638,7 @@ export default function InfrastructureSetupWizard() {
         resourceCounts: previewSnapshot.resourceCounts,
         rewardRoleSelections: previewSnapshot.rewardRoleSelections,
         customRoleNames: previewSnapshot.customRoleNames,
+        customChannelNames: previewSnapshot.customChannelNames,
         vipPrivateResourceKeys: previewSnapshot.vipPrivateResourceKeys,
         setupTuning: previewSnapshot.setupTuning,
       });
@@ -1018,7 +1039,7 @@ export default function InfrastructureSetupWizard() {
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
             <h2 className="text-lg font-black uppercase">Create and connect roles</h2>
-            <p className="mt-1 text-sm text-pink-100/70">Reward roles are offered only for selected systems and configured rewards that are missing a role. Custom roles can be created on their own, without selecting a system, and are not granted automatically.</p>
+            <p className="mt-1 text-sm text-pink-100/70">Reward roles are optional and created only when explicitly selected. Custom roles and channels can be created without selecting a system.</p>
             <h3 className="mt-4 text-sm font-black uppercase">Optional system role mappings ({roleCandidates.length})</h3>
             <p className="mt-1 text-xs text-pink-100/60">Choose only roles that the selected system should grant. Existing role IDs and dashboard-owned role lists are not created here.</p>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -1066,6 +1087,11 @@ export default function InfrastructureSetupWizard() {
               />
               <span className="text-xs text-pink-100/60">{normalizedCustomRoleNames.length}/10 custom roles</span>
             </label>
+            <label className="mt-4 grid gap-2 text-sm">
+              <span><strong>Custom text channels</strong><span className="block text-xs text-pink-100/60">One name per line, up to 10. These are created without an engine mapping or category; matching existing channels are skipped.</span></span>
+              <textarea value={customChannelText} onChange={(event) => setCustomChannelText(event.target.value)} maxLength={1100} rows={3} aria-label="Optional custom channel names" placeholder={"community-chat\nannouncements"} className="min-h-24 w-full rounded-md border border-pink-900/50 bg-black px-3 py-2 text-sm text-pink-50" />
+              <span className="text-xs text-pink-100/60">{normalizedCustomChannelNames.length}/10 custom channels</span>
+            </label>
       </section>
 
       {previewSnapshot ? (
@@ -1073,14 +1099,14 @@ export default function InfrastructureSetupWizard() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Review and rename the proposed channels, categories, and roles before approval.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Review and rename the proposed channels, categories, and roles before approval. Review and self-role channels are destinations only; deploy their panels separately.</p>
             </div>
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">
               {resourcesToCreate} resources to create · {roleProposals.reduce((count, proposal) => count + (
                 proposal.many && proposal.resourceType === "role"
                   ? Math.max(0, targetRoleCount(proposal, resourceCounts) - existingRoleCount(proposal))
                   : 1
-              ), 0) + selectedRewardRoleOptions.length + normalizedCustomRoleNames.length} roles · {channelProposals.length} channels · {explicitCategoryProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} categories · {mappingCount} existing mappings to fill{vipPrivateCreateCount ? ` · ${vipPrivateCreateCount} VIP-protected` : ""}
+              ), 0) + selectedRewardRoleOptions.length + normalizedCustomRoleNames.length} roles · {channelProposals.length + pendingCustomChannels.length} channels · {explicitCategoryProposals.length + (previewSnapshot.report.setupCategories?.length || 0)} categories · {mappingCount} existing mappings to fill{vipPrivateCreateCount ? ` · ${vipPrivateCreateCount} VIP-protected` : ""}
             </span>
           </div>
 
@@ -1257,6 +1283,7 @@ export default function InfrastructureSetupWizard() {
                 </li>)}
                 {selectedRewardRoleOptions.map((option) => <li key={option.id}>reward role: <strong>{names[option.id] || option.proposedName}</strong> → {option.label}</li>)}
                 {normalizedCustomRoleNames.map((name, index) => <li key={`custom-role-${index}`}>custom role: <strong>{name}</strong> (not assigned to a reward)</li>)}
+                {pendingCustomChannels.map((name, index) => <li key={`custom-channel-${index}`}>custom text channel: <strong>{name}</strong> (not mapped to a system)</li>)}
                 {(previewSnapshot.report.setupCategories || []).map((category) => <li key={`category-${category.group}`}>category: <strong>{categoryNames[category.group] || category.name}</strong>{vipPrivateSetupKeysSorted.includes(`group-category:${category.group}`) ? " — VIP-protected" : ""}</li>)}
                 {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}
               </ul>

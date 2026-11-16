@@ -179,9 +179,12 @@ export default function MemberGamingHub({
   const [psnOnlineId, setPsnOnlineId] = useState("");
   const [squadForm, setSquadForm] = useState({ game: "", mode: "", platform: "", neededCount: 2, note: "" });
 
-  const players = rows(identity.details?.players);
-  const livePlayers = rows(engines.presenceFusion?.details?.livePlayers);
-  const sessions = rows(engines.presenceFusion?.details?.sessions);
+  const presenceDetails = engines.presenceFusion?.details;
+  const players = rows(identity.details?.players).map((player) =>
+    presenceDetails ? player : { ...player, isPlaying: false, currentGame: "" }
+  );
+  const livePlayers = rows(presenceDetails?.livePlayers);
+  const sessions = rows(presenceDetails?.sessions);
   const viewer = identity.details?.viewer || {};
   const authenticatedViewerId = String(viewer.userId || memberState.userId || viewerUserId);
   const ownSessions = sessions.filter((entry) => String(entry.userId) === authenticatedViewerId);
@@ -193,7 +196,6 @@ export default function MemberGamingHub({
   const playtimeRecords = rows(engines.playtime?.details?.records);
   const squads = rows(engines.squadFinder?.details?.activeSquads);
   const enabledSearchProviders = rows(searchConfig.providers).filter((entry) => entry.enabled !== false);
-  const presenceDetails = engines.presenceFusion?.details;
   const ownPresence = presenceDetails?.viewerPresence;
   const totalHours = getSummary(engines.playtime, "Total Hours", "0");
 
@@ -404,7 +406,7 @@ export default function MemberGamingHub({
                 );
               })}
             </div>
-          ) : <Empty>No members are currently visible as gaming. Activity only appears when Discord reports it and privacy allows sharing.</Empty>}
+          ) : <Empty>{presenceDetails ? "No members are currently visible as gaming. Activity only appears when Discord reports it and privacy allows sharing." : "Live gaming activity is temporarily unavailable."}</Empty>}
         </Card>
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>

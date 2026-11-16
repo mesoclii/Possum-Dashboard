@@ -40,10 +40,9 @@ type DashboardSection =
   | "Guild Control"
   | "Automation"
   | "Utilities"
-  | "Social Alerts"
   | "Security"
   | "Economy"
-  | "Gaming"
+  | "Social"
   | "Fun + Games"
   | "Possum Pro";
 
@@ -51,10 +50,9 @@ const SECTION_ORDER: DashboardSection[] = [
   "Guild Control",
   "Automation",
   "Utilities",
-  "Social Alerts",
   "Security",
   "Economy",
-  "Gaming",
+  "Social",
   "Fun + Games",
   "Possum Pro",
 ];
@@ -322,7 +320,6 @@ function getCardSection(card: Card): DashboardSection {
     href === "/dashboard/bot-personalizer" ||
     href === "/dashboard/bot-masters" ||
     href === "/dashboard/channels" ||
-    href === "/dashboard/ai/learning" ||
     href === "/dashboard/giveaways" ||
     href === "/dashboard/jed" ||
     href === "/dashboard/music" ||
@@ -336,24 +333,27 @@ function getCardSection(card: Card): DashboardSection {
     href === "/dashboard/automations/studio" ||
     href === "/dashboard/commands" ||
     href === "/dashboard/slash-commands" ||
-    href === "/dashboard/event-reactor" ||
-    href === "/dashboard/runtime-router"
+    href === "/dashboard/event-reactor"
   ) {
     return "Automation";
   }
   if (
     href === "/dashboard/utilities" ||
     href === "/dashboard/reviews" ||
-    href === "/dashboard/community-studio" ||
     href === "/dashboard/channel-flow"
   ) {
     return "Utilities";
   }
   if (
+    href === "/dashboard/games" ||
+    href === "/dashboard/wow" ||
+    href === "/dashboard/podcast" ||
+    href === "/dashboard/community-studio" ||
+    href === "/dashboard/bump-reminder" ||
     href === "/dashboard/social-alerts" ||
     href === "/dashboard/signal-relay"
   ) {
-    return "Social Alerts";
+    return "Social";
   }
   if (
     href === "/dashboard/security" ||
@@ -378,14 +378,11 @@ function getCardSection(card: Card): DashboardSection {
     return "Economy";
   }
   if (
-    href === "/dashboard/games" ||
-    href === "/dashboard/games/wilds" ||
-    href === "/dashboard/wow"
-  ) {
-    return "Gaming";
-  }
-  if (
     href === "/dashboard/premium-features" ||
+    href === "/dashboard/ai/learning" ||
+    href === "/dashboard/runtime-router" ||
+    href === "/dashboard/games/wilds" ||
+    href === "/dashboard/analytics" ||
     href === "/dashboard/heist" ||
     href === "/dashboard/tts" ||
     href === "/dashboard/ai/persona" ||
@@ -774,7 +771,7 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
 
   const premiumUnlocked = !premiumEnforced || Boolean(subscription?.active || subscription?.developerBypass);
   const navGroup = useMemo(
-    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner).find((s) => getSectionSlug(s.label) === groupSlug) || null : null),
+    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner).find((s) => getSectionSlug(s.label) === (groupSlug === "gaming" || groupSlug === "social-alerts" ? "social" : groupSlug)) || null : null),
     [featureVisibility, groupSlug, isMasterOwner, isPrimaryOwner]
   );
   const baseHref = (href: string) => href.split("?")[0].split("#")[0];

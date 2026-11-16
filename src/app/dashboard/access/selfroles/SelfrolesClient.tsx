@@ -2,6 +2,7 @@
 
 import ConfigJsonEditor from "@/components/possum/ConfigJsonEditor";
 import EngineInsights from "@/components/possum/EngineInsights";
+import GuildEmojiPicker from "@/components/possum/GuildEmojiPicker";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 import { useEffect, useMemo, useState } from "react";
 
@@ -184,6 +185,7 @@ export default function SelfrolesPage() {
     config: cfg,
     setConfig: setCfg,
     channels,
+    emojis,
     roles,
     summary,
     details,
@@ -434,6 +436,7 @@ export default function SelfrolesPage() {
               <label><input type="checkbox" checked={panel.enabled} onChange={(e) => updatePanel(panelIndex, { enabled: e.target.checked })} /> panel enabled</label>
               <label><input type="checkbox" checked={panel.allowRemove} onChange={(e) => updatePanel(panelIndex, { allowRemove: e.target.checked })} /> allow remove role</label>
             </div>
+            <GuildEmojiPicker emojis={emojis} onInsert={(token) => updatePanel(panelIndex, { messageBody: `${panel.messageBody || ""}${token}` })} />
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(220px, 1fr))", gap: 8, marginTop: 8 }}>
               <div>
@@ -476,7 +479,10 @@ export default function SelfrolesPage() {
                     {(roles as GuildRole[]).map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
                   </select>
                   <input style={input} placeholder="label" value={option.label} onChange={(e) => updateOption(panelIndex, optionIndex, { label: e.target.value })} />
-                  <input style={input} placeholder="emoji" value={option.emoji} onChange={(e) => updateOption(panelIndex, optionIndex, { emoji: e.target.value })} />
+                  <div>
+                    <input style={input} placeholder="emoji" value={option.emoji} onChange={(e) => updateOption(panelIndex, optionIndex, { emoji: e.target.value })} />
+                    <GuildEmojiPicker emojis={emojis} onInsert={(token) => updateOption(panelIndex, optionIndex, { emoji: token })} />
+                  </div>
                   <select style={input} value={option.style} onChange={(e) => updateOption(panelIndex, optionIndex, { style: e.target.value as RoleOption["style"] })}>
                     <option value="primary">primary</option>
                     <option value="secondary">secondary</option>

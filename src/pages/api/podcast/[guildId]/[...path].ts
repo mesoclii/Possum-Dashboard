@@ -30,14 +30,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const isEpisodes = path === "episodes";
   const isAudio = parts.length === 3 && parts[0] === "episodes" && validEpisodeId(parts[1]) && parts[2] === "audio";
   const isPreview = parts.length === 3 && parts[0] === "episodes" && validEpisodeId(parts[1]) && parts[2] === "preview";
+  const isEdit = parts.length === 3 && parts[0] === "episodes" && validEpisodeId(parts[1]) && parts[2] === "edit";
+  const isReview = parts.length === 3 && parts[0] === "episodes" && validEpisodeId(parts[1]) && parts[2] === "review";
   const isControl = path === "control";
   const isPublication = path === "publication";
-  if (!isFeed && !isLive && !isEpisodes && !isAudio && !isPreview && !isControl && !isPublication) {
+  if (!isFeed && !isLive && !isEpisodes && !isAudio && !isPreview && !isEdit && !isReview && !isControl && !isPublication) {
     return res.status(404).json({ success: false, error: "Podcast route not found." });
   }
-  if ((!isControl && !isPublication && req.method !== "GET") ||
+  if ((!isControl && !isPublication && !isEdit && !isReview && req.method !== "GET") ||
       (isControl && !["GET", "POST"].includes(String(req.method))) ||
-      (isPublication && req.method !== "POST")) {
+      ((isPublication || isEdit || isReview) && req.method !== "POST")) {
     return res.status(405).json({ success: false, error: "Method not allowed." });
   }
   if (req.method === "POST" && !/^application\/json(?:\s*;|$)/i.test(String(req.headers["content-type"] || ""))) {
@@ -46,14 +48,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const token = String(process.env.DASHBOARD_API_TOKEN || "").trim();
   if (!token) return res.status(503).json({ success: false, error: "Podcast service is not configured." });
   let headers: Record<string, string> = { "x-dashboard-token": token };
-  if (isControl || isPublication || isPreview) {
+  if (isControl || isPublication || isPreview || isEdit || isReview) {
     if (!await readActorUserId(req)) return res.status(401).json({ success: false, error: "Sign in to manage podcasts." });
     headers = await buildBotApiHeaders(req, { json: req.method === "POST" });
   }
   if ((isAudio || isPreview) && typeof req.headers.range === "string") headers.range = req.headers.range;
   const upstreamPath = isFeed ? "episodes" : path;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), isEdit ? 250_000 : 15_000);
   res.once("close", () => controller.abort());
   try {
     const response = await fetch(`${BOT_API}/podcast/${guildId}/${upstreamPath}`, {

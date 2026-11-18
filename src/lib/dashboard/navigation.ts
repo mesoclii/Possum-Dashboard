@@ -79,6 +79,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/reviews", label: "Reviews" },
         { href: "/dashboard/search-anything", label: "Search Anything" },
         { href: "/dashboard/channel-flow", label: "Channel Flow" },
+        { href: "/dashboard/economy/radio-birthday", label: "Birthday Tracker (Radio)" },
       ],
     },
     {
@@ -86,6 +87,7 @@ export function getDashboardNavSections(
       items: [
         { href: "/dashboard/security", label: "Security" },
         { href: "/dashboard/moderator", label: "Moderator" },
+        { href: "/dashboard/security/audit-trail", label: "Audit Trail" },
         { href: "/dashboard/governance", label: "Governance" },
         { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
         { href: "/dashboard/security/onboarding", label: "Onboarding" },
@@ -117,7 +119,6 @@ export function getDashboardNavSections(
         { href: "/dashboard/economy/store", label: "Store" },
         { href: "/dashboard/economy/progression", label: "Progression" },
         { href: "/dashboard/prestige", label: "Prestige" },
-        { href: "/dashboard/economy/radio-birthday", label: "Radio" },
         { href: "/dashboard/economy/leaderboard", label: "Invite Tracker" },
         { href: "/dashboard/profile", label: "Profile" },
         { href: "/dashboard/halloffame", label: "Hall Of Fame" },

@@ -542,10 +542,11 @@ export default function MemberGamingHub({
                   </div>
                   {linked ? (
                     <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                      {provider.ready && provider.mode === "psn_service" ? (
-                        <button type="button" style={button} disabled={saving} onClick={() => void onAction("gameProvider", "refreshProviderUser", { providerKey: linked.providerKey, platform: linked.platformKey }, "Refreshed your PlayStation connection.")}>Refresh connection</button>
-                      ) : provider.ready ? (
-                        <a href={buildConnectHref(provider.key)} style={{ ...button, textDecoration: "none" }}>Refresh connection</a>
+                      {(providerKey === "playstation" || (["steam", "battlenet", "bungie"].includes(providerKey) && linked.verified)) ? (
+                        <button type="button" style={button} disabled={saving} onClick={() => void onAction("gameProvider", "refreshProviderUser", { providerKey: providerKey === "battlenet" ? "wow" : providerKey, platform: linked.platformKey }, "Provider data refreshed.")}>Sync game data</button>
+                      ) : null}
+                      {provider.ready && provider.mode !== "psn_service" ? (
+                        <a href={buildConnectHref(provider.key)} style={{ ...button, textDecoration: "none" }}>Reconnect</a>
                       ) : null}
                       <button type="button" style={button} disabled={saving} onClick={() => void onAction("gameIdentity", "removeIdentity", { providerKey: linked.providerKey, platform: linked.platformKey }, "Disconnected your linked account.")}>Disconnect</button>
                     </div>

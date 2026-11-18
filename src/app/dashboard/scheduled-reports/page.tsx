@@ -75,7 +75,7 @@ export default function ScheduledReportsPage() {
       <h1 style={{ margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>Scheduled Reports</h1>
       <p style={{ color: "#ffe9f6" }}>{guildName || guildId}</p>
       <section style={card}>
-        <p style={{ marginTop: 0 }}>A failed moderation lookup is shown as missing. It is not shown as zero.</p>
+        <p style={{ marginTop: 0 }}>Discord reports show community, activity, retention, audit, and event data. Activity and audit figures use the rolling periods shown; unavailable data is not counted as zero.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(180px, 1fr))", gap: 12 }}>
           <label>
             Cadence
@@ -96,7 +96,7 @@ export default function ScheduledReportsPage() {
         <button type="button" className="possum-btn" style={button} onClick={async () => {
           const response = await fetch("/api/bot/pro", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ feature: "scheduled-reports", action: "schedule", guildId, cadence, channelId, enabled: true }) });
           const body = await response.json();
-          setNotice(body.success ? "Schedule saved." : body.error || "Schedule failed.");
+          setNotice(body.success ? (body.existing ? "This schedule already exists; no duplicate was created." : "Schedule saved.") : body.error || "Schedule failed.");
           await load();
         }}>Save schedule</button>
       </section>
@@ -110,8 +110,12 @@ export default function ScheduledReportsPage() {
       {reports.slice().reverse().map((row) => (
         <article key={row.id} style={card}>
           <strong style={{ letterSpacing: "0.06em", textTransform: "uppercase" }}>{row.cadence}</strong> {row.generatedAt}
-          <p>Members {row.memberCount ?? "missing"}. Moderation {row.moderation?.missing ? "missing" : row.moderation?.audit30}. Events {(row.eventIds || []).length}.</p>
-          <p style={{ marginBottom: 0 }}>Delivery {row.delivery?.ok ? "sent" : row.delivery?.error || "not sent"}.</p>
+          <p>Server members: {row.memberCount == null ? "Unavailable" : `${row.memberCountApproximate ? "~" : ""}${row.memberCount}${row.memberCountApproximate ? " (approximate)" : ""}`} · Tracked members: {row.activity?.missing ? "Unavailable" : row.activity?.tracked ?? "Unavailable"}</p>
+          <p>Active tracked members: {row.activity?.missing ? "Unavailable" : row.activity?.active1d ?? "Unavailable"} in 24 hours · {row.activity?.missing ? "Unavailable" : row.activity?.active7d ?? "Unavailable"} in 7 days · {row.activity?.missing ? "Unavailable" : row.activity?.active30d ?? "Unavailable"} in 30 days</p>
+          <p>Tracked joins: {row.activity?.missing ? "Unavailable" : row.activity?.joined7d ?? "Unavailable"} in 7 days · {row.activity?.missing ? "Unavailable" : row.activity?.joined30d ?? "Unavailable"} in 30 days</p>
+          <p>Tracked members older than 30 days: {row.retention?.missing ? "Unavailable" : row.retention?.olderThan30d ?? "Unavailable"} · Active in the last 30 days: {row.retention?.missing ? "Unavailable" : row.retention?.retained30d ?? "Unavailable"}</p>
+          <p>Audit entries in 30 days: {row.moderation?.missing ? "Unavailable" : row.moderation?.audit30 ?? "Unavailable"} · Events: {row.eventsAvailable === true || (row.eventsAvailable == null && row.eventIds?.length > 0) ? (row.eventIds || []).length : "Unavailable"}</p>
+          <p style={{ marginBottom: 0 }}>Delivery: {row.delivery?.skipped === "no-channel" ? "Stored only" : row.delivery?.ok ? "Sent" : row.delivery?.error || "Not sent"}.</p>
         </article>
       ))}
     </div>

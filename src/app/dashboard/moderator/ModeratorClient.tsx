@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { buildDashboardHref, readDashboardGuildId } from "@/lib/dashboardContext";
+import { readModeratorTab, type ModeratorTab } from "@/lib/moderatorNavigation";
 
 type Role = { id: string; name: string; position?: number };
 type Channel = { id: string; name: string; type?: number | string };
@@ -151,7 +153,7 @@ type NativeConfig = {
   rules: Record<string, any>;
 };
 
-type TabKey = "automod" | "admin" | "audit" | "commands";
+type TabKey = ModeratorTab;
 
 const ACTIONS = [
   "Disabled",
@@ -371,6 +373,8 @@ function moderatorCommandRule(entry: NativeEntry, config: NativeConfig): NativeR
 }
 
 export default function ModeratorClient() {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams?.get("tab") ?? null;
   const [guildId, setGuildId] = useState("");
   const [guildName, setGuildName] = useState("");
   const [roles, setRoles] = useState<Role[]>([]);
@@ -379,10 +383,14 @@ export default function ModeratorClient() {
   const [blockedWordsText, setBlockedWordsText] = useState("");
   const [nativeConfig, setNativeConfig] = useState<NativeConfig>({ active: true, slashEnabled: true, notes: "", rules: {} });
   const [nativeEntries, setNativeEntries] = useState<NativeEntry[]>([]);
-  const [tab, setTab] = useState<TabKey>("automod");
+  const [tab, setTab] = useState<TabKey>(() => readModeratorTab(requestedTab));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setTab(readModeratorTab(requestedTab));
+  }, [requestedTab]);
 
   useEffect(() => {
     const nextGuildId = readDashboardGuildId();
@@ -1037,6 +1045,11 @@ export default function ModeratorClient() {
       {!loading && tab === "audit" ? (
         <section style={{ ...card, marginTop: 14 }}>
           <h2 style={{ marginTop: 0, color: "#ff5f5f", letterSpacing: "0.08em", textTransform: "uppercase" }}>Audit Logging</h2>
+          <p>
+            These switches control moderator events. Other engines can have their own log destinations.{" "}
+            <a href={`/dashboard/channels?guildId=${encodeURIComponent(guildId)}`}>Manage engine log channels</a>{" · "}
+            <a href={`/dashboard/security/audit-trail?guildId=${encodeURIComponent(guildId)}`}>View audit trail</a>
+          </p>
           <div>
             <label>Log Channel</label>
             <select style={input} value={cfg.logging.logChannelId} onChange={(e) => setCfg((prev) => ({ ...prev, logging: { ...prev.logging, logChannelId: e.target.value } }))}>
@@ -1045,7 +1058,7 @@ export default function ModeratorClient() {
             </select>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(220px,1fr))", gap: 8, marginTop: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 8, marginTop: 14 }}>
             {auditEvents.map(([key, label]) => (
               <label key={String(key)}>
                 <input
@@ -1065,7 +1078,7 @@ export default function ModeratorClient() {
 
           <div style={{ marginTop: 14 }}>
             <h3 style={{ color: "#ff5f5f", marginTop: 0 }}>Ignored Channels</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(220px,1fr))", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 6, maxHeight: 260, overflowY: "auto" }}>
               {channels.map((channel) => (
                 <label key={channel.id}>
                   <input

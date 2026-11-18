@@ -1,6 +1,8 @@
 "use client";
 
 import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import GuildEmojiPicker, { type GuildEmoji } from "@/components/possum/GuildEmojiPicker";
 
 type GuildRole = { id: string; name: string; position?: number };
 type GuildChannel = { id: string; name: string; type?: number | string };
@@ -325,6 +327,8 @@ export default function CustomCommandsPage() {
   const [guildId, setGuildId] = useState("");
   const [roles, setRoles] = useState<GuildRole[]>([]);
   const [channels, setChannels] = useState<GuildChannel[]>([]);
+  const [emojis, setEmojis] = useState<GuildEmoji[]>([]);
+  const [emojiError, setEmojiError] = useState("");
   const [nativeCommandEntries, setNativeCommandEntries] = useState<NativeCommandEntry[]>([]);
   const [guildDataLoading, setGuildDataLoading] = useState(false);
   const [nativeCommandsLoading, setNativeCommandsLoading] = useState(false);
@@ -360,11 +364,13 @@ export default function CustomCommandsPage() {
 
   async function loadGuildData(targetGuildId: string) {
     setGuildDataLoading(true);
+    setEmojiError("");
     const r = await fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(targetGuildId)}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || j?.success === false) throw new Error(j?.error || "Failed to load guild roles and channels");
     setRoles(Array.isArray(j?.roles) ? j.roles : []);
     setChannels(Array.isArray(j?.channels) ? j.channels : []);
+    setEmojis(Array.isArray(j?.emojis) ? j.emojis : []);
     setGuildDataLoading(false);
   }
 
@@ -415,6 +421,7 @@ export default function CustomCommandsPage() {
     }
     void loadGuildData(targetGuildId).catch((e: any) => {
       setGuildDataLoading(false);
+      setEmojiError(e?.message || "Failed to load guild data");
       setMsg(e?.message || "Failed to load guild roles and channels");
     });
   }, []);
@@ -911,7 +918,7 @@ export default function CustomCommandsPage() {
                           <option value="">Select channel</option>
                           {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
                         </select>
-                        <textarea rows={3} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="Message to send" style={{ ...inputStyle, fontFamily: "inherit" }} />
+                        <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { content: value })}><textarea rows={3} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="Message to send" style={{ ...inputStyle, fontFamily: "inherit" }} /></GuildEmojiField>
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
                         <select
@@ -958,13 +965,13 @@ export default function CustomCommandsPage() {
                           <option value="">Reply/current channel</option>
                           {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
                         </select>
-                        <input value={a.embedTitle} onChange={(e) => updateAction(a.id, { embedTitle: e.target.value })} placeholder="Embed title" style={inputStyle} />
+                        <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { embedTitle: value })}><input value={a.embedTitle} onChange={(e) => updateAction(a.id, { embedTitle: e.target.value })} placeholder="Embed title" style={inputStyle} /></GuildEmojiField>
                       </div>
-                      <textarea rows={2} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="Optional message above the embed" style={{ ...inputStyle, fontFamily: "inherit" }} />
-                      <textarea rows={4} value={a.embedDescription} onChange={(e) => updateAction(a.id, { embedDescription: e.target.value })} placeholder="Embed description" style={{ ...inputStyle, fontFamily: "inherit" }} />
+                      <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { content: value })}><textarea rows={2} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="Optional message above the embed" style={{ ...inputStyle, fontFamily: "inherit" }} /></GuildEmojiField>
+                      <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { embedDescription: value })}><textarea rows={4} value={a.embedDescription} onChange={(e) => updateAction(a.id, { embedDescription: e.target.value })} placeholder="Embed description" style={{ ...inputStyle, fontFamily: "inherit" }} /></GuildEmojiField>
                       <div style={twoCol}>
                         <input value={a.embedColor} onChange={(e) => updateAction(a.id, { embedColor: e.target.value })} placeholder="Color (#ff5a5a)" style={inputStyle} />
-                        <input value={a.embedFooterText} onChange={(e) => updateAction(a.id, { embedFooterText: e.target.value })} placeholder="Footer text" style={inputStyle} />
+                        <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { embedFooterText: value })}><input value={a.embedFooterText} onChange={(e) => updateAction(a.id, { embedFooterText: e.target.value })} placeholder="Footer text" style={inputStyle} /></GuildEmojiField>
                       </div>
                       <div style={twoCol}>
                         <input value={a.embedImageUrl} onChange={(e) => updateAction(a.id, { embedImageUrl: e.target.value })} placeholder="Hero image URL" style={inputStyle} />
@@ -1015,7 +1022,7 @@ export default function CustomCommandsPage() {
                   {(a.type === "REPLY") && (
                     <div style={{ display: "grid", gap: 8 }}>
                       <div style={twoCol}>
-                        <textarea rows={3} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="Reply text" style={{ ...inputStyle, fontFamily: "inherit" }} />
+                        <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { content: value })}><textarea rows={3} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="Reply text" style={{ ...inputStyle, fontFamily: "inherit" }} /></GuildEmojiField>
                         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <input type="checkbox" checked={a.ephemeral} onChange={(e) => updateAction(a.id, { ephemeral: e.target.checked })} />
                           ephemeral (slash context)
@@ -1060,7 +1067,7 @@ export default function CustomCommandsPage() {
 
                   {(a.type === "DM") && (
                     <div style={{ display: "grid", gap: 8 }}>
-                      <textarea rows={3} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="DM text" style={{ ...inputStyle, fontFamily: "inherit" }} />
+                      <GuildEmojiField emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(value) => updateAction(a.id, { content: value })}><textarea rows={3} value={a.content} onChange={(e) => updateAction(a.id, { content: e.target.value })} placeholder="DM text" style={{ ...inputStyle, fontFamily: "inherit" }} /></GuildEmojiField>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
                         <select
                           value={mentionRoleByAction[a.id] || ""}
@@ -1106,7 +1113,7 @@ export default function CustomCommandsPage() {
                   )}
 
                   {(a.type === "REACT") && (
-                    <input value={a.emoji} onChange={(e) => updateAction(a.id, { emoji: e.target.value })} placeholder="Emoji (😀, 🔥, <:custom:123>)" style={inputStyle} />
+                    <div><input value={a.emoji} onChange={(e) => updateAction(a.id, { emoji: e.target.value })} placeholder="Emoji (😀, 🔥, <:custom:123>)" style={inputStyle} /><GuildEmojiPicker emojis={emojis} loading={guildDataLoading} error={emojiError} onInsert={(token) => updateAction(a.id, { emoji: token })} /></div>
                   )}
 
                   {(a.type === "DELAY") && (

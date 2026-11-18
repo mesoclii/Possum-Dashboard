@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { aggregateResourceSamples, type MetricSample } from "@/lib/opsMetrics";
 
 type ServiceRow = {
   name: string;
@@ -57,15 +58,6 @@ type AlertsConfig = {
   alertRepeatMs?: number;
   maxDeliveryAttempts?: number;
   delivery?: { pending?: number };
-};
-
-type MetricSample = {
-  ts: number;
-  host?: {
-    cpu?: { usagePct?: number | null };
-    memory?: { usedPct?: number | null; swapUsedPct?: number | null };
-    disk?: { root?: { usedPct?: number | null } };
-  } | null;
 };
 
 const panel = {
@@ -133,6 +125,7 @@ export default function OperationsClient() {
   const [logs, setLogs] = useState<LogLine[]>([]);
   const [alerts, setAlerts] = useState<AlertsConfig | null>(null);
   const [metrics, setMetrics] = useState<MetricSample[]>([]);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
@@ -200,11 +193,16 @@ export default function OperationsClient() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const response = await fetch("/api/ops/metrics?resolution=raw&rangeMs=86400000&limit=2000", { cache: "no-store" });
+      const response = await fetch("/api/ops/metrics?resolution=5m&rangeMs=86400000&limit=300", { cache: "no-store" });
       const body = await response.json();
-      if (body?.success) setMetrics((Array.isArray(body.data) ? body.data : []) as MetricSample[]);
+      if (!response.ok || !body?.success || !Array.isArray(body.data)) {
+        setMetricsError(`Resource history unavailable (HTTP ${response.status}).`);
+        return;
+      }
+      setMetrics(aggregateResourceSamples(body.data));
+      setMetricsError(null);
     } catch {
-      // Keep the last successful history sample.
+      setMetricsError("Resource history unavailable; retrying automatically.");
     }
   }, []);
 
@@ -366,8 +364,9 @@ export default function OperationsClient() {
       <section style={panel}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div style={label}>24-hour resource history</div>
-          <div style={{ fontSize: 11, color: "#a08080" }}>{metrics.length} retained samples · 15-second collection target</div>
+          <div style={{ fontSize: 11, color: "#a08080" }}>{metrics.length} retained 5-minute averages · 15-second collection target</div>
         </div>
+        {metricsError ? <div role="status" style={{ fontSize: 12, color: "#ffaaaa", marginTop: 8 }}>{metricsError} Showing any previous history.</div> : null}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, marginTop: 12 }}>
           <MetricLine title="CPU" samples={metrics} value={(sample) => sample.host?.cpu?.usagePct} />
           <MetricLine title="RAM" samples={metrics} value={(sample) => sample.host?.memory?.usedPct} />

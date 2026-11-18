@@ -14,8 +14,9 @@ import { isDashboardControlOwner } from "@/lib/dashboardOwner";
 
 const DEFAULT_AGENT_PORT = "3190";
 const MAX_AGENT_RESPONSE_BYTES = 512 * 1024;
+const MAX_METRICS_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-async function readAgentResponse(response: Response) {
+async function readAgentResponse(response: Response, maxBytes: number) {
   const reader = response.body?.getReader();
   if (!reader) return { text: "", oversized: false };
 
@@ -26,7 +27,7 @@ async function readAgentResponse(response: Response) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const remaining = MAX_AGENT_RESPONSE_BYTES - total;
+      const remaining = maxBytes - total;
       if (value.byteLength > remaining) {
         if (remaining > 0) chunks.push(value.subarray(0, remaining));
         total += Math.max(0, remaining);
@@ -36,9 +37,12 @@ async function readAgentResponse(response: Response) {
       }
       chunks.push(value);
       total += value.byteLength;
-      if (total === MAX_AGENT_RESPONSE_BYTES) {
+      if (total === maxBytes) {
         const next = await reader.read();
-        if (!next.done) oversized = true;
+        if (!next.done) {
+          oversized = true;
+          await reader.cancel().catch(() => {});
+        }
         break;
       }
     }
@@ -96,6 +100,7 @@ export async function callAgent(options: {
   method?: string;
   body?: unknown;
   actor?: OpsActor;
+  responseLimit?: "metrics";
 }): Promise<AgentResult> {
   const token = String(process.env.OPS_AGENT_TOKEN || "").trim();
   if (!token) {
@@ -122,7 +127,8 @@ export async function callAgent(options: {
       cache: "no-store",
     });
 
-    const { text, oversized } = await readAgentResponse(response);
+    const maxBytes = options.responseLimit === "metrics" ? MAX_METRICS_RESPONSE_BYTES : MAX_AGENT_RESPONSE_BYTES;
+    const { text, oversized } = await readAgentResponse(response, maxBytes);
     if (oversized) {
       return { ok: false, status: 502, error: "Operations agent response exceeded the size limit." };
     }
@@ -160,12 +166,12 @@ export async function proxyOps(
   req: NextApiRequest,
   res: NextApiResponse,
   path: string,
-  options: { method?: string; body?: unknown } = {}
+  options: { method?: string; body?: unknown; responseLimit?: "metrics" } = {}
 ): Promise<void> {
   const actor = await requireOpsOwner(req, res);
   if (!actor) return;
 
-  const result = await callAgent({ path, method: options.method || "GET", body: options.body, actor });
+  const result = await callAgent({ path, method: options.method || "GET", body: options.body, actor, responseLimit: options.responseLimit });
 
   res.setHeader("cache-control", "private, no-store");
 

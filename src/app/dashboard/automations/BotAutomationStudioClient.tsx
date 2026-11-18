@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import GuildEmojiField from "@/components/possum/GuildEmojiField";
+import GuildEmojiPicker, { type GuildEmoji } from "@/components/possum/GuildEmojiPicker";
 
 type GuildRole = { id: string; name: string };
 type GuildChannel = { id: string; name: string; type?: string };
-type GuildEmoji = { id: string; name: string; animated?: boolean; available?: boolean; token: string };
 type NativeCommandEntry = {
   key: string;
   title: string;
@@ -224,10 +225,6 @@ function appendEmojiToken(currentValue: string, emojiToken: string): string {
   return existing.join(", ");
 }
 
-function emojiDisplayName(emoji: GuildEmoji): string {
-  return emoji.animated ? `:${emoji.name}: (animated)` : `:${emoji.name}:`;
-}
-
 function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((value) => value !== id) : [...list, id];
 }
@@ -342,6 +339,7 @@ export default function BotAutomationStudioClient() {
   const [roles, setRoles] = useState<GuildRole[]>([]);
   const [channels, setChannels] = useState<GuildChannel[]>([]);
   const [emojis, setEmojis] = useState<GuildEmoji[]>([]);
+  const [emojiError, setEmojiError] = useState("");
   const [nativeCommandEntries, setNativeCommandEntries] = useState<NativeCommandEntry[]>([]);
   const [automations, setAutomations] = useState<AutomationItem[]>([]);
   const [selectedId, setSelectedId] = useState<string>("new");
@@ -360,7 +358,6 @@ export default function BotAutomationStudioClient() {
   const [actions, setActions] = useState<ActionDraft[]>([defaultAction("SEND_MESSAGE")]);
   const [mentionRoleByAction, setMentionRoleByAction] = useState<Record<string, string>>({});
   const [mentionChannelByAction, setMentionChannelByAction] = useState<Record<string, string[]>>({});
-  const [emojiPickerByTarget, setEmojiPickerByTarget] = useState<Record<string, string>>({});
 
   const categoryChannels = useMemo(
     () => channels.filter((c) => String(c.type || "").toLowerCase().includes("category")),
@@ -391,18 +388,24 @@ export default function BotAutomationStudioClient() {
     setActions([defaultAction("SEND_MESSAGE")]);
     setMentionRoleByAction({});
     setMentionChannelByAction({});
-    setEmojiPickerByTarget({});
   }
 
   async function loadGuildMeta(targetGuildId: string) {
-    const r = await fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(targetGuildId)}`);
-    const j = await r.json().catch(() => ({}));
-    setRoles(Array.isArray(j?.roles) ? j.roles : []);
-    setChannels(Array.isArray(j?.channels) ? j.channels : []);
-    setEmojis(Array.isArray(j?.emojis) ? j.emojis : []);
-    const nextGuildName = String(j?.guild?.name || "").trim();
-    setGuildName(nextGuildName);
-    if (nextGuildName) localStorage.setItem("activeGuildName", nextGuildName);
+    setEmojiError("");
+    try {
+      const r = await fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(targetGuildId)}`);
+      const j = await r.json();
+      if (!r.ok || j?.success === false) throw new Error(j?.error || "Failed to load guild data");
+      setRoles(Array.isArray(j?.roles) ? j.roles : []);
+      setChannels(Array.isArray(j?.channels) ? j.channels : []);
+      setEmojis(Array.isArray(j?.emojis) ? j.emojis : []);
+      const nextGuildName = String(j?.guild?.name || "").trim();
+      setGuildName(nextGuildName);
+      if (nextGuildName) localStorage.setItem("activeGuildName", nextGuildName);
+    } catch (error) {
+      setEmojiError(error instanceof Error ? error.message : "Failed to load guild data");
+      throw error;
+    }
   }
 
   async function loadAutomations(targetGuildId: string) {
@@ -739,27 +742,7 @@ export default function BotAutomationStudioClient() {
   }
 
   function renderEmojiPicker(targetKey: string, onInsert: (emojiToken: string) => void) {
-    const availableEmojis = emojis.filter((emoji) => emoji.available !== false);
-    if (!availableEmojis.length) return null;
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
-        <select
-          value={emojiPickerByTarget[targetKey] || ""}
-          onChange={(e) => setEmojiPickerByTarget((prev) => ({ ...prev, [targetKey]: e.target.value }))}
-          style={inputStyle}
-        >
-          <option value="">Select server emoji</option>
-          {availableEmojis.map((emoji) => (
-            <option key={emoji.id} value={emoji.token}>
-              {emojiDisplayName(emoji)} {emoji.token}
-            </option>
-          ))}
-        </select>
-        <button style={btnStyle} onClick={() => onInsert(emojiPickerByTarget[targetKey] || "")}>
-          Add Emoji
-        </button>
-      </div>
-    );
+    return <GuildEmojiPicker key={targetKey} emojis={emojis} error={emojiError} onInsert={onInsert} />;
   }
 
   async function saveAutomation(publishAfterSave = false) {
@@ -1402,12 +1385,12 @@ export default function BotAutomationStudioClient() {
                           <option key={c.id} value={c.id}>#{c.name}</option>
                         ))}
                       </select>
-                      <textarea
+                      <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { content: value })}><textarea
                         value={asString(action.config, "content", "")}
                         onChange={(e) => updateActionConfig(action.id, { content: e.target.value })}
                         style={{ ...inputStyle, minHeight: 72, resize: "vertical" }}
                         placeholder="Message content"
-                      />
+                      /></GuildEmojiField>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
                         <select
                           value={mentionRoleByAction[action.id] || ""}
@@ -1451,24 +1434,24 @@ export default function BotAutomationStudioClient() {
                           <option key={c.id} value={c.id}>#{c.name}</option>
                         ))}
                       </select>
-                      <input
+                      <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { title: value })}><input
                         value={asString(action.config, "title", "")}
                         onChange={(e) => updateActionConfig(action.id, { title: e.target.value })}
                         style={inputStyle}
                         placeholder="Embed title"
-                      />
-                      <textarea
+                      /></GuildEmojiField>
+                      <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { content: value })}><textarea
                         value={asString(action.config, "content", "")}
                         onChange={(e) => updateActionConfig(action.id, { content: e.target.value })}
                         style={{ ...inputStyle, minHeight: 64, resize: "vertical" }}
                         placeholder="Optional message above the embed"
-                      />
-                      <textarea
+                      /></GuildEmojiField>
+                      <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { description: value })}><textarea
                         value={asString(action.config, "description", "")}
                         onChange={(e) => updateActionConfig(action.id, { description: e.target.value })}
                         style={{ ...inputStyle, minHeight: 88, resize: "vertical" }}
                         placeholder="Embed description"
-                      />
+                      /></GuildEmojiField>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                         <input
                           value={asString(action.config, "color", "#ff5a5a")}
@@ -1476,12 +1459,12 @@ export default function BotAutomationStudioClient() {
                           style={inputStyle}
                           placeholder="Color (#ff5a5a)"
                         />
-                        <input
+                        <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { footerText: value })}><input
                           value={asString(action.config, "footerText", "")}
                           onChange={(e) => updateActionConfig(action.id, { footerText: e.target.value })}
                           style={inputStyle}
                           placeholder="Footer text"
-                        />
+                        /></GuildEmojiField>
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                         <input
@@ -1538,12 +1521,12 @@ export default function BotAutomationStudioClient() {
 
                   {action.type === "REPLY" ? (
                     <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                      <textarea
+                      <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { content: value })}><textarea
                         value={asString(action.config, "content", "")}
                         onChange={(e) => updateActionConfig(action.id, { content: e.target.value })}
                         style={{ ...inputStyle, minHeight: 72, resize: "vertical" }}
                         placeholder="Reply content"
-                      />
+                      /></GuildEmojiField>
                       <label style={toggleLabel}>
                         <input
                           type="checkbox"
@@ -1669,12 +1652,12 @@ export default function BotAutomationStudioClient() {
 
                   {action.type === "DM" ? (
                     <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                      <textarea
+                      <GuildEmojiField emojis={emojis} error={emojiError} onInsert={(value) => updateActionConfig(action.id, { content: value })}><textarea
                         value={asString(action.config, "content", "")}
                         onChange={(e) => updateActionConfig(action.id, { content: e.target.value })}
                         style={{ ...inputStyle, minHeight: 72, resize: "vertical" }}
                         placeholder="DM content"
-                      />
+                      /></GuildEmojiField>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
                         <select
                           value={mentionRoleByAction[action.id] || ""}

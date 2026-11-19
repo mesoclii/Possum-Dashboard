@@ -13,22 +13,25 @@ const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical",
 const specials = ["support", "rare", "holo", "shiny"];
 const slots = ["standard", ...specials];
 
-function CardView({ card }: { card: Card }) {
+function CardView({ card, artwork }: { card: Card; artwork?: string }) {
   const details = card.cardSnapshot;
   return <article className={`tcg-card tcg-finish-${card.finish}`}>
     <div className="tcg-card-top"><span>{details.kind}</span><span>{details.rarity}</span></div>
-    <div className="tcg-card-crest" aria-hidden="true">{details.name.slice(0, 1)}</div>
+    <div className="tcg-card-crest">{artwork ? <img src={`data:image/webp;base64,${artwork}`} alt={`Draft artwork for ${details.name}`} /> : <span aria-label="Artwork unavailable">{details.name.slice(0, 1)}</span>}</div>
     <p className="tcg-card-finish">{card.finish === "standard" ? "Standard edition" : `${card.finish} edition`}</p>
     <h3>{details.name}</h3>
     <div className="tcg-card-power">POWER <strong>{details.power}</strong></div>
     <p className="tcg-card-ability">{details.ability}</p>
     <p className="tcg-card-story">{details.story}</p>
-    <p className="tcg-card-art">Preview design · artwork in development</p>
+    <p className="tcg-card-art">{artwork ? "Private preview artwork · not final" : "Artwork unavailable · private preview"}</p>
   </article>;
 }
 
 export default function TcgPage() {
   const [cards, setCards] = useState<Card[]>([]);
+  const [artwork, setArtwork] = useState<Record<string, string>>({});
+  const [artworkMessage, setArtworkMessage] = useState("");
+  const artworkRequested = useRef(new Set<string>());
   const [cursor, setCursor] = useState<string | null>(null);
   const [opened, setOpened] = useState<Card[]>([]);
   const [message, setMessage] = useState("Checking your private test access...");
@@ -49,6 +52,32 @@ export default function TcgPage() {
   const packStage = useRef<HTMLElement | null>(null);
   const opening = packPhase !== "idle" && revealedCount < opened.length;
 
+  const loadArtwork = useCallback(async (newCards: Card[]) => {
+    const keys = [...new Set(newCards.map((card) => card.cardKey))].filter((key) => !artworkRequested.current.has(key));
+    for (let offset = 0; offset < keys.length; offset += 50) {
+      const batch = keys.slice(offset, offset + 50);
+      batch.forEach((key) => artworkRequested.current.add(key));
+      try {
+        const response = await fetch(`/api/tcg?action=artwork&keys=${encodeURIComponent(batch.join(","))}`, { cache: "no-store" });
+        const data: unknown = await response.json();
+        if (!response.ok || !data || typeof data !== "object" || !("success" in data) || data.success !== true ||
+            !("artwork" in data) || !data.artwork || typeof data.artwork !== "object" || !("missing" in data) || !Array.isArray(data.missing)) {
+          throw new Error("Preview artwork could not be loaded.");
+        }
+        const received: Record<string, string> = {};
+        for (const [key, value] of Object.entries(data.artwork)) {
+          if (!batch.includes(key) || typeof value !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error("Invalid preview artwork response.");
+          received[key] = value;
+        }
+        setArtwork((current) => ({ ...current, ...received }));
+        if (data.missing.length) setArtworkMessage("Some preview artwork is unavailable.");
+      } catch (error) {
+        batch.forEach((key) => artworkRequested.current.delete(key));
+        setArtworkMessage(error instanceof Error ? error.message : "Preview artwork could not be loaded.");
+      }
+    }
+  }, []);
+
   const loadCollection = useCallback(async (next?: string) => {
     const query = next ? `?cursor=${encodeURIComponent(next)}` : "";
     const response = await fetch(`/api/tcg${query}`, { cache: "no-store" });
@@ -58,11 +87,12 @@ export default function TcgPage() {
       throw new Error(data.error || "Your collection is unavailable.");
     }
     setCards((current) => next ? [...current, ...data.cards!] : data.cards!);
+    void loadArtwork(data.cards);
     setCursor(data.nextCursor || null);
     setUnlimitedTestPacks(data.unlimitedTestPacks === true);
     setReady(true);
     setMessage(data.unlimitedTestPacks ? "Your collection is ready. Unlimited packs are enabled for private testing." : "Your collection is ready. Free packs reset 24 hours after your last claim.");
-  }, []);
+  }, [loadArtwork]);
 
   useEffect(() => {
     void loadCollection().then(async () => {
@@ -111,6 +141,7 @@ export default function TcgPage() {
       revealed.current = 0;
       setRevealedCount(0);
       setOpened(data.pack.cards);
+      void loadArtwork(data.pack.cards);
       setPackPhase("sealed");
       setMessage("Your cards are saved. Tear open your pack to reveal them.");
     } catch (error) {
@@ -201,6 +232,7 @@ export default function TcgPage() {
       {signIn && <a className="tcg-button" href="/api/auth/discord/login?returnTo=%2Ftcg">Sign in with Discord</a>}
       {ready && !opening && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Preparing your pack..." : "✦ Rip your free pack"}</button>}
       <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork and stories are not final. Wilds unlocks, rewards, trading and battles are not active yet.</p>
+      {artworkMessage && <p className="tcg-note" role="status">{artworkMessage}</p>}
     </section>
     {(packPhase === "sealed" || packPhase === "tearing") && <section ref={packStage} className="tcg-section tcg-opening" aria-label="Pack opening">
       <div className="tcg-opening-copy"><p className="tcg-eyebrow">THE CITY MEETS THE WILDS</p><h2>Your story is sealed inside.</h2><p>{packPhase === "sealed" ? "Drag across the pack or tap to tear it open." : "The seal is breaking..."}</p></div>
@@ -224,12 +256,12 @@ export default function TcgPage() {
           <button type="button" className="tcg-card-back" disabled={index !== revealedCount} onClick={() => revealCard(index)} aria-hidden={index < revealedCount} aria-label={`Reveal card ${index + 1} of ${opened.length}`}>
             <span className="tcg-card-back-mark">✦</span><strong>POSSUM<br /><em>WILDS</em></strong><span>{index === revealedCount ? "TAP TO REVEAL" : "REVEAL IN ORDER"}</span>
           </button>
-          <div className="tcg-card-front" aria-hidden={index >= revealedCount}><CardView card={card} /></div>
+          <div className="tcg-card-front" aria-hidden={index >= revealedCount}><CardView card={card} artwork={artwork[card.cardKey]} /></div>
         </div>
       </div>)}</div>
     </section>}
     {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{cards.length} loaded</span></div>
-      {cards.length ? <div className="tcg-grid">{cards.map((card) => <CardView key={card.id} card={card} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
+      {cards.length ? <div className="tcg-grid">{cards.map((card) => <CardView key={card.id} card={card} artwork={artwork[card.cardKey]} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
     </section>}
     {rules && <section className="tcg-section tcg-admin"><details><summary>Developer controls <span>Drop-rate settings</span></summary>

@@ -19,7 +19,7 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
     return reply({ error: "TCG access is temporarily unavailable." }, 503);
   }
   const action = request.nextUrl.searchParams.get("action") || "collection";
-  if ((method === "GET" && !["collection", "rules"].includes(action)) ||
+  if ((method === "GET" && !["collection", "rules", "artwork"].includes(action)) ||
       (method === "POST" && action !== "open") || (method === "PUT" && action !== "rules")) {
     return reply({ error: "Invalid TCG action." }, 400);
   }
@@ -36,6 +36,11 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
   if (method === "GET" && action === "collection") {
     const cursor = request.nextUrl.searchParams.get("cursor");
     if (cursor !== null) url.searchParams.set("cursor", cursor);
+  }
+  if (method === "GET" && action === "artwork") {
+    const keys = request.nextUrl.searchParams.get("keys");
+    if (!keys || keys.length > 4096) return reply({ error: "Invalid artwork request." }, 400);
+    url.searchParams.set("keys", keys);
   }
   let body: string | undefined;
   if (method !== "GET") {

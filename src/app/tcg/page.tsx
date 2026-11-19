@@ -5,8 +5,10 @@ import "./tcg.css";
 
 type Snapshot = { name: string; rarity: string; kind: string; power: number; ability: string; story: string };
 type Card = { id: string; cardKey: string; finish: string; cardSnapshot: Snapshot };
+type Edition = Card & { quantity: number };
+type CardStack = { cardKey: string; quantity: number; editions: Edition[] };
 type Rules = { specialWeights: Record<string, number>; rarityWeights: Record<string, Record<string, number>> };
-type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; cards?: Card[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
+type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; stacks?: CardStack[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
 type PackPhase = "idle" | "sealed" | "tearing" | "reveal";
 
 const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical", "celestial"];
@@ -27,8 +29,21 @@ function CardView({ card, artwork }: { card: Card; artwork?: string }) {
   </article>;
 }
 
+function StackView({ stack, artwork }: { stack: CardStack; artwork?: string }) {
+  const [selectedFinish, setSelectedFinish] = useState(stack.editions[0].finish);
+  const selected = stack.editions.find((edition) => edition.finish === selectedFinish) || stack.editions[0];
+  return <div className="tcg-stack">
+    <div className="tcg-stack-count"><strong>{stack.quantity} {stack.quantity === 1 ? "copy" : "copies"}</strong><span>in your collection</span></div>
+    <CardView card={selected} artwork={artwork} />
+    <div className="tcg-editions" aria-label={`${selected.cardSnapshot.name} editions`}>
+      {stack.editions.map((edition) => <button key={edition.finish} type="button" aria-pressed={selected.finish === edition.finish}
+        onClick={() => setSelectedFinish(edition.finish)}>{edition.finish} <strong>×{edition.quantity}</strong></button>)}
+    </div>
+  </div>;
+}
+
 export default function TcgPage() {
-  const [cards, setCards] = useState<Card[]>([]);
+  const [stacks, setStacks] = useState<CardStack[]>([]);
   const [artwork, setArtwork] = useState<Record<string, string>>({});
   const [artworkMessage, setArtworkMessage] = useState("");
   const artworkRequested = useRef(new Set<string>());
@@ -79,15 +94,15 @@ export default function TcgPage() {
   }, []);
 
   const loadCollection = useCallback(async (next?: string) => {
-    const query = next ? `?cursor=${encodeURIComponent(next)}` : "";
+    const query = next ? `?view=stacks&cursor=${encodeURIComponent(next)}` : "?view=stacks";
     const response = await fetch(`/api/tcg${query}`, { cache: "no-store" });
     const data: Result = await response.json();
-    if (!response.ok || !data.success || !Array.isArray(data.cards)) {
+    if (!response.ok || !data.success || !Array.isArray(data.stacks)) {
       if (response.status === 401) setSignIn(true);
       throw new Error(data.error || "Your collection is unavailable.");
     }
-    setCards((current) => next ? [...current, ...data.cards!] : data.cards!);
-    void loadArtwork(data.cards);
+    setStacks((current) => next ? [...current, ...data.stacks!] : data.stacks!);
+    void loadArtwork(data.stacks.flatMap((stack) => stack.editions));
     setCursor(data.nextCursor || null);
     setUnlimitedTestPacks(data.unlimitedTestPacks === true);
     setReady(true);
@@ -260,8 +275,8 @@ export default function TcgPage() {
         </div>
       </div>)}</div>
     </section>}
-    {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{cards.length} loaded</span></div>
-      {cards.length ? <div className="tcg-grid">{cards.map((card) => <CardView key={card.id} card={card} artwork={artwork[card.cardKey]} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
+    {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{stacks.length} unique cards · {stacks.reduce((total, stack) => total + stack.quantity, 0)} copies loaded</span></div>
+      {stacks.length ? <div className="tcg-grid">{stacks.map((stack) => <StackView key={stack.cardKey} stack={stack} artwork={artwork[stack.cardKey]} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
     </section>}
     {rules && <section className="tcg-section tcg-admin"><details><summary>Developer controls <span>Drop-rate settings</span></summary>

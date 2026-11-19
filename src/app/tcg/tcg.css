@@ -10,6 +10,7 @@
 
 .tcg-shell h1,.tcg-shell h2,.tcg-shell h3{background:none;-webkit-text-fill-color:currentColor!important;filter:none}
 .tcg-card-crest{height:auto;aspect-ratio:1/1;overflow:hidden}.tcg-card-crest img{display:block;width:100%;height:100%;object-fit:cover}
+.tcg-stack{min-width:0}.tcg-stack-count{display:flex;justify-content:space-between;gap:8px;margin:0 2px 9px;color:#c9b5ca;font-size:11px}.tcg-stack-count strong{color:#f7d39d}.tcg-editions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.tcg-editions button{border:1px solid #735679;border-radius:20px;padding:7px 10px;background:#1a1021;color:#dfc9dc;text-transform:capitalize;font-size:11px;cursor:pointer}.tcg-editions button[aria-pressed=true]{border-color:#f1bf84;color:#ffe1b3;background:#493041}.tcg-editions button:focus-visible{outline:2px solid #ffe4a8;outline-offset:3px}
 .tcg-shell .tcg-opening{min-height:640px;display:flex;flex-direction:column;align-items:center;text-align:center;padding:46px 20px 34px;border:1px solid #725077!important;border-radius:26px;background:radial-gradient(ellipse at 50% 63%,#59365c 0,#241528 38%,#120c1b 75%);box-shadow:inset 0 1px #ffffff12,0 30px 80px #0005;overflow:hidden}
 .tcg-opening-copy h2{font:400 clamp(30px,5vw,52px) Georgia,serif;margin:12px 0;color:#ffdfb4}.tcg-opening-copy>p:last-child{color:#d2bfd2;margin:0;font-size:14px}
 .tcg-pack-stage{width:min(100%,520px);height:430px;position:relative;display:grid;place-items:center;perspective:1000px}

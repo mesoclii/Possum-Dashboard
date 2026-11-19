@@ -36,6 +36,8 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
   if (method === "GET" && action === "collection") {
     const cursor = request.nextUrl.searchParams.get("cursor");
     if (cursor !== null) url.searchParams.set("cursor", cursor);
+    const view = request.nextUrl.searchParams.get("view");
+    if (view !== null) url.searchParams.set("view", view);
   }
   if (method === "GET" && action === "artwork") {
     const keys = request.nextUrl.searchParams.get("keys");

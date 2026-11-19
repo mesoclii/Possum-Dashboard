@@ -19,8 +19,15 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
     return reply({ error: "TCG access is temporarily unavailable." }, 503);
   }
   const action = request.nextUrl.searchParams.get("action") || "collection";
-  if ((method === "GET" && !["collection", "rules", "artwork"].includes(action)) ||
-      (method === "POST" && action !== "open") || (method === "PUT" && action !== "rules")) {
+  const tradeActions: Record<string, string> = {
+    trades: "trades",
+    tradeRespond: "trades/respond",
+    tradeComplete: "trades/complete",
+    tradeCancel: "trades/cancel",
+  };
+  if ((method === "GET" && !["collection", "rules", "artwork", "trades"].includes(action)) ||
+      (method === "POST" && !["open", "trades", "tradeRespond", "tradeComplete", "tradeCancel"].includes(action)) ||
+      (method === "PUT" && action !== "rules")) {
     return reply({ error: "Invalid TCG action." }, 400);
   }
   let base: URL;
@@ -32,7 +39,7 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
     console.error("[TCG] Bot API must use a loopback origin.", error instanceof Error ? error.name : "UnknownError");
     return reply({ error: "TCG service is not configured." }, 503);
   }
-  const url = new URL(`/api/tcg/${action}`, base);
+  const url = new URL(`/api/tcg/${tradeActions[action] || action}`, base);
   if (method === "GET" && action === "collection") {
     const cursor = request.nextUrl.searchParams.get("cursor");
     if (cursor !== null) url.searchParams.set("cursor", cursor);

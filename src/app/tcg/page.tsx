@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import TradePanel from "./TradePanel";
 import "./tcg.css";
 
 type Snapshot = { name: string; rarity: string; kind: string; power: number; ability: string; story: string };
@@ -8,7 +9,7 @@ type Card = { id: string; cardKey: string; finish: string; cardSnapshot: Snapsho
 type Edition = Card & { quantity: number };
 type CardStack = { cardKey: string; quantity: number; editions: Edition[] };
 type Rules = { specialWeights: Record<string, number>; rarityWeights: Record<string, Record<string, number>> };
-type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; stacks?: CardStack[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
+type Result = { success?: boolean; error?: string; status?: string; replayed?: boolean; nextAvailableAt?: string; stacks?: CardStack[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
 type PackPhase = "idle" | "sealed" | "tearing" | "reveal";
 
 const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical", "celestial"];
@@ -49,6 +50,7 @@ export default function TcgPage() {
   const artworkRequested = useRef(new Set<string>());
   const [cursor, setCursor] = useState<string | null>(null);
   const [opened, setOpened] = useState<Card[]>([]);
+  const [replayedPack, setReplayedPack] = useState(false);
   const [message, setMessage] = useState("Checking your private test access...");
   const [signIn, setSignIn] = useState(false);
   const [ready, setReady] = useState(false);
@@ -156,9 +158,10 @@ export default function TcgPage() {
       revealed.current = 0;
       setRevealedCount(0);
       setOpened(data.pack.cards);
+      setReplayedPack(data.replayed === true);
       void loadArtwork(data.pack.cards);
       setPackPhase("sealed");
-      setMessage("Your cards are saved. Tear open your pack to reveal them.");
+      setMessage(data.replayed ? "Recovered your previous pack. Check your collection for current ownership." : "Your cards are saved. Tear open your pack to reveal them.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Your pack could not be opened. Please retry.");
     } finally {
@@ -193,10 +196,11 @@ export default function TcgPage() {
     if (index + 1 < opened.length) {
       setMessage("One more card awaits. Reveal your special pull.");
     } else {
-      setMessage("Both cards are saved to your collection.");
+      const savedMessage = replayedPack ? "Previous pack recovered. Check your collection for current ownership." : "Both cards are saved to your collection.";
+      setMessage(savedMessage);
       void loadCollection()
-        .then(() => setMessage("Both cards are saved to your collection."))
-        .catch((error: unknown) => setMessage(error instanceof Error ? `Cards saved, but collection refresh failed: ${error.message}` : "Cards saved, but the collection could not refresh."));
+        .then(() => setMessage(savedMessage))
+        .catch((error: unknown) => setMessage(error instanceof Error ? `Collection refresh failed: ${error.message}` : "The collection could not refresh."));
     }
   }
 
@@ -246,7 +250,7 @@ export default function TcgPage() {
       <div className="tcg-status" role="status" aria-live="polite">{message}</div>
       {signIn && <a className="tcg-button" href="/api/auth/discord/login?returnTo=%2Ftcg">Sign in with Discord</a>}
       {ready && !opening && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Preparing your pack..." : "✦ Rip your free pack"}</button>}
-      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork and stories are not final. Wilds unlocks, rewards, trading and battles are not active yet.</p>
+      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork and stories are not final. Wilds unlocks, rewards and battles are not active yet.</p>
       {artworkMessage && <p className="tcg-note" role="status">{artworkMessage}</p>}
     </section>
     {(packPhase === "sealed" || packPhase === "tearing") && <section ref={packStage} className="tcg-section tcg-opening" aria-label="Pack opening">
@@ -265,7 +269,7 @@ export default function TcgPage() {
       </div>
       {packPhase === "tearing" && <button type="button" className="tcg-skip" onClick={finishTear}>Skip animation</button>}
     </section>}
-    {packPhase === "reveal" && opened.length > 0 && <section className="tcg-section tcg-pulls"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR LATEST PULL</p><h2>{opening ? "See what you found." : "Fresh from the pack"}</h2></div><span>{revealedCount} of {opened.length} revealed · saved to your collection</span></div>
+    {packPhase === "reveal" && opened.length > 0 && <section className="tcg-section tcg-pulls"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR LATEST PULL</p><h2>{opening ? "See what you found." : "Fresh from the pack"}</h2></div><span>{revealedCount} of {opened.length} revealed · {replayedPack ? "check collection for current ownership" : "saved to your collection"}</span></div>
       <div className="tcg-grid tcg-reveal-grid">{opened.map((card, index) => <div className={`tcg-flip${index < revealedCount ? " tcg-flip-revealed" : ""}`} key={card.id}>
         <div className="tcg-flip-inner">
           <button type="button" className="tcg-card-back" disabled={index !== revealedCount} onClick={() => revealCard(index)} aria-hidden={index < revealedCount} aria-label={`Reveal card ${index + 1} of ${opened.length}`}>
@@ -279,6 +283,7 @@ export default function TcgPage() {
       {stacks.length ? <div className="tcg-grid">{stacks.map((stack) => <StackView key={stack.cardKey} stack={stack} artwork={artwork[stack.cardKey]} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
     </section>}
+    {ready && !opening && <TradePanel stacks={stacks} refreshCollection={loadCollection} />}
     {rules && <section className="tcg-section tcg-admin"><details><summary>Developer controls <span>Drop-rate settings</span></summary>
       <p>All values are percentages. Each row must total 100%. Changes affect future packs only.</p>
       <div className="tcg-rules"><div className="tcg-rule-row"><strong>Special type</strong>{specials.map((key) => <label key={key}>{key}<input type="number" min="0" max="100" step="0.01" value={rules.specialWeights[key] / 100} onChange={(event) => changeWeight("special", key, event.target.value)} /></label>)}</div>

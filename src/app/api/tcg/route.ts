@@ -24,9 +24,17 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
     tradeRespond: "trades/respond",
     tradeComplete: "trades/complete",
     tradeCancel: "trades/cancel",
+    battles: "battles",
+    battleChallenge: "battles/challenge",
+    battleRespond: "battles/respond",
+    battleConfirm: "battles/confirm",
+    battlePlay: "battles/play",
+    battleCancel: "battles/cancel",
+    battleForfeit: "battles/forfeit",
+    battleTimeout: "battles/timeout",
   };
-  if ((method === "GET" && !["collection", "rules", "artwork", "trades"].includes(action)) ||
-      (method === "POST" && !["open", "trades", "tradeRespond", "tradeComplete", "tradeCancel"].includes(action)) ||
+  if ((method === "GET" && !["collection", "rules", "artwork", "trades", "battles"].includes(action)) ||
+      (method === "POST" && !["open", "trades", "tradeRespond", "tradeComplete", "tradeCancel", "battleChallenge", "battleRespond", "battleConfirm", "battlePlay", "battleCancel", "battleForfeit", "battleTimeout"].includes(action)) ||
       (method === "PUT" && action !== "rules")) {
     return reply({ error: "Invalid TCG action." }, 400);
   }

@@ -6,7 +6,7 @@ import "./tcg.css";
 type Snapshot = { name: string; rarity: string; kind: string; power: number; ability: string; story: string };
 type Card = { id: string; cardKey: string; finish: string; cardSnapshot: Snapshot };
 type Rules = { specialWeights: Record<string, number>; rarityWeights: Record<string, Record<string, number>> };
-type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; cards?: Card[]; nextCursor?: string | null; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
+type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; cards?: Card[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
 type PackPhase = "idle" | "sealed" | "tearing" | "reveal";
 
 const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical", "celestial"];
@@ -34,6 +34,7 @@ export default function TcgPage() {
   const [message, setMessage] = useState("Checking your private test access...");
   const [signIn, setSignIn] = useState(false);
   const [ready, setReady] = useState(false);
+  const [unlimitedTestPacks, setUnlimitedTestPacks] = useState(false);
   const [busy, setBusy] = useState(false);
   const [rules, setRules] = useState<Rules | null>(null);
   const [rulesetId, setRulesetId] = useState<string | null>(null);
@@ -58,8 +59,9 @@ export default function TcgPage() {
     }
     setCards((current) => next ? [...current, ...data.cards!] : data.cards!);
     setCursor(data.nextCursor || null);
+    setUnlimitedTestPacks(data.unlimitedTestPacks === true);
     setReady(true);
-    setMessage("Your collection is ready. Free packs reset 24 hours after your last claim.");
+    setMessage(data.unlimitedTestPacks ? "Your collection is ready. Unlimited packs are enabled for private testing." : "Your collection is ready. Free packs reset 24 hours after your last claim.");
   }, []);
 
   useEffect(() => {
@@ -194,11 +196,11 @@ export default function TcgPage() {
     <section className="tcg-hero">
       <p className="tcg-eyebrow">POSSUM TCG · THE CITY MEETS THE WILDS</p>
       <h1>Every pack<br /><em>starts a story.</em></h1>
-      <p>Crews, creatures, vehicles and support cards share one world. Open your daily pack and begin your collection.</p>
+      <p>Crews, creatures, vehicles and support cards share one world. Open a pack and begin your collection.</p>
       <div className="tcg-status" role="status" aria-live="polite">{message}</div>
       {signIn && <a className="tcg-button" href="/api/auth/discord/login?returnTo=%2Ftcg">Sign in with Discord</a>}
       {ready && !opening && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Preparing your pack..." : "✦ Rip your free pack"}</button>}
-      <p className="tcg-note">Two cards per pack · one free pack every 24 hours · test artwork and stories are not final. Wilds unlocks, rewards, trading and battles are not active yet.</p>
+      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork and stories are not final. Wilds unlocks, rewards, trading and battles are not active yet.</p>
     </section>
     {(packPhase === "sealed" || packPhase === "tearing") && <section ref={packStage} className="tcg-section tcg-opening" aria-label="Pack opening">
       <div className="tcg-opening-copy"><p className="tcg-eyebrow">THE CITY MEETS THE WILDS</p><h2>Your story is sealed inside.</h2><p>{packPhase === "sealed" ? "Drag across the pack or tap to tear it open." : "The seal is breaking..."}</p></div>

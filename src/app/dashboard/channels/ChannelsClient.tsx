@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchGuildData } from "@/lib/liveRuntime";
+import { extractIdList, toggleChannelEntries } from "@/lib/dashboard/channelEntries";
 
 type GuildChannel = { id: string; name: string; type?: number | string };
 
@@ -318,30 +319,6 @@ function toggleId(list: string[], id: string) {
   return Array.from(set);
 }
 
-function extractIdList(value: any): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      if (typeof entry === "string") return entry.trim();
-      if (entry && typeof entry === "object") return String(entry.id || "").trim();
-      return "";
-    })
-    .filter(Boolean);
-}
-
-function toggleIdEntries(value: any, id: string) {
-  const current = Array.isArray(value) ? value : [];
-  const currentIds = new Set(extractIdList(current));
-  if (currentIds.has(id)) {
-    return current.filter((entry) => {
-      if (typeof entry === "string") return entry.trim() !== id;
-      if (entry && typeof entry === "object") return String(entry.id || "").trim() !== id;
-      return false;
-    });
-  }
-  return [...current, id];
-}
-
 async function readEngineConfig(guildId: string, engine: string) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 30_000);
@@ -602,7 +579,7 @@ export default function ChannelsClient() {
                               <input
                                 type="checkbox"
                                 checked={list.includes(c.id)}
-                                onChange={() => updateField(section.key, field, toggleIdEntries(value, c.id))}
+                                onChange={() => updateField(section.key, field, toggleChannelEntries(value, c.id))}
                               />{" "}
                               {field.type === "category-multi" ? c.name : `#${c.name}`}
                             </label>

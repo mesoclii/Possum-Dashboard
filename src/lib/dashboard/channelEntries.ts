@@ -13,6 +13,6 @@ export function extractIdList(value: unknown): string[] {
 export function toggleChannelEntries<T extends ChannelEntry>(entries: T[], id: string): Array<T | string> {
   const current = Array.isArray(entries) ? entries : [];
   return current.some((entry) => channelEntryId(entry) === id)
-    ? current.filter((entry) => (typeof entry === "string" || (entry && typeof entry === "object")) && channelEntryId(entry) !== id)
+    ? current.filter((entry) => channelEntryId(entry) !== id)
     : [...current, id];
 }

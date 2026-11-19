@@ -24,6 +24,6 @@ test("weighted spawn channels remain selected when read from setup", () => {
 
 test("deselecting a channel preserves other weighted entries", () => {
   const retained = { id: "456", weight: 8 };
-  const result = Array.from(toggleChannelEntries([{ id: "123", weight: 2 }, retained], "123"));
-  assert.deepEqual(result, [retained]);
+  const result = Array.from(toggleChannelEntries([{ id: "123", weight: 2 }, retained, null], "123"));
+  assert.deepEqual(result, [retained, null]);
 });

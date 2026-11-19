@@ -7,6 +7,7 @@ type Snapshot = { name: string; rarity: string; kind: string; power: number; abi
 type Card = { id: string; cardKey: string; finish: string; cardSnapshot: Snapshot };
 type Rules = { specialWeights: Record<string, number>; rarityWeights: Record<string, Record<string, number>> };
 type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; cards?: Card[]; nextCursor?: string | null; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
+type PackPhase = "idle" | "sealed" | "tearing" | "reveal";
 
 const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical", "celestial"];
 const specials = ["support", "rare", "holo", "shiny"];
@@ -37,7 +38,15 @@ export default function TcgPage() {
   const [rules, setRules] = useState<Rules | null>(null);
   const [rulesetId, setRulesetId] = useState<string | null>(null);
   const [rulesMessage, setRulesMessage] = useState("");
+  const [packPhase, setPackPhase] = useState<PackPhase>("idle");
+  const [revealedCount, setRevealedCount] = useState(0);
   const inFlight = useRef(false);
+  const tearing = useRef(false);
+  const revealed = useRef(0);
+  const pointerStart = useRef<number | null>(null);
+  const tearTimer = useRef<number | null>(null);
+  const packStage = useRef<HTMLElement | null>(null);
+  const opening = packPhase !== "idle" && revealedCount < opened.length;
 
   const loadCollection = useCallback(async (next?: string) => {
     const query = next ? `?cursor=${encodeURIComponent(next)}` : "";
@@ -65,11 +74,22 @@ export default function TcgPage() {
     }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "TCG is unavailable."));
   }, [loadCollection]);
 
+  useEffect(() => () => {
+    if (tearTimer.current !== null) window.clearTimeout(tearTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (packPhase === "sealed") {
+      packStage.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+    }
+  }, [packPhase]);
+
   async function ripPack() {
-    if (inFlight.current) return;
+    if (inFlight.current || opening) return;
     inFlight.current = true;
     setBusy(true);
     setOpened([]);
+    setPackPhase("idle");
     try {
       const key = sessionStorage.getItem("tcg-pending-request") || crypto.randomUUID();
       sessionStorage.setItem("tcg-pending-request", key);
@@ -77,7 +97,7 @@ export default function TcgPage() {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestKey: key }),
       });
       const data: Result = await response.json();
-      if (!response.ok || !data.success || !data.pack || !Array.isArray(data.pack.cards)) {
+      if (!response.ok || !data.success || !data.pack || !Array.isArray(data.pack.cards) || data.pack.cards.length !== 2) {
         if (data.status === "cooldown" && data.nextAvailableAt) {
           sessionStorage.removeItem("tcg-pending-request");
           throw new Error(`Your next free pack is available ${new Date(data.nextAvailableAt).toLocaleString()}.`);
@@ -85,14 +105,50 @@ export default function TcgPage() {
         throw new Error(data.error || "Your pack could not be opened. Try again to recover the same request.");
       }
       sessionStorage.removeItem("tcg-pending-request");
+      tearing.current = false;
+      revealed.current = 0;
+      setRevealedCount(0);
       setOpened(data.pack.cards);
-      await loadCollection();
-      setMessage("Your pack is open and both cards are saved to your collection.");
+      setPackPhase("sealed");
+      setMessage("Your cards are saved. Tear open your pack to reveal them.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Your pack could not be opened. Please retry.");
     } finally {
       inFlight.current = false;
       setBusy(false);
+    }
+  }
+
+  function finishTear() {
+    if (tearTimer.current !== null) window.clearTimeout(tearTimer.current);
+    tearTimer.current = null;
+    setPackPhase("reveal");
+    setMessage("Your pack is open. Reveal your cards one at a time.");
+  }
+
+  function tearPack() {
+    if (packPhase !== "sealed" || tearing.current) return;
+    tearing.current = true;
+    setPackPhase("tearing");
+    setMessage("Tearing open your pack...");
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      finishTear();
+    } else {
+      tearTimer.current = window.setTimeout(finishTear, 1350);
+    }
+  }
+
+  function revealCard(index: number) {
+    if (packPhase !== "reveal" || index !== revealed.current) return;
+    revealed.current = index + 1;
+    setRevealedCount(index + 1);
+    if (index + 1 < opened.length) {
+      setMessage("One more card awaits. Reveal your special pull.");
+    } else {
+      setMessage("Both cards are saved to your collection.");
+      void loadCollection()
+        .then(() => setMessage("Both cards are saved to your collection."))
+        .catch((error: unknown) => setMessage(error instanceof Error ? `Cards saved, but collection refresh failed: ${error.message}` : "Cards saved, but the collection could not refresh."));
     }
   }
 
@@ -141,11 +197,36 @@ export default function TcgPage() {
       <p>Crews, creatures, vehicles and support cards share one world. Open your daily pack and begin your collection.</p>
       <div className="tcg-status" role="status" aria-live="polite">{message}</div>
       {signIn && <a className="tcg-button" href="/api/auth/discord/login?returnTo=%2Ftcg">Sign in with Discord</a>}
-      {ready && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Working..." : "✦ Rip your free pack"}</button>}
+      {ready && !opening && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Preparing your pack..." : "✦ Rip your free pack"}</button>}
       <p className="tcg-note">Two cards per pack · one free pack every 24 hours · test artwork and stories are not final. Wilds unlocks, rewards, trading and battles are not active yet.</p>
     </section>
-    {opened.length > 0 && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR LATEST PULL</p><h2>Fresh from the pack</h2></div><span>Saved to your collection</span></div><div className="tcg-grid tcg-reveal">{opened.map((card) => <CardView key={card.id} card={card} />)}</div></section>}
-    {ready && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{cards.length} loaded</span></div>
+    {(packPhase === "sealed" || packPhase === "tearing") && <section ref={packStage} className="tcg-section tcg-opening" aria-label="Pack opening">
+      <div className="tcg-opening-copy"><p className="tcg-eyebrow">THE CITY MEETS THE WILDS</p><h2>Your story is sealed inside.</h2><p>{packPhase === "sealed" ? "Drag across the pack or tap to tear it open." : "The seal is breaking..."}</p></div>
+      <div className="tcg-pack-stage">
+        <div className="tcg-pack-glow" aria-hidden="true" />
+        <button type="button" className={`tcg-pack tcg-pack-${packPhase}`} disabled={packPhase !== "sealed"} aria-label="Tear open your pack"
+          onPointerDown={(event) => { pointerStart.current = event.clientX; event.currentTarget.setPointerCapture(event.pointerId); }}
+          onPointerUp={(event) => { if (pointerStart.current !== null && Math.abs(event.clientX - pointerStart.current) >= 45) tearPack(); pointerStart.current = null; }}
+          onPointerCancel={() => { pointerStart.current = null; }}
+          onClick={tearPack}>
+          <span className="tcg-pack-top" aria-hidden="true"><span>TEAR HERE</span></span>
+          <span className="tcg-pack-body" aria-hidden="true"><span className="tcg-pack-edition">PRIVATE TEST · FIRST EDITION</span><span className="tcg-pack-brand">POSSUM<br /><em>WILDS</em></span><span className="tcg-pack-emblem">✦</span><span className="tcg-pack-subtitle">THE CITY MEETS THE WILDS</span><span className="tcg-pack-count">2 CARDS INSIDE</span></span>
+        </button>
+        {packPhase === "tearing" && <div className="tcg-pack-burst" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>}
+      </div>
+      {packPhase === "tearing" && <button type="button" className="tcg-skip" onClick={finishTear}>Skip animation</button>}
+    </section>}
+    {packPhase === "reveal" && opened.length > 0 && <section className="tcg-section tcg-pulls"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR LATEST PULL</p><h2>{opening ? "See what you found." : "Fresh from the pack"}</h2></div><span>{revealedCount} of {opened.length} revealed · saved to your collection</span></div>
+      <div className="tcg-grid tcg-reveal-grid">{opened.map((card, index) => <div className={`tcg-flip${index < revealedCount ? " tcg-flip-revealed" : ""}`} key={card.id}>
+        <div className="tcg-flip-inner">
+          <button type="button" className="tcg-card-back" disabled={index !== revealedCount} onClick={() => revealCard(index)} aria-hidden={index < revealedCount} aria-label={`Reveal card ${index + 1} of ${opened.length}`}>
+            <span className="tcg-card-back-mark">✦</span><strong>POSSUM<br /><em>WILDS</em></strong><span>{index === revealedCount ? "TAP TO REVEAL" : "REVEAL IN ORDER"}</span>
+          </button>
+          <div className="tcg-card-front" aria-hidden={index >= revealedCount}><CardView card={card} /></div>
+        </div>
+      </div>)}</div>
+    </section>}
+    {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{cards.length} loaded</span></div>
       {cards.length ? <div className="tcg-grid">{cards.map((card) => <CardView key={card.id} card={card} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
     </section>}

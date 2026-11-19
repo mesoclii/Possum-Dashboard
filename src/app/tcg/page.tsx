@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import TradePanel from "./TradePanel";
+import BattlePanel from "./BattlePanel";
 import "./tcg.css";
 
 type Snapshot = { name: string; rarity: string; kind: string; power: number; ability: string; story: string };
@@ -250,7 +251,7 @@ export default function TcgPage() {
       <div className="tcg-status" role="status" aria-live="polite">{message}</div>
       {signIn && <a className="tcg-button" href="/api/auth/discord/login?returnTo=%2Ftcg">Sign in with Discord</a>}
       {ready && !opening && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Preparing your pack..." : "✦ Rip your free pack"}</button>}
-      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork and stories are not final. Wilds unlocks, rewards and battles are not active yet.</p>
+      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork, stories and battle rules are not final. Wilds unlocks and rewards are not active yet.</p>
       {artworkMessage && <p className="tcg-note" role="status">{artworkMessage}</p>}
     </section>
     {(packPhase === "sealed" || packPhase === "tearing") && <section ref={packStage} className="tcg-section tcg-opening" aria-label="Pack opening">
@@ -284,6 +285,7 @@ export default function TcgPage() {
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
     </section>}
     {ready && !opening && <TradePanel stacks={stacks} refreshCollection={loadCollection} />}
+    {ready && !opening && <BattlePanel stacks={stacks} refreshCollection={loadCollection} artwork={artwork} loadArtwork={loadArtwork} />}
     {rules && <section className="tcg-section tcg-admin"><details><summary>Developer controls <span>Drop-rate settings</span></summary>
       <p>All values are percentages. Each row must total 100%. Changes affect future packs only.</p>
       <div className="tcg-rules"><div className="tcg-rule-row"><strong>Special type</strong>{specials.map((key) => <label key={key}>{key}<input type="number" min="0" max="100" step="0.01" value={rules.specialWeights[key] / 100} onChange={(event) => changeWeight("special", key, event.target.value)} /></label>)}</div>

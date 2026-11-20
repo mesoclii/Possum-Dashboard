@@ -19,7 +19,7 @@ const slots = ["standard", ...specials];
 
 function CardView({ card, artwork }: { card: Card; artwork?: string }) {
   const details = card.cardSnapshot;
-  return <article className={`tcg-card tcg-finish-${card.finish}`}>
+  return <article className={`tcg-card tcg-rarity-${details.rarity} tcg-finish-${card.finish}`}>
     <div className="tcg-card-top"><span>{details.kind}</span><span>{details.rarity}</span></div>
     <div className="tcg-card-crest">{artwork ? <img src={`data:image/webp;base64,${artwork}`} alt={`Draft artwork for ${details.name}`} /> : <span aria-label="Artwork unavailable">{details.name.slice(0, 1)}</span>}</div>
     <p className="tcg-card-finish">{card.finish === "standard" ? "Standard edition" : `${card.finish} edition`}</p>

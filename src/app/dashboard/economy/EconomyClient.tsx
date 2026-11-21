@@ -191,7 +191,7 @@ export default function EconomyClient() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ margin: 0, letterSpacing: "0.12em", textTransform: "uppercase", color: "#ff4a4a" }}>Economy Hub</h1>
-            <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8 }}>
               This hub now reads live engines directly. The old economy command/currency shadow config has been removed because it was not mapped to bot runtime.
             </div>

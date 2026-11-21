@@ -423,7 +423,7 @@ export default function GiveawaysPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Giveaways Control</h1>
-          <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+          <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
           <div style={{ color: "#ff9f9f", marginTop: 4 }}>Last saved: {toLocal(cfg.lastSavedAt)}</div>
         </div>
         <button

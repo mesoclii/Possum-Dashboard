@@ -108,7 +108,7 @@ export default function PrestigePage() {
         title="Prestige Engine"
         subtitle="Late-loop reset and elevation layer. Progression and achievements fill the runway, Hall Of Fame shows recognition, Loyalty keeps tenure value, and Prestige is the capstone loop when members have truly cleared the stack."
       />
-      <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? <div style={card}>Loading...</div> : (

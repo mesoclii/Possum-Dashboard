@@ -450,7 +450,7 @@ export default function AchievementsClient() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 24, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 900, color: "#ff2f2f" }}>Achievements</div>
-            <div style={{ color: "#ff9e9e", marginTop: 4 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</div>
+            <div style={{ color: "#ff9e9e", marginTop: 4 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <label style={{ color: "#fff", fontSize: 12, fontWeight: 800 }}>

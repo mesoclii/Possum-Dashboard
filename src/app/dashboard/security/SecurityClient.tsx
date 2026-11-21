@@ -421,7 +421,7 @@ export default function SecurityPage() {
         <div>
           <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase" }}>Security Runtime</div>
           <h1 style={{ margin: "8px 0 0", color: "#ff4f4f", letterSpacing: "0.10em", textTransform: "uppercase" }}>Security Command Center</h1>
-          <div style={{ color: "#ff8d8d", marginTop: 8 }}>Guild: {guildName || guildId}</div>
+          <div style={{ color: "#ff8d8d", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
         </div>
         <button style={{ ...buttonStyle, cursor: "default", opacity: 0.85 }} disabled>
           Live Runtime Surface

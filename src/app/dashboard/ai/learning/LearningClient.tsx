@@ -282,7 +282,7 @@ function resolveGuild() {
   if (typeof window === "undefined") return { guildId: "", guildName: "" };
   const params = new URLSearchParams(window.location.search);
   const guildId = (params.get("guildId") || localStorage.getItem("activeGuildId") || "").trim();
-  const guildName = (localStorage.getItem("activeGuildName") || guildId).trim();
+  const guildName = (localStorage.getItem("activeGuildName") || "Selected server").trim();
   if (guildId) localStorage.setItem("activeGuildId", guildId);
   return { guildId, guildName };
 }
@@ -534,7 +534,7 @@ export default function LearningClient() {
             <h1 style={{ margin: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>
               Possum AI
             </h1>
-            <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8, maxWidth: 980 }}>
               Possum AI is the homemade adaptive assistant path. These controls are guild-scoped and write into the live
               bot runtime, not a dashboard-only stub. Persona AI remains a separate premium surface.

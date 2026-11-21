@@ -256,7 +256,7 @@ export default function GuildsPage() {
 
   function openGuild(guildId: string, guildName: string) {
     localStorage.setItem("activeGuildId", guildId);
-    localStorage.setItem("activeGuildName", guildName || guildId);
+    localStorage.setItem("activeGuildName", guildName || "Selected server");
 
     const userId = String(localStorage.getItem("dashboardUserId") || "").trim();
     const roleIds = String(localStorage.getItem("dashboardUserRoleIds") || "").trim();

@@ -167,7 +167,7 @@ export default function HeistPage() {
   return (
     <div style={{ color: "#ffb3b3", padding: 14, maxWidth: 1300 }}>
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>Heist Ops Studio</h1>
-      <p style={{ marginTop: 0 }}>Guild: {guildName || guildId}</p>
+      <p style={{ marginTop: 0 }}>Guild: {guildName || "Selected server"}</p>
       <p style={{ color: "#ffb7b7", marginTop: -4, lineHeight: 1.6 }}>
         Heist runs two live lanes in this build: <strong>LE</strong> and <strong>EE</strong>. Each lane is fixed to
         <strong> 1 host + 3 signup slots + pending members</strong>.

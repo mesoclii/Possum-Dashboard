@@ -123,7 +123,7 @@ export default function LoyaltyEngineClient() {
           { label: "Prestige", route: "/dashboard/prestige", reason: "prestige carry-forward value should not overpower loyalty retention rewards" },
         ]}
       />
-      <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginBottom: 12 }}>VIP is a separate engine. This page configures loyalty milestone behavior surfaced for VIP + loyalty flow.</div>
       {msg ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{msg}</div> : null}
 

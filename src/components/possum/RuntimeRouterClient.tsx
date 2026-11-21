@@ -84,7 +84,7 @@ export default function RuntimeRouterClient() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>AI Talking Rules</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 10 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 10 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ ...card, color: "#ffb8b8", lineHeight: 1.7 }}>
         This page only decides <strong>who talks where</strong>.
         <br />

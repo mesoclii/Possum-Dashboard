@@ -151,7 +151,7 @@ export default function CatDropEnginePage() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Cat Drop Engine</h1>
-      <div style={{ color: "#ff9999", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Live cat spawn scheduler, weighted spawn lanes, rarity table, and manual spawn controls backed by the bot runtime.
       </div>

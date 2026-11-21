@@ -185,7 +185,7 @@ export default function PolicyClient() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div>
             <h1 style={{ marginTop: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Security Policy</h1>
-            <p style={{ margin: "6px 0 0" }}>Guild: {guildName || guildId}</p>
+            <p style={{ margin: "6px 0 0" }}>Guild: {guildName || "Selected server"}</p>
             <div style={{ color: "#ffb3b3", fontSize: 12 }}>
               This page edits the live `moderator` engine only. Per-command access stays in the native slash command master.
             </div>

@@ -105,7 +105,7 @@ export default function VipClient() {
   return (
     <div style={{ color: "#ffd0d0", padding: 18, maxWidth: 1200 }}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>VIP Engine</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginBottom: 12 }}>
         VIP is now reconciled directly against the live engine runtime. Loyalty stays linked, but its controls remain on the dedicated page.
       </div>

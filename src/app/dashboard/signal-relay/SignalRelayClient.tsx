@@ -270,7 +270,7 @@ export default function SignalRelayClient() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Signal Relay</h1>
-      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Follow public creator and community feeds in Discord. Facebook Pages and other supported providers may require a working third-party feed bridge.
       </div>

@@ -135,7 +135,7 @@ export default function LeaderboardClient() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ margin: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Invite Leaderboard</h1>
-            <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8 }}>
               This page now edits the live `inviteTracker` engine. The old reward-tier leaderboard config was dashboard-only and did not affect bot runtime.
             </div>

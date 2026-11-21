@@ -17,6 +17,7 @@ type Props = {
   guildId: string;
   guildName: string;
   viewerUserId: string;
+  ownerControlsAvailable?: boolean;
   engines: EngineMap;
   loading: boolean;
   saving: boolean;
@@ -144,6 +145,7 @@ export default function MemberGamingHub({
   guildId,
   guildName,
   viewerUserId,
+  ownerControlsAvailable = false,
   engines,
   loading,
   saving,
@@ -183,6 +185,7 @@ export default function MemberGamingHub({
   const players = rows(identity.details?.players).map((player) =>
     presenceDetails ? player : { ...player, isPlaying: false, currentGame: "" }
   );
+  const watchablePlayers = players.filter((player) => String(player.userId || "") !== viewerUserId && player.name);
   const livePlayers = rows(presenceDetails?.livePlayers);
   const sessions = rows(presenceDetails?.sessions);
   const viewer = identity.details?.viewer || {};
@@ -289,12 +292,12 @@ export default function MemberGamingHub({
   function addWatchedMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const userId = watchlistInput.trim();
-    if (!/^\d{17,20}$/.test(userId)) {
-      setProfileInputError("Enter a Discord user ID that is 17 to 20 digits long.");
+    if (!watchablePlayers.some((player) => String(player.userId) === userId)) {
+      setProfileInputError("Choose a listed member before adding them.");
       return;
     }
     if (watchlistUserIds.includes(userId)) {
-      setProfileInputError("That Discord user ID is already on your list.");
+      setProfileInputError("That member is already on your list.");
       return;
     }
     if (watchlistUserIds.length >= 25) {
@@ -518,7 +521,7 @@ export default function MemberGamingHub({
             {viewer.avatarUrl ? <img src={viewer.avatarUrl} alt="" width={64} height={64} style={{ borderRadius: "50%", objectFit: "cover" }} /> : null}
             <div>
               <h2 style={{ margin: 0 }}>{viewer.name || "My gaming profile"}</h2>
-              <div style={{ color: colors.muted, marginTop: 4 }}>{guildName || guildId} · Discord member</div>
+              <div style={{ color: colors.muted, marginTop: 4 }}>{guildName || "Selected server"} · Discord member</div>
               <div style={{ color: colors.accent, marginTop: 4 }}>{!presenceDetails ? "Live activity unavailable" : ownPresence?.gameLabel ? `Playing ${ownPresence.gameLabel}` : "Not currently reported as gaming"}</div>
             </div>
           </div>
@@ -599,7 +602,7 @@ export default function MemberGamingHub({
           <div style={{ marginBottom: 14 }}>
             <label htmlFor="watchlist-user-input">Watched members for personal live alerts</label>
             <form onSubmit={addWatchedMember} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, marginTop: 6 }}>
-              <input id="watchlist-user-input" style={field} inputMode="numeric" maxLength={20} value={watchlistInput} onChange={(event) => setWatchlistInput(event.target.value)} placeholder="Add a Discord member to watch" aria-label="Discord member lookup" />
+              <select id="watchlist-user-input" style={field} value={watchlistInput} onChange={(event) => setWatchlistInput(event.target.value)} aria-label="Choose a member to watch"><option value="">Choose a member</option>{watchablePlayers.map((player) => <option key={player.userId} value={player.userId}>{player.name}</option>)}</select>
               <button type="submit" style={button} disabled={watchlistUserIds.length >= 25 || !watchlistInput.trim()}>Add member</button>
             </form>
             <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
@@ -724,9 +727,10 @@ export default function MemberGamingHub({
       <header style={{ ...panel, padding: "22px clamp(16px, 3vw, 30px)", background: "radial-gradient(ellipse at 85% 0%, rgba(255,0,0,.16), transparent 42%), linear-gradient(135deg, #050000, #100000 70%, #1a0000)" }}>
         <div style={{ color: colors.accent, fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 800 }}>Possum community</div>
         <h1 style={{ margin: "8px 0 4px", fontSize: "clamp(25px, 5vw, 38px)", letterSpacing: "-.03em" }}>Gaming Hub</h1>
-        <div style={{ color: colors.muted }}>{guildName || guildId} · players, profiles, sessions, and teams</div>
+        <div style={{ color: colors.muted }}>{guildName || "Selected server"} · players, profiles, sessions, and teams</div>
         {viewer.name ? <div style={{ color: colors.text, marginTop: 10 }}>Welcome back, {viewer.name}</div> : null}
         <a href="/gaming" style={{ display: "inline-block", marginTop: 12, marginRight: 16, color: colors.accent, fontSize: 13, fontWeight: 700 }}>Public Gaming Hub &amp; sharing</a>
+        {ownerControlsAvailable ? <a href="/dashboard/gaming-admin" style={{ display: "inline-block", marginTop: 12, padding: "10px 14px", border: `1px solid ${colors.accent}`, borderRadius: 10, color: colors.text, background: colors.accentSoft, fontSize: 13, fontWeight: 800, textDecoration: "none" }}>Gaming Hub Admin</a> : null}
       </header>
 
       <nav aria-label="Gaming Hub sections" style={{ display: "flex", gap: 7, overflowX: "auto", padding: "2px 0 5px" }}>

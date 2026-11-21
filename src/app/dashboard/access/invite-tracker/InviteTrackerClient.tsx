@@ -64,7 +64,7 @@ export default function InviteTrackerClient() {
   return (
     <main style={wrap}>
       <h1 style={{ marginTop: 0, color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.12em" }}>Invite Tracker Engine</h1>
-      <div style={{ color: "#ff9999" }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999" }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Real invite runtime controls for invite validation, stay windows, recruiter rewards, and drop behavior.
       </div>

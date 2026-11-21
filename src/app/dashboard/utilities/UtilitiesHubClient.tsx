@@ -327,7 +327,7 @@ export default function UtilitiesHubClient() {
     <div style={shell}>
       <section style={hero}>
         <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Utilities</h1>
-        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
         <div style={{ ...micro, marginTop: 6 }}>
           This is the MEE6-style utility board rebuilt on top of your own engines. Jed stays separate, Community Studio owns polls and reminders, Channel Flow owns counter channels and temp rooms, and SEND_EMBED now lives in your automation/command stack.
         </div>

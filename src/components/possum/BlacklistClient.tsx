@@ -122,7 +122,7 @@ export default function BlacklistClient() {
         ]}
       />
 
-      <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: -2, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? (

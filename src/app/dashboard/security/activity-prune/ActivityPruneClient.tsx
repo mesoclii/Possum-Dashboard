@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
@@ -174,7 +174,7 @@ export default function ActivityPruneClient() {
   return (
     <div style={shell}>
       <h1 style={{ marginTop: 0, color: "#ff4d4d", textTransform: "uppercase", letterSpacing: "0.1em" }}>Activity Prune Studio</h1>
-      <div style={{ color: "#ff9c9c", marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb6b6", marginBottom: 14, lineHeight: 1.6 }}>
         This is the deeper inactivity engine: tracked activity signals, warning DM flow, grace windows, warning roles,
         custom public messages, and live auto-kick sweeps that are much stronger than Discord prune.

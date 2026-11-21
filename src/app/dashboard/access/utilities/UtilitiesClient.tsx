@@ -197,7 +197,7 @@ export default function UtilitiesClient() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div>
             <h1 style={{ marginTop: 0, letterSpacing: "0.14em", textTransform: "uppercase" }}>Utilities Runtime</h1>
-            <p style={{ marginTop: 6 }}>Guild: {guildName || guildId}</p>
+            <p style={{ marginTop: 6 }}>Guild: {guildName || "Selected server"}</p>
             <div style={{ color: "#ffb3b3", fontSize: 12 }}>This page now edits the live utility engines the bot actually runs. No utility shadow file remains here.</div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

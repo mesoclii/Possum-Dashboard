@@ -790,7 +790,7 @@ export default function BotPersonalizerClient() {
             <h1 style={{ marginTop: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>
               Bot Personalizer
             </h1>
-            <div style={{ color: "#ff9f9f", marginBottom: 8 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9f9f", marginBottom: 8 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, maxWidth: 760 }}>
               This page is <b>guild-scoped</b> and manages <b>three separate identity lanes</b>:
               <br />- Main Possum: the shared bot account, with an optional guild nickname and an optional live bot avatar override for this server
@@ -1688,7 +1688,7 @@ export default function BotPersonalizerClient() {
 
                 <div style={{ marginTop: 14 }}>
                   <div style={{ fontWeight: 800, marginBottom: 8, color: "#ffb5b5" }}>
-                    Saved avatars for {guildName || guildId}
+                    Saved avatars for {guildName || "Selected server"}
                   </div>
                   {cfg.avatarLibrary.length ? (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>

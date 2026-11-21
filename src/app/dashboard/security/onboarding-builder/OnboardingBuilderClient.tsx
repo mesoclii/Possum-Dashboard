@@ -111,7 +111,7 @@ export default function OnboardingBuilderClient() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, textTransform: "uppercase", letterSpacing: "0.14em" }}>Onboarding Builder</h1>
-            <p style={{ margin: "6px 0 0" }}>Guild: {guildName || guildId}</p>
+            <p style={{ margin: "6px 0 0" }}>Guild: {guildName || "Selected server"}</p>
             <div style={{ color: "#ffb3b3", fontSize: 12 }}>
               This page now orchestrates the live onboarding, verification, tickets, and selfroles engines together instead of saving to a dead builder file.
             </div>

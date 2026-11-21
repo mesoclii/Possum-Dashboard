@@ -261,7 +261,7 @@ export default function AccessControlClient() {
           Bot Masters
         </h1>
         <div style={{ color: "#ff9f9f", marginBottom: 8 }}>
-          Guild: {typeof window !== "undefined" ? localStorage.getItem("activeGuildName") || guildId : guildId}
+          Guild: {typeof window !== "undefined" ? localStorage.getItem("activeGuildName") || "Selected server" : "Selected server"}
         </div>
         <div style={{ color: "#ffb5b5", fontSize: 12, lineHeight: 1.6 }}>
           This is the live dashboard access policy. It writes directly to the bot access policy path used during guild dashboard authorization.

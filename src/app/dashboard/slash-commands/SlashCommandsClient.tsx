@@ -660,7 +660,7 @@ export default function SlashCommandsClient() {
         <div>
           <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase" }}>Native Slash Control</div>
           <h1 style={{ margin: "8px 0 0", color: "#ff4a4a", letterSpacing: "0.10em", textTransform: "uppercase" }}>Slash Command Master</h1>
-          <div style={{ color: "#ff9d9d", marginTop: 8 }}>Guild: {guildName || guildId}</div>
+          <div style={{ color: "#ff9d9d", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

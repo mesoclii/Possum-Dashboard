@@ -358,7 +358,7 @@ export default function MusicEnginePage() {
   return (
     <div style={{ color: "#ffd0d0", padding: 18, maxWidth: 1500 }}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Music Engine</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb8b8", lineHeight: 1.7, maxWidth: 1100, marginBottom: 12 }}>
         {cfg.legalNotice}
         <br />

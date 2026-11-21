@@ -348,6 +348,7 @@ function getCardSection(card: Card): DashboardSection {
   }
   if (
     href === "/dashboard/games" ||
+    href === "/dashboard/gaming-admin" ||
     href === "/dashboard/wow" ||
     href === "/dashboard/podcast" ||
     href === "/dashboard/community-studio" ||

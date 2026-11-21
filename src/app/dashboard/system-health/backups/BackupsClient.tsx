@@ -494,7 +494,7 @@ export default function BackupsPage() {
   return (
     <div style={{ padding: 18 }}>
       <h1 style={{ marginTop: 0 }}>Backups + Restore</h1>
-      <p>Selected server ID: <strong>{guildId || "None — select a server first"}</strong>. Verify this ID before creating or restoring a backup.</p>
+      <p>Selected server: <strong>{typeof window !== "undefined" ? localStorage.getItem("activeGuildName") || "Selected server" : "Selected server"}</strong>. Verify the selected server before creating or restoring a backup.</p>
       <div style={{ color: "#ff9c9c", marginBottom: 10 }}>{msg}</div>
 
       <div style={{ marginBottom: 12, padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>

@@ -715,7 +715,7 @@ export default function CustomCommandsPage() {
   return (
     <div style={{ color: "#ff6b6b", maxWidth: 1400 }}>
       <h1 style={h1Style}>!Command Studio</h1>
-      <p style={{ marginTop: 0 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</p>
+      <p style={{ marginTop: 0 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</p>
       {msg ? <p style={{ color: "#ffb3b3" }}>{msg}</p> : null}
       {loading ? <p>Loading...</p> : null}
       {!loading && guildDataLoading ? <p style={hintStyle}>Loading role and channel options...</p> : null}

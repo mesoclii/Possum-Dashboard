@@ -137,7 +137,7 @@ export default function WelcomeGoodbyeClient() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ margin: 0, color: "#ff3b3b", letterSpacing: "0.09em", textTransform: "uppercase" }}>Welcome + Goodbye</h1>
-            <div style={{ marginTop: 8 }}>Guild: {guildName || guildId}</div>
+            <div style={{ marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 8 }}>
               This page now shows the live verification welcome gate the bot actually uses. Goodbye handling in this bot is moderator/audit logging, not a separate custom message engine.
             </div>

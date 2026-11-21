@@ -107,7 +107,7 @@ export default function PreOnboardingClient() {
   return (
     <div style={styles.page}>
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>Pre-Onboarding</h1>
-      <p style={{ marginTop: 0 }}>Guild: {guildName || guildId}</p>
+      <p style={{ marginTop: 0 }}>Guild: {guildName || "Selected server"}</p>
       <div style={{ ...styles.card, borderColor: "#7a2200", background: "rgba(160,40,0,0.12)" }}>
         <strong>Step 0:</strong> this is the hard gate before verification even starts.
         <div style={{ marginTop: 8, color: "#ffd7a8", lineHeight: 1.6 }}>

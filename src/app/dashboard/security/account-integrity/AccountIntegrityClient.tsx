@@ -180,7 +180,7 @@ export default function AccountIntegrityClient() {
   return (
     <div style={shell}>
       <h1 style={{ marginTop: 0, color: "#ff4d4d", textTransform: "uppercase", letterSpacing: "0.1em" }}>Account Integrity Studio</h1>
-      <div style={{ color: "#ff9c9c", marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb6b6", marginBottom: 14, lineHeight: 1.6 }}>
         Deep account-risk and alt detection: fresh-account gates, suspicious name clustering, creation-time clusters, join-wave detection,
         avatar reuse hints, review/quarantine role automation, and a clean staff operator feed.

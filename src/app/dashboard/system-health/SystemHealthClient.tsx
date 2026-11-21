@@ -233,7 +233,7 @@ export default function SystemHealthPage() {
     <div style={{ padding: 18, color: "#ffd7d7" }}>
       <h1 style={{ marginTop: 0, color: "#ff4d4d", letterSpacing: "0.06em" }}>System Health + Ops</h1>
       <p style={{ opacity: 0.9 }}>
-        Guild: <b>{guildName || (typeof window !== "undefined" ? (localStorage.getItem("activeGuildName") || guildId) : guildId) || "(none)"}</b>
+        Guild: <b>{guildName || (typeof window !== "undefined" ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server") || "(none)"}</b>
       </p>
       {msg && <div style={{ marginBottom: 10, color: "#ff8c8c" }}>{msg}</div>}
 

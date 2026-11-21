@@ -89,7 +89,7 @@ export default function AutomationsClient() {
         Bot automation surface. Separate from Security rule automation.
       </p>
       <p style={{ color: "#ff9d9d" }}>
-        Guild: {guildName || (guildId || "(not selected)")}
+        Guild: {guildName || (guildId ? "Selected server" : "(not selected)")}
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 12 }}>

@@ -78,7 +78,7 @@ export default function EconomyRewardsClient() {
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>
         Daily + Work Rewards
       </h1>
-      <p style={{ marginTop: 0 }}>Guild: {guildName || guildId}</p>
+      <p style={{ marginTop: 0 }}>Guild: {guildName || "Selected server"}</p>
       {message ? <div style={{ color: "#ffb3f0", marginBottom: 8 }}>{message}</div> : null}
 
       <EngineInsights summary={summary} details={details} />

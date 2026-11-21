@@ -153,7 +153,7 @@ export default function AdultEmotesPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 16 }}>
         <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>JED runtime</div><div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>{loading ? "Checking…" : config.enabled === false ? "Disabled" : "Online"}</div><div style={muted}>The live bot engine remains the source of truth.</div></div>
-        <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>Guild</div><div style={{ fontSize: 20, fontWeight: 900, marginTop: 8 }}>{guildName || guildId}</div><div style={muted}>{emojis.length} existing Discord emotes available to inspect.</div></div>
+        <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>Guild</div><div style={{ fontSize: 20, fontWeight: 900, marginTop: 8 }}>{guildName || "Selected server"}</div><div style={muted}>{emojis.length} existing Discord emotes available to inspect.</div></div>
         <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>Release lock</div><div style={{ fontSize: 20, fontWeight: 900, marginTop: 8, color: "#ffcc86" }}>Public publishing off</div><div style={muted}>Age verification, rights review, moderation, and takedown policy are still required before release.</div></div>
       </div>
 

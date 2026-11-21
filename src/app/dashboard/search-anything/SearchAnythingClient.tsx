@@ -106,7 +106,7 @@ export default function SearchAnythingClient() {
     return (
       <div style={shell}>
         <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Search Anything</h1>
-        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
         <p style={micro}>Search using the providers enabled by this server. Your search does not change server settings.</p>
         {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
         {loading ? <section style={card}>Loading Search Anything...</section> : (
@@ -134,7 +134,7 @@ export default function SearchAnythingClient() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Search Anything</h1>
-      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         This utility gives each guild a real search surface instead of a fake placeholder card. You can tune which providers show up, what URLs they use, and what the `/search` command opens.
       </div>

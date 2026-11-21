@@ -422,7 +422,7 @@ export default function TicketsClient() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Tickets Control</h1>
-          <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+          <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
           <div style={{ color: "#ffb0b0", marginTop: 4, fontSize: 12 }}>
             Each guild now carries its own live ticket engine config, per-type intro copy, and button emoji mapping.
           </div>

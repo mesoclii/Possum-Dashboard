@@ -333,7 +333,7 @@ export default function StorePage() {
   return (
     <div style={{ color: "#ff4d4d", padding: 20, maxWidth: 1180 }}>
       <h1 style={{ marginTop: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Economy - Store Engine</h1>
-      <p>Guild: {guildName || guildId}</p>
+      <p>Guild: {guildName || "Selected server"}</p>
       <div style={{ color: "#ffb7b7", lineHeight: 1.6, marginBottom: 12 }}>
         Store now writes straight into the live guild store engine. Catalog items, panel art, policy toggles, and role grants stay on the same runtime path the bot uses.
       </div>

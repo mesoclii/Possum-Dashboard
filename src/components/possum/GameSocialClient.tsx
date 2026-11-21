@@ -116,8 +116,6 @@ function authProviderDisplayTitle(entry: RuntimeRow) {
   return normalizeIdentityProviderKey(entry?.key) === "xbox" ? "Microsoft / Xbox" : String(entry?.title || "Game provider");
 }
 function parseOptionalNumber(value: string) { const parsed = Number(String(value || "").trim()); return Number.isFinite(parsed) ? parsed : undefined; }
-function formatRoleMap(value: any) { return Object.entries(value && typeof value === "object" ? value : {}).map(([tier, roleId]) => `${tier}:${roleId || ""}`).join("\n"); }
-function parseRoleMap(value: string) { const out: Record<string, string> = {}; for (const line of String(value || "").split(/\r?\n/)) { const [tier, roleId] = line.split(":").map((entry) => String(entry || "").trim()); if (tier) out[tier] = roleId || ""; } return out; }
 function parseIdList(value: string) { return [...new Set(String(value || "").split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean))]; }
 function formatIdList(value: any) { return Array.isArray(value) ? value.join(", ") : ""; }
 function runtimeCard(label: string, value: string) { return <div style={card}><div style={{ fontSize: 11, textTransform: "uppercase", color: "#ffadad" }}>{label}</div><div style={{ fontSize: 22, fontWeight: 900 }}>{value}</div></div>; }
@@ -254,6 +252,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
   const playtimeSummary = useMemo(() => engines.playtime.summary || [], [engines.playtime]);
   const squadSummary = useMemo(() => engines.squadFinder.summary || [], [engines.squadFinder]);
   const linkedProfiles = listRows(engines.gameIdentity.details?.linkedProfiles);
+  const knownMembers = listRows(engines.gameIdentity.details?.knownMembers);
   const pendingVerifications = listRows(engines.gameIdentity.details?.pendingVerifications);
   const livePlayers = listRows(engines.presenceFusion.details?.livePlayers);
   const playtimeLeaders = listRows(engines.playtime.details?.leaders);
@@ -275,8 +274,27 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
     "member_gaming_portal"
   );
   const canManageGaming = viewerScope === "admin";
-  const memberHubHref = `/dashboard/games?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(viewerUserId || "")}`;
+  const memberHubHref = "/dashboard/games";
+  const ownerControlsAvailable = Object.values(engines).some((payload) => payload.details?.adminControlsAvailable === true);
   const myIdentities = listRows(memberState?.identities);
+  const memberTargets = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const entry of [...knownMembers, ...linkedProfiles]) {
+      const id = String(entry?.userId || "").trim();
+      const name = String(entry?.name || entry?.title || "").split(" - ")[0].trim();
+      if (id && name) byId.set(id, name);
+    }
+    if (viewerUserId) byId.set(viewerUserId, viewerDisplayName || "Your account");
+    return [...byId].map(([userId, name]) => ({ userId, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [knownMembers, linkedProfiles, viewerDisplayName, viewerUserId]);
+  const watchlistTargetOptions = useMemo(() => {
+    const byId = new Map<string, string>(memberTargets.map((entry): [string, string] => [entry.userId, entry.name]));
+    for (const entry of listRows(memberState?.watchlistMembers)) {
+      const id = String(entry?.userId || "");
+      if (id && !byId.has(id)) byId.set(id, String(entry?.name || "Discord member"));
+    }
+    return [...byId].map(([userId, name]) => ({ userId, name }));
+  }, [memberState, memberTargets]);
   const myPendingVerifications = listRows(memberState?.pendingVerifications);
   const myNotifications = listRows(memberState?.notifications);
   const messageChannels = useMemo(() => channels.filter((entry) => channelSupportsMessages(entry)), [channels]);
@@ -369,6 +387,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
         guildId={guildId}
         guildName={guildName}
         viewerUserId={viewerUserId || ""}
+        ownerControlsAvailable={ownerControlsAvailable}
         engines={engines}
         loading={loading}
         saving={saving}
@@ -396,7 +415,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,140px),1fr))", gap: 10, alignItems: "stretch", marginBottom: 14 }}>
         <div style={{ minWidth: 0, padding: "10px 4px" }}>
           <div style={{ fontSize: 22, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900, color: "#ff4545" }}>Gaming Hub</div>
-          <div style={{ color: "#ff9e9e", marginTop: 4, fontSize: 12 }}>{guildName || guildId}</div>
+          <div style={{ color: "#ff9e9e", marginTop: 4, fontSize: 12 }}>{guildName || "Selected server"}</div>
           <div style={{ color: "#ffb7b7", fontSize: 11, marginTop: 6 }}>Accounts · activity · stats · squads</div>
         </div>
         {runtimeCard("Linked accounts", summaryValue(identitySummary, "Linked Accounts"))}
@@ -435,7 +454,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
           ) : null}
           <div style={card}>
             <h3 style={sectionTitle}>Member Self-Service</h3>
-            <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Link your own accounts, request verification, control privacy + consent, and clear your gamer alerts without staff typing raw IDs for you.</div>
+            <div style={{ color: "#ffb7b7", fontSize: 12, marginBottom: 12 }}>Link your own accounts, request verification, control privacy + consent, and clear your gamer alerts without staff needing technical account details.</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))", gap: 12 }}>
               <div style={card}>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>My Linked Identity</div>
@@ -500,7 +519,11 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                   <label><input type="checkbox" checked={Boolean(selfPrivacy.notifyRankChanges)} onChange={(event) => setSelfPrivacy((prev: any) => ({ ...prev, notifyRankChanges: event.target.checked }))} /> Rank alerts</label>
                   <label><input type="checkbox" checked={Boolean(selfPrivacy.notifyLiveFriends)} onChange={(event) => setSelfPrivacy((prev: any) => ({ ...prev, notifyLiveFriends: event.target.checked }))} /> Friend-live alerts</label>
                 </div>
-                <textarea style={{ ...input, minHeight: 90, marginTop: 10 }} placeholder="Watchlist member IDs, comma separated" value={formatIdList(selfPrivacy.watchlistUserIds)} onChange={(event) => setSelfPrivacy((prev: any) => ({ ...prev, watchlistUserIds: parseIdList(event.target.value) }))} />
+                <label style={{ display: "grid", gap: 6, marginTop: 10 }}>Members for live alerts
+                  <select multiple style={{ ...input, minHeight: 110 }} value={Array.isArray(selfPrivacy.watchlistUserIds) ? selfPrivacy.watchlistUserIds : []} onChange={(event) => setSelfPrivacy((prev: any) => ({ ...prev, watchlistUserIds: Array.from(event.target.selectedOptions, (option) => option.value) }))}>
+                    {watchlistTargetOptions.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}
+                  </select>
+                </label>
                 <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                   <button type="button" style={button} disabled={saving} onClick={() => void runAction("privacyConsent", "saveProfile", { userId: viewerUserId, profile: selfPrivacy }, "Saved your privacy + consent profile.")}>Save My Privacy</button>
                   <button type="button" style={button} disabled={saving} onClick={() => void runAction("privacyConsent", "clearNotifications", { userId: viewerUserId }, "Cleared your gamer alerts.")}>Clear My Alerts</button>
@@ -522,7 +545,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                 <details style={{ marginTop: 10 }}>
                   <summary style={{ cursor: "pointer", fontWeight: 800 }}>Operator Override</summary>
                   <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                    <input style={input} placeholder="Target Discord user ID" value={verificationForm.userId} onChange={(event) => setVerificationForm((prev) => ({ ...prev, userId: event.target.value }))} />
+                    <select style={input} aria-label="Verification target member" value={verificationForm.userId} onChange={(event) => setVerificationForm((prev) => ({ ...prev, userId: event.target.value }))}><option value="">Choose a member</option>{memberTargets.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}</select>
                     <button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("gameIdentity", "staffVerify", verificationForm, "Staff verification recorded.")}>Staff Verify</button>
                   </div>
                 </details>
@@ -623,8 +646,8 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                 <details style={{ marginTop: 10 }}>
                   <summary style={{ cursor: "pointer", fontWeight: 800 }}>Operator Override</summary>
                   <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                    <input style={input} placeholder="Target Discord user ID" value={statsForm.userId} onChange={(event) => setStatsForm((prev) => ({ ...prev, userId: event.target.value }))} />
-                    <input style={input} placeholder="Refresh target Discord user ID" value={refreshForm.userId} onChange={(event) => setRefreshForm((prev) => ({ ...prev, userId: event.target.value }))} />
+                    <select style={input} aria-label="Stats target member" value={statsForm.userId} onChange={(event) => setStatsForm((prev) => ({ ...prev, userId: event.target.value }))}><option value="">Choose a member</option>{memberTargets.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}</select>
+                    <select style={input} aria-label="Provider refresh target member" value={refreshForm.userId} onChange={(event) => setRefreshForm((prev) => ({ ...prev, userId: event.target.value }))}><option value="">Choose a member</option>{memberTargets.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}</select>
                   </div>
                 </details>
               </div>
@@ -649,8 +672,8 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                 <details style={{ marginTop: 10 }}>
                   <summary style={{ cursor: "pointer", fontWeight: 800 }}>Operator Override</summary>
                   <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                    <input style={input} placeholder="Target Discord user ID" value={rankSyncForm.userId} onChange={(event) => setRankSyncForm((prev) => ({ ...prev, userId: event.target.value }))} />
-                    <input style={input} placeholder="Refresh target Discord user ID" value={refreshForm.userId} onChange={(event) => setRefreshForm((prev) => ({ ...prev, userId: event.target.value }))} />
+                    <select style={input} aria-label="Rank sync target member" value={rankSyncForm.userId} onChange={(event) => setRankSyncForm((prev) => ({ ...prev, userId: event.target.value }))}><option value="">Choose a member</option>{memberTargets.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}</select>
+                    <select style={input} aria-label="Provider refresh target member" value={refreshForm.userId} onChange={(event) => setRefreshForm((prev) => ({ ...prev, userId: event.target.value }))}><option value="">Choose a member</option>{memberTargets.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}</select>
                   </div>
                 </details>
               </div>
@@ -685,19 +708,6 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                         </label>
                       ))}
                     </div>
-                    <details style={{ marginTop: 10 }}>
-                      <summary style={{ cursor: "pointer", fontWeight: 800 }}>Raw ID map</summary>
-                      <textarea
-                        style={{ ...input, minHeight: 120, marginTop: 10 }}
-                        value={formatRoleMap(roleMap)}
-                        onChange={(event) => updateConfig("gameProvider", {
-                          rankRoleSync: {
-                            ...(engines.gameProvider.config?.rankRoleSync || {}),
-                            [entry.key]: parseRoleMap(event.target.value),
-                          },
-                        })}
-                      />
-                    </details>
                   </div>
                 );
               })}
@@ -750,7 +760,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                   <summary style={{ cursor: "pointer", fontWeight: 800 }}>Staff Direct Record</summary>
                   <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                     <select style={input} value={playtimeForm.sourceKey} onChange={(event) => setPlaytimeForm((prev) => ({ ...prev, sourceKey: event.target.value }))}>{SOURCES.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
-                    <input style={input} placeholder="Target Discord user ID" value={playtimeForm.userId} onChange={(event) => setPlaytimeForm((prev) => ({ ...prev, userId: event.target.value }))} />
+                    <select style={input} aria-label="Playtime target member" value={playtimeForm.userId} onChange={(event) => setPlaytimeForm((prev) => ({ ...prev, userId: event.target.value }))}><option value="">Choose a member</option>{memberTargets.map((entry) => <option key={entry.userId} value={entry.userId}>{entry.name}</option>)}</select>
                     <button type="button" style={button} disabled={saving} onClick={() => void runAction("playtime", "recordHours", { ...playtimeForm, userId: playtimeForm.userId || viewerUserId, providerKey: playtimeForm.providerKey, hours: Number(playtimeForm.hours || 0), mergeMode: "set" }, "Playtime record saved.")}>Staff Record Hours</button>
                   </div>
                 </details> : null}

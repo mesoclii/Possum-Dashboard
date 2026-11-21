@@ -74,7 +74,7 @@ function resolveGuild() {
   if (typeof window === "undefined") return { guildId: "", guildName: "" };
   const params = new URLSearchParams(window.location.search);
   const guildId = (params.get("guildId") || localStorage.getItem("activeGuildId") || "").trim();
-  const guildName = (localStorage.getItem("activeGuildName") || guildId).trim();
+  const guildName = (localStorage.getItem("activeGuildName") || "Selected server").trim();
   if (guildId) localStorage.setItem("activeGuildId", guildId);
   return { guildId, guildName };
 }
@@ -278,7 +278,7 @@ export default function PersonaClient() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>Persona Engine</h1>
-            <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8, maxWidth: 880 }}>
               Create your own characters for this server. Each persona has its own identity, voice, triggers, access rules and model settings,
               and only exists in this server. Replies use this server&apos;s AI credits. Persona AI is separate from Possum AI.

@@ -502,7 +502,7 @@ export default function CommunityStudioClient() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Community Studio</h1>
-      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Build distinct server bulletins, pulse polls, lookup cards, and reminder loops without copying another dashboard&apos;s flow.
       </div>

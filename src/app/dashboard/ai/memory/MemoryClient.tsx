@@ -138,7 +138,7 @@ export default function MemoryClient() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div>
             <h1 style={{ margin: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>Memory + Context</h1>
-            <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9f9f", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 6 }}>
               This page now edits the live adaptive runtime memory controls instead of a dead dashboard-only config file.
             </div>

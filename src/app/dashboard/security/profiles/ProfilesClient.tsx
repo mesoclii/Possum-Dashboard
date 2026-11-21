@@ -297,7 +297,7 @@ export default function SecurityProfilesPage() {
         Security Profiles
       </h1>
       <div style={{ marginBottom: 12 }}>
-        Guild: {guildName || guildId} {msg ? `| ${msg}` : ""}
+        Guild: {guildName || "Selected server"} {msg ? `| ${msg}` : ""}
       </div>
 
       {loading ? (

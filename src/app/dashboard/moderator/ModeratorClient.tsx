@@ -684,7 +684,7 @@ export default function ModeratorClient() {
         <div>
           <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase" }}>Separate Moderator Module</div>
           <h1 style={{ margin: "8px 0 0", color: "#ff4d4d", letterSpacing: "0.10em", textTransform: "uppercase" }}>Moderator</h1>
-          <div style={{ color: "#ff9a9a", marginTop: 8 }}>Guild: {guildName || guildId}</div>
+          <div style={{ color: "#ff9a9a", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>

@@ -215,7 +215,7 @@ export default function TtsAccessPage() {
   return (
     <div style={shell}>
       <h1 style={{ marginTop: 0, color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.14em" }}>TTS Engine</h1>
-      <div style={{ color: "#ff9999" }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999" }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Full per-guild TTS routing. Every route can bind its own text lanes, voice destination, voice preset, volume, priority, and prefix behavior. Explicit routes speak without a prefix unless you turn one on for that route.
       </div>

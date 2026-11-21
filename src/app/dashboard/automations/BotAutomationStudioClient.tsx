@@ -949,7 +949,7 @@ export default function BotAutomationStudioClient() {
           <h1 style={{ margin: 0, color: "#ff4f4f", letterSpacing: "0.10em", textTransform: "uppercase" }}>Bot Automation Studio</h1>
           <p style={{ marginTop: 8, color: "#ffabab" }}>Visual builder for bot automations. Security automation is separate.</p>
           <p style={{ marginTop: 4, color: "#ff9d9d" }}>
-            Guild: {guildName || (guildId || "(not selected)")} | Active {activeCount}/{automations.length}
+            Guild: {guildName || (guildId ? "Selected server" : "(not selected)")} | Active {activeCount}/{automations.length}
           </p>
         </div>
         <div style={{ display: "grid", gap: 6, textAlign: "right" }}>

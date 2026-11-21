@@ -143,7 +143,7 @@ export default function RangeEnginePage() {
   return (
     <div style={{ color: "#ffd0d0", padding: 18, maxWidth: 1400 }}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Range Engine</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb8b8", lineHeight: 1.6, maxWidth: 980, marginBottom: 12 }}>
         This tab now controls the actual range engine: weapon defaults, scoring pace, live panel art, setup copy, allowed channels,
         and per-weapon branding. The bot uses these settings directly when it builds the setup and live embeds.

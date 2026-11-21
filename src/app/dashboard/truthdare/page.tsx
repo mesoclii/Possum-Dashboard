@@ -55,7 +55,7 @@ export default function TruthDareEnginePage() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Truth Or Dare Engine</h1>
-      <div style={{ color: "#ff9999", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Built-in prompts are included by default. Add your own prompts on top, or switch the built-in truth/dare pools off if a guild wants only custom questions.
       </div>

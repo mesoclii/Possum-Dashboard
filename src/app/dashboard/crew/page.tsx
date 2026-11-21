@@ -188,7 +188,7 @@ export default function CrewEnginePage() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Crew Engine</h1>
-      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Crew is the GTA-side identity spine: recruiting, vaults, dominion ownership, and crew-linked progression all land here.
       </div>

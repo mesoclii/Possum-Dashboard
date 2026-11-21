@@ -356,7 +356,7 @@ export default function ProgressionPage() {
         ]}
       />
       <h1 style={{ marginTop: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Progression Engine</h1>
-      <p>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</p>
+      <p>Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</p>
 
       {loading ? <p>Loading...</p> : (
         <>

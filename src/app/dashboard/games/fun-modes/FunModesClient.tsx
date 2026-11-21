@@ -96,7 +96,7 @@ export default function FunModesClient() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <div>
             <h1 style={{ margin: 0, letterSpacing: "0.12em", textTransform: "uppercase", color: "#ff2f2f" }}>Fun Modes</h1>
-            <div style={{ color: "#ff9e9e", marginTop: 4 }}>Guild: {guildName || guildId}</div>
+            <div style={{ color: "#ff9e9e", marginTop: 4 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>
               This page now maps to the live `range` and `truthDare` engines. The old gun-game/carol shadow config has been removed because those fields were not wired to bot runtime.
             </div>

@@ -287,7 +287,7 @@ export default function SecurityEngineOperator({ engineKey, title, description, 
       <div style={card}>
         <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase" }}>Security Operator Surface</div>
         <div style={{ color: "#ff4545", fontSize: 24, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.10em", marginTop: 8 }}>{title || spec?.displayName || humanize(engineKey)}</div>
-        <div style={{ color: "#ffabab", marginTop: 8 }}>Guild: <b>{guildName || guildId}</b></div>
+        <div style={{ color: "#ffabab", marginTop: 8 }}>Guild: <b>{guildName || "Selected server"}</b></div>
         <div style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 10 }}>{description}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
           <span style={{ ...micro, border: `1px solid ${runtimeEnabled(config) ? "#1f8a3f" : "#8a2f2f"}`, borderRadius: 999, padding: "5px 10px" }}>{runtimeEnabled(config) ? "Runtime On" : "Runtime Off"}</span>

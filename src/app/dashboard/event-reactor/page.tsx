@@ -180,7 +180,7 @@ export default function EventReactorPage() {
   return (
     <div style={{ color: "#ffd0d0", padding: 18, maxWidth: 1200 }}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Event Alerts + Recovery</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ ...box, marginBottom: 12, lineHeight: 1.7, color: "#ffbdbd" }}>
         This page controls what Discord activity the bot watches here, where failed jobs get sent, and any extra alert posts you want it to make.
       </div>

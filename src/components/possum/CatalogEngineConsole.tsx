@@ -826,7 +826,7 @@ export default function CatalogEngineConsole({
             {title || spec?.displayName || humanize(engineKey)}
           </div>
           <div style={{ color: "#ffabab", marginTop: 8 }}>
-            Guild: <b>{guildName || guildId}</b>
+            Guild: <b>{guildName || "Selected server"}</b>
             {commandId ? (
               <>
                 {" "}

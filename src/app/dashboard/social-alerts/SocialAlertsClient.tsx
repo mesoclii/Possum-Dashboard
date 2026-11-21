@@ -246,7 +246,7 @@ export default function SocialAlertsClient() {
     <div style={shell}>
       <section style={hero}>
         <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Social Alerts</h1>
-        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+        <div style={{ color: "#ff9c9c", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
         <div style={{ ...micro, marginTop: 6 }}>
           Follow public social feeds in Discord using Signal Relay with provider-aware routes. Some platforms require a third-party feed bridge and may not always work.
         </div>

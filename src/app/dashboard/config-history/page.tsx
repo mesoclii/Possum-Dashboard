@@ -57,7 +57,7 @@ export default function ConfigHistoryPage() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>Configuration History</h1>
-      <p style={{ color: "#ffe9f6" }}>{guildName || guildId}</p>
+      <p style={{ color: "#ffe9f6" }}>{guildName || "Selected server"}</p>
       {pending ? (
         <section style={card}>
           <strong>Pending</strong>

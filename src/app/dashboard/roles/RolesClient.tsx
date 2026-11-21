@@ -123,7 +123,7 @@ function mergeRoleOptions(roleList: Role[], loaded: Config): Role[] {
       if (!roleId || byId.has(roleId)) continue;
       byId.set(roleId, {
         id: roleId,
-        name: String(row.label || `Missing role ${shortSnowflake(roleId)}`).trim(),
+        name: String(row.label || "Unavailable role").trim(),
         managed: false,
         position: -1,
       });
@@ -148,7 +148,7 @@ function mergeChannelOptions(channelList: Channel[], loaded: Config): Channel[] 
   if (channelId && !byId.has(channelId)) {
     byId.set(channelId, {
       id: channelId,
-      name: `saved-channel-${shortSnowflake(channelId)}`,
+      name: "Saved channel (unavailable)",
       type: "0",
     });
   }
@@ -396,7 +396,7 @@ export default function RolesClient() {
         Selfrole Button Studio
       </h1>
       <p style={{ marginTop: 0, color: "#ff8a8a" }}>
-        Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId} | Engine entity: selfroles only (separate from economy/store/giveaways)
+        Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"} | Engine entity: selfroles only (separate from economy/store/giveaways)
       </p>
 
       <div style={card}>

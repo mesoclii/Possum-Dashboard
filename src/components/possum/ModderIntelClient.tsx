@@ -242,7 +242,7 @@ export default function ModderIntelClient() {
   return (
     <div style={shell}>
       <h1 style={{ marginTop: 0, color: "#ff4d4d", textTransform: "uppercase", letterSpacing: "0.1em" }}>Modder Intel Studio</h1>
-      <div style={{ color: "#ff9c9c", marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9c9c", marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb6b6", marginBottom: 14, lineHeight: 1.6 }}>
         Track known menu holders, reseller/network risk, restriction surfaces, and staff-safe cleanup. This is the additive operator surface for modding-community intel without forcing it into the blacklist.
       </div>

@@ -46,7 +46,7 @@ export default function PokemonBattlePage() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Pokemon Battle</h1>
-      <div style={{ color: "#ff9999", marginTop: 6 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 4 }}>
         Battle is tied to the shared trainer inventory. Trainers can only duel with Pokemon they already caught.
       </div>

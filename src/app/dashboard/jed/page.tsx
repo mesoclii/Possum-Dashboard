@@ -103,7 +103,7 @@ export default function JedPage() {
   return (
     <section style={shell}>
       <h1 style={{ margin: 0, color: "#ff4f4f", letterSpacing: "0.10em", textTransform: "uppercase" }}>JED Sticker + Emoji + GIF Theft</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffbcbc", lineHeight: 1.7, maxWidth: 1120 }}>
         This is the live control surface for <strong>/jed grab</strong> and the <strong>Possum Bot This</strong> message action. JED steals approved sticker,
         emoji, GIF/media URLs, uploaded files, and custom emoji tokens, converts them when needed, and deploys the result into the guild. This page only tunes

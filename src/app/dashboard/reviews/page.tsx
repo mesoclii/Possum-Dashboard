@@ -122,7 +122,7 @@ export default function ReviewsDashboardPage() {
   return (
     <div style={{ color: "#ffd0d0", padding: 18, maxWidth: 1280 }}>
       <h1 style={{ margin: 0, color: "#ff4444", letterSpacing: "0.12em", textTransform: "uppercase" }}>Reviews</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       {message ? <div style={{ marginBottom: 10, color: "#ffb3f0" }}>{message}</div> : null}
 
       {loading ? <div style={box}>Loading...</div> : (

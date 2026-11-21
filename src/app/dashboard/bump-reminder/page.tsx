@@ -31,7 +31,7 @@ export default function BumpReminderPage() {
   return (
     <div style={{ color: "#ffe9f6", padding: 18, maxWidth: 860 }}>
       <h1 style={{ margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>Bump Reminder</h1>
-      <p style={{ color: "#ffe9f6" }}>{guildName || guildId}</p>
+      <p style={{ color: "#ffe9f6" }}>{guildName || "Selected server"}</p>
       <p style={{ color: "#ffe9f6", maxWidth: 720 }}>
         Possum watches Disboard and Discadia for a successful bump, then tags the pingers role in this channel when that listing can be bumped again. Someone still runs /bump. Possum does not bump for you.
       </p>

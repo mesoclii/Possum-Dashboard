@@ -343,7 +343,7 @@ export default function VerificationClient() {
           <div style={s.eyebrow}>Admission pipeline · Step 1 of 2</div>
           <h1 style={s.h1}>Verification</h1>
           <p style={s.sub}>
-            The 18+ gate for <strong style={{ color: "#fff" }}>{guildName || guildId}</strong>. Members are welcomed,
+            The 18+ gate for <strong style={{ color: "#fff" }}>{guildName || "Selected server"}</strong>. Members are welcomed,
             confirm the rules, and verify. Verifying opens their ID ticket — the staff ID check is what grants access.
           </p>
         </div>

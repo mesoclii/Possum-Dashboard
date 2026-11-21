@@ -268,7 +268,7 @@ export default function EventPointsClient() {
   return (
     <div style={{ color: "#ffb3b3", padding: 14, maxWidth: 1400 }}>
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>Event Points Studio</h1>
-      <p style={{ marginTop: 0 }}>Guild: {guildName || guildId}</p>
+      <p style={{ marginTop: 0 }}>Guild: {guildName || "Selected server"}</p>
       <p style={{ color: "#ffb7b7", marginTop: -4, lineHeight: 1.6 }}>
         This is a separate per-guild event currency and scoring engine for {groupLabelPluralLower}. It stays separate from the main economy,
         but can mirror rewards into economy coins when you want the two systems tied together.

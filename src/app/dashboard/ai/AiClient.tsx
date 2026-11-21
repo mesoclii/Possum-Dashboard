@@ -105,7 +105,7 @@ function resolveGuild() {
   if (typeof window === "undefined") return { guildId: "", guildName: "" };
   const params = new URLSearchParams(window.location.search);
   const guildId = (params.get("guildId") || localStorage.getItem("activeGuildId") || "").trim();
-  const guildName = (localStorage.getItem("activeGuildName") || guildId).trim();
+  const guildName = (localStorage.getItem("activeGuildName") || "Selected server").trim();
   if (guildId) localStorage.setItem("activeGuildId", guildId);
   return { guildId, guildName };
 }
@@ -252,7 +252,7 @@ export default function AiClient() {
             <h1 style={{ margin: 0, color: "#ff4a4a", letterSpacing: "0.12em", textTransform: "uppercase" }}>
               AI Routing
             </h1>
-        <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || guildId}</div>
+        <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
         <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8, maxWidth: 900 }}>
               The AI stack is split by what it actually is. Possum AI owns the adaptive homemade path and knowledge base.
               Persona AI owns the premium hosted persona roster. Persona-triggered messages stay on the persona path, and all

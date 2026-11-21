@@ -76,7 +76,7 @@ export default function FailsafePage() {
   return (
     <section style={shell}>
       <h1 style={{ margin: 0, color: "#ff4f4f", letterSpacing: "0.10em", textTransform: "uppercase" }}>Failsafe Engine</h1>
-      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || guildId}</div>
+      <div style={{ color: "#ff9999", marginTop: 6, marginBottom: 12 }}>Guild: {guildName || "Selected server"}</div>
       <div style={{ color: "#ffbcbc", lineHeight: 1.7, maxWidth: 1120 }}>
         This is the real per-guild router kill switch. When failsafe is active, normal message routing and most interactions stop at app level while
         owner/founder bypass and onboarding bypass stay configurable here.

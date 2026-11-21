@@ -65,7 +65,7 @@ export default function AccessClient() {
   return (
     <main style={{ padding: 16, color: "#ffd0d0" }}>
       <h1 style={{ marginTop: 0, color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.08em" }}>Access Engines</h1>
-      <p style={{ color: "#ff8a8a" }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</p>
+      <p style={{ color: "#ff8a8a" }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</p>
       <p style={{ color: "#ffaaaa", fontSize: 12, marginTop: -4 }}>Each access engine is separated into its own page and saved independently.</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>

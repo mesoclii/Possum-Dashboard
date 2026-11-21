@@ -102,7 +102,7 @@ export function resolveGuildContext() {
 
   const params = new URLSearchParams(window.location.search);
   const guildId = (params.get("guildId") || localStorage.getItem("activeGuildId") || "").trim();
-  const guildName = (localStorage.getItem("activeGuildName") || guildId).trim();
+  const guildName = (localStorage.getItem("activeGuildName") || "Selected server").trim();
   const userId = (params.get("userId") || params.get("uid") || localStorage.getItem("dashboardUserId") || "").trim();
 
   if (guildId) {

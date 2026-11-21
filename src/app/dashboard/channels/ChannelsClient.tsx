@@ -528,7 +528,7 @@ export default function ChannelsClient() {
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>Channel Setup</h1>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <p style={{ marginTop: 0, marginBottom: 6 }}>Guild: {typeof window !== "undefined" ? (localStorage.getItem("activeGuildName") || guildId) : guildId}</p>
+          <p style={{ marginTop: 0, marginBottom: 6 }}>Guild: {typeof window !== "undefined" ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</p>
           <div style={{ color: "#ffb7b7", fontSize: 13, lineHeight: 1.6, maxWidth: 920 }}>
             Pick where each system should post. For Saviors Gaming, blank legacy slots are auto-filled from the bot&apos;s built-in server defaults so you do not have to hunt IDs down by hand.
           </div>

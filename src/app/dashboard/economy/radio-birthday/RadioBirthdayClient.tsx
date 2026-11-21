@@ -173,7 +173,7 @@ export default function RadioBirthdayPage() {
             <h1 style={{ margin: 0, color: "#ff4747", letterSpacing: "0.12em", textTransform: "uppercase" }}>
               Radio Birthday Engine
             </h1>
-            <div style={{ marginTop: 6, color: "#ff9c9c", fontSize: 13 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem('activeGuildName') || guildId) : guildId}</div>
+            <div style={{ marginTop: 6, color: "#ff9c9c", fontSize: 13 }}>Guild: {typeof window !== 'undefined' ? (localStorage.getItem("activeGuildName") || "Selected server") : "Selected server"}</div>
             <div style={{ marginTop: 3, color: "#ffb5b5", fontSize: 12 }}>
               `/radio` in this bot is the birthday profile surface. This page only exposes the live birthday fields the runtime actually uses.
             </div>

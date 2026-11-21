@@ -73,7 +73,7 @@ export default function ScheduledReportsPage() {
   return (
     <div style={shell}>
       <h1 style={{ margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>Scheduled Reports</h1>
-      <p style={{ color: "#ffe9f6" }}>{guildName || guildId}</p>
+      <p style={{ color: "#ffe9f6" }}>{guildName || "Selected server"}</p>
       <section style={card}>
         <p style={{ marginTop: 0 }}>Discord reports show community, activity, retention, audit, and event data. Activity and audit figures use the rolling periods shown; unavailable data is not counted as zero.</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(180px, 1fr))", gap: 12 }}>

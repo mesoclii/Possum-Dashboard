@@ -12,6 +12,7 @@ type Payload = {
 };
 
 type EngineMap = Record<string, Payload>;
+type PresenceGame = { label?: string; applicationId?: string; details?: string; state?: string; startedAt?: string };
 type EngineKey = "gameIdentity" | "privacyConsent" | "presenceFusion" | "playtime" | "squadFinder" | "gameProvider" | "showoff" | "searchAnything";
 type Props = {
   guildId: string;
@@ -395,6 +396,7 @@ export default function MemberGamingHub({
                   <div key={player.userId} style={{ ...panel, padding: 14, background: colors.panelSoft }}>
                     <div style={{ fontWeight: 800 }}>{player.title}</div>
                     <div style={{ color: colors.accent, fontSize: 16, marginTop: 5 }}>Playing {player.gameLabel || player.value.split(" | ")[0]}</div>
+                    <div style={{ color: colors.muted, fontSize: 11, marginTop: 5 }}>Live from Discord Rich Presence{Array.isArray(player.clientPlatformLabels) && player.clientPlatformLabels.length ? ` · ${player.clientPlatformLabels.join(", ")}` : ""}</div>
                     <div style={{ color: colors.muted, fontSize: 12, marginTop: 5 }}>
                       {elapsed
                         ? player.startedAtSource === "discord_activity"
@@ -404,6 +406,11 @@ export default function MemberGamingHub({
                     </div>
                     {player.activityDetails || player.activityState ? (
                       <div style={{ color: colors.muted, fontSize: 12, marginTop: 5 }}>{[player.activityDetails, player.activityState].filter(Boolean).join(" · ")}</div>
+                    ) : null}
+                    {Array.isArray(player.games) && player.games.length > 1 ? (
+                      <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+                        {player.games.map((game: PresenceGame, index: number) => <div key={`${player.userId}-${game.applicationId || game.label}-${index}`} style={{ border: `1px solid ${colors.line}`, borderRadius: 8, padding: "6px 8px", fontSize: 11 }}><strong>{game.label}</strong>{game.details ? ` · ${game.details}` : ""}{game.state ? ` · ${game.state}` : ""}{game.startedAt ? ` · since ${new Date(game.startedAt).toLocaleTimeString()}` : ""}</div>)}
+                      </div>
                     ) : null}
                   </div>
                 );

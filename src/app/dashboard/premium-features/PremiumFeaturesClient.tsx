@@ -19,6 +19,7 @@ type SubscriptionStatus = {
   inheritedFrom: string | null;
   developerBypass?: boolean;
 };
+type InstalledGuild = { id: string; name: string };
 
 const card: CSSProperties = {
   border: "1px solid rgba(255,0,0,.36)",
@@ -41,7 +42,10 @@ const action: CSSProperties = {
 
 export default function PremiumFeaturesClient() {
   const { isMasterOwner, isPokemonOperator, loading: sessionLoading } = useDashboardSessionState();
-  const guildId = readDashboardGuildId();
+  const [guildId, setGuildId] = useState("");
+  const [guildOptions, setGuildOptions] = useState<InstalledGuild[]>([]);
+  const [guildsLoading, setGuildsLoading] = useState(true);
+  const [guildsError, setGuildsError] = useState("");
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [canManagePremium, setCanManagePremium] = useState(false);
@@ -60,7 +64,32 @@ export default function PremiumFeaturesClient() {
   const [creatorSettingsMessage, setCreatorSettingsMessage] = useState("");
 
   useEffect(() => {
+    const current = readDashboardGuildId();
     setGuildName(localStorage.getItem("activeGuildName") || "");
+    void fetch("/api/guilds/installed", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data?.success !== true) throw new Error("Could not load your servers.");
+        const available: InstalledGuild[] = (Array.isArray(data.guilds) ? data.guilds : [])
+          .map((entry: any) => ({ id: String(entry?.id || ""), name: String(entry?.name || "").trim() }))
+          .filter((entry: InstalledGuild) => entry.id && entry.name);
+        setGuildOptions(available);
+        const next = available.find((entry) => entry.id === current) || available[0] || null;
+        setGuildId(next?.id || "");
+        if (next) {
+          setGuildName(next.name);
+          localStorage.setItem("activeGuildId", next.id);
+          localStorage.setItem("activeGuildName", next.name);
+        }
+      })
+      .catch((error: unknown) => {
+        setGuildOptions([]);
+        setGuildsError(error instanceof Error ? error.message : "Could not load your servers.");
+      })
+      .finally(() => setGuildsLoading(false));
+  }, []);
+
+  useEffect(() => {
     if (!guildId) return;
     fetchGuildData(guildId)
       .then((json: any) => {
@@ -72,6 +101,19 @@ export default function PremiumFeaturesClient() {
       })
       .catch(() => null);
   }, [guildId]);
+
+  function selectGuild(nextGuildId: string) {
+    const selected = guildOptions.find((entry) => entry.id === nextGuildId);
+    setGuildId(nextGuildId);
+    if (selected?.name) setGuildName(selected.name);
+    localStorage.setItem("activeGuildId", nextGuildId);
+    localStorage.setItem("activeGuildid", nextGuildId);
+    if (selected?.name) localStorage.setItem("activeGuildName", selected.name);
+    const params = new URLSearchParams(window.location.search);
+    params.set("guildId", nextGuildId);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    window.dispatchEvent(new Event("dashboard:guild-change"));
+  }
 
   const loadStatus = useCallback(async () => {
     if (!guildId) return;
@@ -180,7 +222,10 @@ export default function PremiumFeaturesClient() {
   }
 
   async function savePlan(active: boolean, plan: string) {
-    if (!guildId) return;
+    if (!guildOptions.some((entry) => entry.id === guildId)) {
+      setStatusMsg("Choose an available server before changing its plan.");
+      return;
+    }
     setSaving(true);
     setStatusMsg("");
     try {
@@ -215,7 +260,7 @@ export default function PremiumFeaturesClient() {
   }
 
   async function startCheckout(plan: "monthly" | "yearly" | "lifetime" | "ai_addon") {
-    if (!guildId) {
+    if (!guildOptions.some((entry) => entry.id === guildId)) {
       setStatusMsg("Select a server first.");
       return;
     }
@@ -288,7 +333,16 @@ export default function PremiumFeaturesClient() {
             <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase" }}>
               Current Guild
             </div>
-            <div style={{ color: "#fff0f0", fontSize: 28, fontWeight: 900, marginTop: 8 }}>{guildName && guildName !== guildId ? guildName : guildId || "No guild selected"}</div>
+            <div style={{ color: "#fff0f0", fontSize: 28, fontWeight: 900, marginTop: 8 }}>{guildName || guildOptions.find((entry) => entry.id === guildId)?.name || (guildId ? "Selected server" : "No server selected")}</div>
+            <label style={{ display: "block", color: "#ffbdbd", fontSize: 12, marginTop: 12 }}>
+              Choose the server for plan status, checkout, and server grants
+              <select value={guildId} onChange={(event) => selectGuild(event.target.value)} disabled={guildsLoading || !guildOptions.length} style={{ display: "block", width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(255,0,0,.45)", background: "#130707", color: "#ffd7d7" }}>
+                {!guildId ? <option value="">Choose a server</option> : null}
+                {guildOptions.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
+              </select>
+            </label>
+            {guildsError ? <div role="alert" style={{ color: "#ffb0b0", fontSize: 12, marginTop: 6 }}>{guildsError}</div> : null}
+            {!guildsLoading && !guildsError && !guildOptions.length ? <div style={{ color: "#ffb0b0", fontSize: 12, marginTop: 6 }}>No servers available to manage. Make sure the bot is in a server where your dashboard account has Gaming Hub access.</div> : null}
             <div style={{ color: "#ffd7d7", fontSize: 14, marginTop: 10 }}>
               {stateLabel}
               {status?.premiumTier ? ` | ${status.premiumTier}` : ""}
@@ -329,6 +383,14 @@ export default function PremiumFeaturesClient() {
         </div>
       </section>
 
+      <section style={{ ...card, marginBottom: 16 }}>
+        <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 12 }}>
+          Possum Pro Plan Features
+        </div>
+        <PlanTierPicker onBuy={(key) => void startCheckout(key)} disabled={saving} />
+        <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 14 }}>{PRICING_FOOTNOTE}</div>
+      </section>
+
       {canManagePremium ? (
         <section style={{ ...card, marginBottom: 16 }}>
           <div
@@ -345,7 +407,7 @@ export default function PremiumFeaturesClient() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !guildOptions.some((entry) => entry.id === guildId)}
               onClick={() => setGrantScope("guild")}
               style={{
                 ...action,
@@ -359,7 +421,7 @@ export default function PremiumFeaturesClient() {
             </button>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !guildOptions.some((entry) => entry.id === guildId)}
               onClick={() => setGrantScope("global")}
               style={{
                 ...action,
@@ -386,7 +448,7 @@ export default function PremiumFeaturesClient() {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !guildOptions.some((entry) => entry.id === guildId)}
               onClick={() => void savePlan(true, "MONTHLY")}
               style={{
                 ...action,
@@ -400,7 +462,7 @@ export default function PremiumFeaturesClient() {
             </button>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !guildOptions.some((entry) => entry.id === guildId)}
               onClick={() => void savePlan(true, "YEARLY")}
               style={{
                 ...action,
@@ -596,33 +658,18 @@ export default function PremiumFeaturesClient() {
         </div>
       </section>
 
-      <section style={card}>
-        <div
-          style={{
-            color: "#ff9a9a",
-            fontSize: 12,
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-            marginBottom: 12,
-          }}
+      <section style={{ ...card, marginTop: 16 }}>
+        <div style={{ color: "#fff1c7", fontSize: 14, marginBottom: 8 }}>
+          Need more AI than the monthly allowance? Add extra usage to any plan.
+        </div>
+        <button
+          type="button"
+              disabled={saving || !guildOptions.some((entry) => entry.id === guildId)}
+          onClick={() => void startCheckout("ai_addon")}
+          style={{ ...action, border: "1px solid rgba(255,0,0,.5)", background: "rgba(120,0,0,.35)", color: "#fff1c7", cursor: "pointer", fontSize: 12 }}
         >
-          Plan Pricing
-        </div>
-        <PlanTierPicker onBuy={(key) => void startCheckout(key)} disabled={saving} />
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(255,0,0,.25)" }}>
-          <div style={{ color: "#fff1c7", fontSize: 14, marginBottom: 8 }}>
-            Need more AI than the monthly allowance? Add extra usage to any plan.
-          </div>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void startCheckout("ai_addon")}
-            style={{ ...action, border: "1px solid rgba(255,0,0,.5)", background: "rgba(120,0,0,.35)", color: "#fff1c7", cursor: "pointer", fontSize: 12 }}
-          >
-            AI Add-on
-          </button>
-        </div>
-        <div style={{ color: "#ffb8b8", fontSize: 12, marginTop: 14 }}>{PRICING_FOOTNOTE}</div>
+          AI Add-on
+        </button>
       </section>
     </div>
   );

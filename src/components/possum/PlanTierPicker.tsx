@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
-import { PLAN_TIERS, type PlanTierKey } from "@/lib/premiumCatalog";
+import { PLAN_COMMON_FEATURES, PLAN_TIERS, type PlanTierKey } from "@/lib/premiumCatalog";
 
 type Props = {
   // Dashboard passes a checkout handler; the public page passes buyHref instead.
@@ -74,11 +74,19 @@ export default function PlanTierPicker({ onBuy, buyHref, buyLabel, disabled }: P
 
       <div style={{ marginTop: 18 }}>
         <div style={{ ...glow, fontSize: 18, fontWeight: 900 }}>
-          {tier.label} - {tier.priceUsd === null ? "Price and features to be announced" : `$${tier.priceUsd} ${tier.cadence}`}
+          {tier.label} - {tier.priceUsd === null ? "Price TBD" : `$${tier.priceUsd} ${tier.cadence}`}
         </div>
         <div style={{ color: "#ffd0d0", marginTop: 4 }}>{tier.tagline}</div>
+        <div style={{ marginTop: 14 }}>
+          <strong style={{ color: "#fff1c7" }}>Included with every plan</strong>
+          <ul style={{ color: "#ffd9d9", lineHeight: 1.8, marginTop: 6, paddingLeft: 22 }}>{PLAN_COMMON_FEATURES.map((feature) => <li key={feature}>{feature}</li>)}</ul>
+        </div>
+        {tier.extras.length ? <div style={{ marginTop: 12 }}>
+          <strong style={{ color: "#fff1c7" }}>{tier.label} extras</strong>
+          <ul style={{ color: "#ffd9d9", lineHeight: 1.8, marginTop: 6, paddingLeft: 22 }}>{tier.extras.map((feature) => <li key={feature}>{feature}</li>)}</ul>
+        </div> : null}
 
-        <div style={{ color: "#ffd9d9", marginTop: 10 }}>Plan features are being finalized. No checkout is available until pricing and included features are configured.</div>
+        {!pricingAvailable ? <div style={{ color: "#ffb7b7", marginTop: 12 }}>Checkout pricing is temporarily unavailable. Owner grants remain available in the dashboard controls.</div> : null}
 
         {onBuy && pricingAvailable ? (
           <button type="button" disabled={disabled} onClick={() => onBuy(tier.key)} style={buyStyle}>

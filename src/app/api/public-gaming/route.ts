@@ -17,7 +17,12 @@ async function actor(request: NextRequest) {
 
 function profile(value: any) {
   if (!value || typeof value.nickname !== "string" || typeof value.game !== "string") return null;
-  return { nickname: value.nickname, game: value.game, contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "" };
+  return {
+    nickname: value.nickname,
+    game: value.game,
+    contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "",
+    discordTag: typeof value.discordTag === "string" ? value.discordTag : "",
+  };
 }
 
 async function readBody(request: NextRequest) {
@@ -78,10 +83,13 @@ export async function POST(request: NextRequest) {
     if (!body || (body.action !== "publish" && body.action !== "revoke")) {
       return reply({ success: false, error: "Invalid action." }, 400);
     }
+    const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
+    const shareDiscordTag = body.shareDiscordTag === true;
+    const discordTag = shareDiscordTag ? String(session?.user?.username || "") : "";
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming/me`, {
       method: "POST",
       headers: { ...buildServerBotApiHeaders(userId), "Content-Type": "application/json" },
-      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle }),
+      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle, shareDiscordTag, discordTag }),
       cache: "no-store",
     });
     const data = await readServerBotApiJson(upstream);

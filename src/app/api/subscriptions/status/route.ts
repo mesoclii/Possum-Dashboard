@@ -100,7 +100,9 @@ export async function POST(request: NextRequest) {
     const trialDaysRaw = Math.trunc(Number(body?.trialDays || 0));
     const trialDays = Number.isFinite(trialDaysRaw) ? Math.max(0, Math.min(365, trialDaysRaw)) : 0;
     const requestedPlan = String(body?.plan || (active ? "PRO" : "FREE")).trim().toUpperCase();
-    const allowedPlans = active ? ["PRO", "BUSINESS", "ELITE", "ENTERPRISE"] : ["FREE"];
+    const allowedPlans = active
+      ? ["PRO", "BUSINESS", "ELITE", "ENTERPRISE", "MONTHLY", "YEARLY", "LIFETIME"]
+      : ["FREE"];
     if (!allowedPlans.includes(requestedPlan)) {
       return NextResponse.json({ success: false, error: "Unknown premium plan." }, { status: 400 });
     }

@@ -170,6 +170,8 @@ export default function MemberGamingHub({
     PRIVACY_TOGGLES.map((key) => [key, Boolean(privacy[key])]),
   ));
   const [watchlistUserIds, setWatchlistUserIds] = useState(() => listItems(privacy.watchlistUserIds, /[,;\s]+/));
+  const watchlistMembers = rows(memberState.watchlistMembers);
+  const watchlistName = (userId: string) => String(watchlistMembers.find((entry) => String(entry.userId) === userId)?.name || "Discord member");
   const [watchlistInput, setWatchlistInput] = useState("");
   const [manualAccountInputs, setManualAccountInputs] = useState<Record<string, string>>({});
   const [profileInputError, setProfileInputError] = useState("");
@@ -597,16 +599,16 @@ export default function MemberGamingHub({
             </div>
           </div>
           <div style={{ marginBottom: 14 }}>
-            <label htmlFor="watchlist-user-input">Watched Discord member IDs for personal live alerts</label>
+            <label htmlFor="watchlist-user-input">Watched members for personal live alerts</label>
             <form onSubmit={addWatchedMember} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, marginTop: 6 }}>
-              <input id="watchlist-user-input" style={field} inputMode="numeric" maxLength={20} value={watchlistInput} onChange={(event) => setWatchlistInput(event.target.value)} placeholder="Add one Discord user ID" />
+              <input id="watchlist-user-input" style={field} inputMode="numeric" maxLength={20} value={watchlistInput} onChange={(event) => setWatchlistInput(event.target.value)} placeholder="Add a Discord member to watch" aria-label="Discord member lookup" />
               <button type="submit" style={button} disabled={watchlistUserIds.length >= 25 || !watchlistInput.trim()}>Add member</button>
             </form>
             <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
               {watchlistUserIds.map((userId) => (
                 <div key={userId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", border: `1px solid ${colors.line}`, borderRadius: 10, background: colors.panelSoft }}>
-                  <span>{userId}</span>
-                  <button type="button" style={{ ...button, padding: "5px 8px" }} aria-label={`Remove watched Discord member ${userId}`} onClick={() => setWatchlistUserIds((current) => current.filter((entry) => entry !== userId))}>Remove</button>
+                  <span>{watchlistName(userId)}</span>
+                  <button type="button" style={{ ...button, padding: "5px 8px" }} aria-label={`Remove ${watchlistName(userId)} from watchlist`} onClick={() => setWatchlistUserIds((current) => current.filter((entry) => entry !== userId))}>Remove</button>
                 </div>
               ))}
               {!watchlistUserIds.length ? <span style={{ color: colors.muted, fontSize: 12 }}>No members on your alert list yet.</span> : null}

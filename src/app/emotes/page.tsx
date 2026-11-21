@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 type Guild = { id: string; name: string; owner?: boolean; botPresent?: boolean };
 type Asset = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; published?: boolean };
 type CatalogItem = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; publishedAt: string; useCount: number };
-type PendingCatalogItem = { id: string; sourceGuildId: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; submittedAt: string };
+type PendingCatalogItem = { id: string; sourceGuildId: string; sourceGuildName: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; submittedAt: string };
 
 const shell: CSSProperties = { minHeight: "100vh", padding: "clamp(18px, 4vw, 48px)", color: "#ffe4ee", background: "radial-gradient(ellipse at 85% 0%, #5b082e 0%, transparent 36%), radial-gradient(ellipse at 0% 40%, #3b071f 0%, transparent 40%), #10000b" };
 const panel: CSSProperties = { border: "1px solid #8a2450", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, rgba(55,5,29,.95), rgba(18,0,12,.97))", boxShadow: "0 12px 32px rgba(0,0,0,.22)" };
@@ -193,7 +193,7 @@ export default function EmoteLibraryPage() {
             {pendingItems.map((item) => <article key={item.id} style={{ ...panel, padding: 14 }}>
               <img src={item.url} alt={item.name} loading="lazy" referrerPolicy="no-referrer" style={{ display: "block", width: "100%", height: 120, objectFit: "contain", background: "#10000b", borderRadius: 10 }} />
               <strong style={{ display: "block", marginTop: 8 }}>{item.name} · {item.assetType}</strong>
-              <div style={muted}>Source: {guildName(item.sourceGuildId)}</div>
+              <div style={muted}>Source: {item.sourceGuildName || "Discord server"}</div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <button type="button" style={button} disabled={Boolean(busy)} onClick={() => void reviewAsset(item, "approve")}>Approve</button>
                 <button type="button" style={{ ...button, background: "#421328" }} disabled={Boolean(busy)} onClick={() => void reviewAsset(item, "reject")}>Reject</button>

@@ -130,6 +130,7 @@ function formatChannelLabel(channel: GuildChannel, channels: GuildChannel[]) {
 export default function GameSocialClient({ guildId, guildName, mode, authenticatedUserId }: Props) {
   const context = useMemo(() => resolveGuildContext(), []);
   const viewerUserId = authenticatedUserId || context.userId;
+  const [viewerDisplayName, setViewerDisplayName] = useState("Your Discord account");
   const [engines, setEngines] = useState<Record<EngineKey, EnginePayload>>({ gameIdentity: {}, privacyConsent: {}, presenceFusion: {}, playtime: {}, squadFinder: {}, gameProvider: {}, showoff: {}, searchAnything: {} });
   const [channels, setChannels] = useState<GuildChannel[]>([]);
   const [roles, setRoles] = useState<GuildRole[]>([]);
@@ -145,6 +146,17 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
   const [mapForm, setMapForm] = useState({ providerKey: "apex", mode: "", currentMap: "", nextMap: "", expiresInMinutes: "", sourceKey: "manual" });
   const [rankSyncForm, setRankSyncForm] = useState({ userId: viewerUserId || "", gameKey: "" });
   const [refreshForm, setRefreshForm] = useState({ userId: viewerUserId || "", providerKey: "steam" });
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/auth/session?brief=1", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((session) => {
+        const name = String(session?.user?.globalName || session?.user?.username || "Your Discord account");
+        if (active) setViewerDisplayName(name);
+      }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const loadAll = useCallback(async (targetGuildId: string, quiet = false, forceRefresh = false) => {
     if (!targetGuildId) return;
@@ -431,7 +443,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
               <div style={card}>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>My Linked Identity</div>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input style={input} value={identityForm.userId} readOnly />
+                  <div style={{ ...input, color: "#ffb3b3" }}>Account: {viewerDisplayName}</div>
                   <select style={input} value={identityForm.providerKey} onChange={(event) => setIdentityForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{LINK_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   {identityForm.providerKey === "playstation" ? <input style={input} placeholder="PlayStation Online ID" value={identityForm.handle} onChange={(event) => setIdentityForm((prev) => ({ ...prev, handle: event.target.value }))} /> : <div style={{ color: "#ffb3b3", fontSize: 11 }}>Connect securely through the platform sign-in below. No gamertag, account ID, or profile URL is needed.</div> }
                   
@@ -501,7 +513,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>Verification + Alerts</div>
                 <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 8 }}>This verifies the accounts linked to your own Discord profile. Staff-only verification stays tucked under the operator override.</div>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input style={input} value={verificationForm.userId || viewerUserId || ""} readOnly />
+                  <div style={{ ...input, color: "#ffb3b3" }}>Account: {viewerDisplayName}</div>
                   <select style={input} value={verificationForm.providerKey} onChange={(event) => setVerificationForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{LINK_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <select style={input} value={verificationForm.platform} onChange={(event) => setVerificationForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
                   <input style={input} placeholder="Optional token override" value={verificationForm.proofToken} onChange={(event) => setVerificationForm((prev) => ({ ...prev, proofToken: event.target.value }))} />
@@ -595,7 +607,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>Stats Snapshot / Import</div>
                 <div style={{ color: "#ffb3b3", fontSize: 12, marginBottom: 8 }}>This saves or refreshes your own linked account by default. Staff can open the operator override below when they need to target someone else.</div>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input style={input} value={statsForm.userId || viewerUserId || ""} readOnly />
+                  <div style={{ ...input, color: "#ffb3b3" }}>Account: {viewerDisplayName}</div>
                   <select style={input} value={statsForm.providerKey} onChange={(event) => setStatsForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{STATS_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
                   <select style={input} value={statsForm.platform} onChange={(event) => setStatsForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
                   <select style={input} value={refreshForm.providerKey} onChange={(event) => setRefreshForm((prev) => ({ ...prev, providerKey: event.target.value }))}>{REFRESH_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
@@ -629,7 +641,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                   <input style={input} placeholder="Next map" value={mapForm.nextMap} onChange={(event) => setMapForm((prev) => ({ ...prev, nextMap: event.target.value }))} />
                   <input style={input} placeholder="Expires in minutes" value={mapForm.expiresInMinutes} onChange={(event) => setMapForm((prev) => ({ ...prev, expiresInMinutes: event.target.value }))} />
                   <select style={input} value={mapForm.sourceKey} onChange={(event) => setMapForm((prev) => ({ ...prev, sourceKey: event.target.value }))}>{SOURCES.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>
-                  <input style={input} value={rankSyncForm.userId || viewerUserId || ""} readOnly />
+                  <div style={{ ...input, color: "#ffb3b3" }}>Account: {viewerDisplayName}</div>
                   <select style={input} value={rankSyncForm.gameKey} onChange={(event) => setRankSyncForm((prev) => ({ ...prev, gameKey: event.target.value }))}><option value="">All games</option>{ROLE_SYNC_GAMES.map((entry) => <option key={entry.key} value={entry.key}>{entry.label.replace(" Role Map", "")}</option>)}</select>
 
                 </div>
@@ -726,7 +738,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
                   Members should submit screenshot proof here. Staff can approve the claim so hours are added as `staff_verified`.
                 </div>
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input style={input} value={playtimeForm.userId || viewerUserId || ""} readOnly />
+                  <div style={{ ...input, color: "#ffb3b3" }}>Account: {viewerDisplayName}</div>
                   <input style={input} placeholder="Game title" value={playtimeForm.game} onChange={(event) => setPlaytimeForm((prev) => ({ ...prev, game: event.target.value }))} />
                   <select style={input} value={playtimeForm.platform} onChange={(event) => setPlaytimeForm((prev) => ({ ...prev, platform: event.target.value }))}>{PLATFORMS.map((entry) => <option key={entry.value || "any"} value={entry.value}>{entry.label}</option>)}</select>
                   <select style={input} value={playtimeForm.providerKey} onChange={(event) => setPlaytimeForm((prev) => ({ ...prev, providerKey: event.target.value }))}><option value="">Any provider</option>{LINK_PROVIDERS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}</select>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { buildDashboardHref } from "@/lib/dashboardContext";
-import { fetchRuntimeEngine, resolveGuildContext, runRuntimeEngineAction, saveRuntimeEngine } from "@/lib/liveRuntime";
+import { fetchGuildData, fetchRuntimeEngine, resolveGuildContext, runRuntimeEngineAction, saveRuntimeEngine, type GuildChannel } from "@/lib/liveRuntime";
 
 type SignalSource = {
   id?: string;
@@ -75,16 +75,16 @@ const PROVIDERS = [
   { key: "kick", label: "Kick Alerts", detail: "Stream notices routed with the same signal source engine.", anchor: "#sources" },
 ] as const;
 
-function createSource(provider: string): SignalSource {
+function createSource(provider: string, initial: { channelId?: string; sourceRef?: string } = {}): SignalSource {
   const label = PROVIDERS.find((entry) => entry.key === provider)?.label || provider.toUpperCase();
   return {
     id: `source_${provider}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    enabled: true,
+    enabled: false,
     label,
     provider,
-    channelId: "",
+    channelId: String(initial.channelId || ""),
     feedUrl: "",
-    sourceRef: "",
+    sourceRef: String(initial.sourceRef || ""),
     resourceType: provider === "reddit" ? "subreddit" : provider === "facebook" ? "page" : provider === "youtube" ? "handle" : provider === "rss" || provider === "podcast" ? "feed" : "handle",
     bridgeBaseUrl: "https://rsshub.app",
     color: provider === "youtube" ? "#ff3838" : provider === "twitch" ? "#7c3aed" : "#4fd1c5",
@@ -121,6 +121,8 @@ export default function SocialAlertsClient() {
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState("");
   const [message, setMessage] = useState("");
+  const [channels, setChannels] = useState<GuildChannel[]>([]);
+  const [routeDrafts, setRouteDrafts] = useState<Record<string, { sourceRef: string; channelId: string }>>({});
 
   useEffect(() => {
     const resolved = resolveGuildContext();
@@ -136,8 +138,16 @@ export default function SocialAlertsClient() {
     try {
       setLoading(true);
       setMessage("");
-      const json = await fetchRuntimeEngine(targetGuildId, "signalRelay");
-      setConfig(normalizeConfig(((json as RuntimePayload)?.config || {}) as SignalRelayConfig));
+      const [json, guildData] = await Promise.all([fetchRuntimeEngine(targetGuildId, "signalRelay"), fetchGuildData(targetGuildId)]);
+      const normalized = normalizeConfig(((json as RuntimePayload)?.config || {}) as SignalRelayConfig);
+      setConfig(normalized);
+      setChannels((guildData.channels || []).filter((channel) => Number(channel.type) === 0 || Number(channel.type) === 5));
+      const drafts: Record<string, { sourceRef: string; channelId: string }> = {};
+      for (const source of normalized.sources || []) {
+        const provider = String(source.provider || "").toLowerCase();
+        if (provider && !drafts[provider]) drafts[provider] = { sourceRef: String(source.feedUrl || source.sourceRef || ""), channelId: String(source.channelId || "") };
+      }
+      setRouteDrafts(drafts);
     } catch (err: any) {
       setMessage(err?.message || "Failed to load Social Alerts.");
     } finally {
@@ -157,23 +167,30 @@ export default function SocialAlertsClient() {
       const current = normalizeConfig(config);
       let sources = Array.isArray(current.sources) ? [...current.sources] : [];
       const matching = sources.filter((source) => String(source.provider || "").toLowerCase() === provider);
+      const draft = routeDrafts[provider] || { sourceRef: "", channelId: "" };
 
       if (nextValue) {
+        const sourceRef = String(draft.sourceRef || matching[0]?.feedUrl || matching[0]?.sourceRef || "").trim();
+        const channelId = String(draft.channelId || matching[0]?.channelId || "").trim();
+        if (!sourceRef) throw new Error("Add the account handle or feed URL before turning this provider on.");
+        if (!channelId || !channels.some((channel) => String(channel.id) === channelId)) throw new Error("Choose an existing destination channel before turning this provider on.");
         if (!matching.length) {
-          sources.push(createSource(provider));
+          sources.push({ ...createSource(provider, { sourceRef, channelId }), enabled: true });
         } else {
           sources = sources.map((source) => (
             String(source.provider || "").toLowerCase() === provider
-              ? { ...source, enabled: true }
+              ? { ...source, enabled: true, channelId, sourceRef, ...(provider === "rss" || provider === "podcast" ? { feedUrl: sourceRef } : {}) }
               : source
           ));
         }
       } else if (matching.length) {
         sources = sources.map((source) => (
           String(source.provider || "").toLowerCase() === provider
-            ? { ...source, enabled: false }
+            ? { ...source, enabled: false, channelId: draft.channelId || source.channelId || "", sourceRef: draft.sourceRef || source.sourceRef || "", ...(provider === "rss" || provider === "podcast" ? { feedUrl: draft.sourceRef || source.feedUrl || "" } : {}) }
             : source
         ));
+      } else {
+        sources.push(createSource(provider, draft));
       }
 
       const active = sources.some((source) => source.enabled !== false);
@@ -251,6 +268,25 @@ export default function SocialAlertsClient() {
                 <span style={pill(cardDef.active)}>{cardDef.active ? "Active" : "Off"}</span>
               </div>
 
+              {(() => {
+                const draft = routeDrafts[cardDef.key] || { sourceRef: "", channelId: "" };
+                return <>
+                  <label style={micro}>Account, handle, subreddit, or feed URL
+                    <input style={{ ...button, width: "100%", textAlign: "left", marginTop: 5, fontWeight: 500 }}
+                      value={draft.sourceRef}
+                      onChange={(event) => setRouteDrafts((current) => ({ ...current, [cardDef.key]: { ...draft, sourceRef: event.target.value } }))}
+                      placeholder={cardDef.key === "rss" || cardDef.key === "podcast" ? "https://example.com/feed.xml" : "Enter a public account handle"} />
+                  </label>
+                  <label style={micro}>Destination channel
+                    <select style={{ ...button, width: "100%", textAlign: "left", marginTop: 5 }} value={draft.channelId}
+                      onChange={(event) => setRouteDrafts((current) => ({ ...current, [cardDef.key]: { ...draft, channelId: event.target.value } }))}>
+                      <option value="">Select a channel</option>
+                      {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                    </select>
+                  </label>
+                </>;
+              })()}
+
               <div style={micro}>
                 {cardDef.enabledCount
                   ? `${cardDef.enabledCount} enabled source${cardDef.enabledCount === 1 ? "" : "s"} live for this provider.`
@@ -259,10 +295,13 @@ export default function SocialAlertsClient() {
               <div style={{ fontSize: 12, color: "#ffcfcf" }}>
                 {cardDef.configuredCount
                   ? `${cardDef.configuredCount} source${cardDef.configuredCount === 1 ? "" : "s"} already have both a channel and provider route.`
-                  : "Enable the provider, then finish the handle / route details and channel inside Signal Relay."}
+                  : "Save the route and channel here first. The source stays off until you explicitly turn it on."}
               </div>
 
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" style={button} disabled={savingKey === cardDef.key} onClick={() => void toggleProvider(cardDef.key, cardDef.active)}>
+                  Save Route
+                </button>
                 <button
                   type="button"
                   style={button}

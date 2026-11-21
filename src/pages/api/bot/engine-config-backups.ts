@@ -16,7 +16,7 @@ async function readRequestBody(req: NextApiRequest): Promise<{ body: any; raw: B
   for await (const chunk of req) {
     const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += part.length;
-    if (size > 2 * 1024 * 1024) throw new Error("Request body is too large.");
+    if (size > 5 * 1024 * 1024) throw new Error("Request body is too large.");
     chunks.push(part);
   }
   const raw = Buffer.concat(chunks);
@@ -57,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const headers = await buildBotApiHeaders(req, { json: true });
       const proof = String(req.headers["x-restore-auth-proof"] || "").trim();
       if (proof) headers["x-restore-auth-proof"] = proof;
-      if (action === "features-preview" || action === "features-restore") {
+      if (["features-preview", "features-restore", "full-preview", "full-restore"].includes(action)) {
         let origin: string;
         let botUrl: URL;
         try {

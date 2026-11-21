@@ -1,4 +1,5 @@
 "use strict";
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -6,164 +7,117 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const ts = require("typescript");
 
-const guild = "111111111111111111";
-const other = "222222222222222222";
-const audit = "audit-trail-config.json";
-const runtime = "runtime-safety.json";
-const source = fs.readFileSync(path.join(__dirname, "..", "src", "pages", "api", "system", "config-backup.ts"), "utf8");
-const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
-function loadLibrary(name, fileSystem = fs, cwd = process.cwd()) {
-  const source = fs.readFileSync(path.join(__dirname, "..", "src", "lib", `${name}.ts`), "utf8");
-  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
-  const mod = { exports: {} };
-  new Function("require", "module", "exports", "process", js)((name) => name === "fs" ? fileSystem : require(name), mod, mod.exports, { cwd: () => cwd });
-  return mod.exports;
-}
-const discord = loadLibrary("discordOAuth");
+const guildId = "111111111111111111";
+const otherGuildId = "222222222222222222";
+const ownerId = "333333333333333333";
+const adminId = "444444444444444444";
+const backupKind = "possum-dashboard-full-configuration";
+const files = {
+  "audit-trail-config.json": { present: true, value: { active: true, channelId: "555555555555555555" } },
+  "runtime-safety.json": { present: false },
+};
 
-function fixture(t) {
-  const root = path.join(__dirname, `config-backup-test-${crypto.randomBytes(8).toString("hex")}`);
-  const dir = path.join(root, "data", "setup");
-  fs.mkdirSync(dir, { recursive: true });
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const state = { session: { user: { id: "actor" }, accessToken: "token" }, discordUser: { id: "actor" }, guilds: [{ id: guild, permissions: "32" }], premium: true, auditFail: false, failRename: "", failRead: "" };
-  const fileSystem = {
-    ...fs,
-    renameSync(from, to) { if (path.basename(to) === state.failRename) throw Error("write failed"); return fs.renameSync(from, to); },
-    readFileSync(file, ...args) {
-      if (path.basename(file) === state.failRead) { const error = Error("file disappeared"); error.code = "ENOENT"; throw error; }
-      return fs.readFileSync(file, ...args);
+function makeFullBackup(targetGuild = guildId) {
+  return {
+    kind: backupKind, version: 1, id: crypto.randomUUID(), guildId: targetGuild,
+    name: "Test backup", createdAt: new Date().toISOString(),
+    bot: { id: "bot-backup", guildId: targetGuild, config: { onboarding: {} }, features: { onboardingEnabled: true } },
+    dashboard: { kind: "possum-dashboard-settings", version: 2, guildId: targetGuild, name: "Dashboard settings",
+      createdAt: new Date().toISOString(), actorUserId: ownerId, files },
+  };
+}
+
+function fixture(options = {}) {
+  const state = {
+    session: { user: { id: options.actorId || ownerId }, accessToken: "discord-token" },
+    guild: { id: guildId, owner: options.isOwner !== false, permissions: options.isOwner === false ? "32" : "0" },
+    botCalls: [], dashboardCalls: [], saved: new Map(),
+    botResponse: options.botResponse || {},
+  };
+  const setupBackup = {
+    captureDashboardSettingsBackup(id, name = "", actorId = "") { return { kind: "possum-dashboard-settings", version: 2, guildId: id, name, createdAt: new Date().toISOString(), actorUserId: actorId, files: structuredClone(files) }; },
+    validateDashboardSettingsBackup(value, id) { if (value?.guildId !== id || value?.kind !== "possum-dashboard-settings") throw new Error("Invalid dashboard settings backup."); },
+    previewDashboardSettingsRestore(id, actor, target) { state.dashboardCalls.push({ action: "preview", id, actor }); return { token: "dashboard-preview", recovery: { ...structuredClone(target), name: "recovery" }, changedFiles: ["audit-trail-config.json"] }; },
+    restoreDashboardSettings(id, actor, target, token) { state.dashboardCalls.push({ action: "restore", id, actor, token }); return token === "dashboard-preview" ? { success: true, applied: ["audit-trail-config.json"] } : { success: false, reason: "preview-invalid" }; },
+    savePrivateDashboardBackup(id, backup) { const meta = { id: backup.id, guildId: id, name: backup.name, createdAt: backup.createdAt, bytes: 120, engineCount: 1, featureCount: 1 }; state.saved.set(meta.id, { ...meta, backup }); return meta; },
+    listPrivateDashboardBackups(id) { return [...state.saved.values()].filter((entry) => entry.guildId === id).map(({ backup: _backup, ...meta }) => meta); },
+    getPrivateDashboardBackup(id, key) { const entry = state.saved.get(key); return entry?.guildId === id ? entry : null; },
+    deletePrivateDashboardBackup(id, key) { const entry = state.saved.get(key); if (entry?.guildId !== id) return false; state.saved.delete(key); return true; },
+  };
+  const mocks = {
+    "@/lib/setupStore": { appendAudit() {} },
+    "@/lib/discordOAuth": {
+      fetchDiscordUser: async () => ({ id: state.session.user.id }),
+      fetchDiscordGuilds: async () => [state.guild],
+      hasGuildManageAccess: (guild) => guild?.owner === true || guild?.permissions === "32",
+    },
+    "@/lib/session": { DASHBOARD_SESSION_COOKIE: "session", readDashboardSessionValue: async () => state.session },
+    "@/lib/dashboardConfigBackup": setupBackup,
+    "@/lib/botApi": {
+      BOT_API: "http://127.0.0.1:3001",
+      buildBotApiHeaders: async () => ({ "x-dashboard-token": "token" }),
+      fetchBotApi: async (_url, init) => {
+        const body = JSON.parse(String(init.body)); state.botCalls.push(body);
+        const result = state.botResponse[body.action] || (body.action === "full-preview"
+          ? { success: true, token: "bot-preview", recovery: { guildId, config: {}, features: {} }, changedEngines: ["onboarding"], changedFeatures: ["onboardingEnabled"], changedDashboardSettings: ["Automation flows"] }
+          : { success: true, appliedEngines: ["onboarding"], appliedDashboardSettings: true });
+        return { ok: result.success !== false, status: result.status || (result.success === false ? 409 : 200), text: async () => JSON.stringify(result) };
+      },
+      readJsonSafe: async (response) => JSON.parse(await response.text()),
     },
   };
-  const actualSetup = loadLibrary("setupStore", fileSystem, root);
-  const setup = { ...actualSetup, appendAudit() { if (state.auditFail) throw Error("audit failed"); } };
-  const mocks = {
-    fs: fileSystem,
-    "@/lib/setupStore": setup,
-    "@/lib/premiumGuard": { requirePremiumAccess: async (_req, res) => state.premium ? true : res.status(402).json({ success: false }) },
-    "@/lib/session": { DASHBOARD_SESSION_COOKIE: "session", readDashboardSessionValue: async () => state.session },
-    "@/lib/discordOAuth": { fetchDiscordUser: async () => state.discordUser, fetchDiscordGuilds: async () => { if (state.guilds instanceof Error) throw state.guilds; return state.guilds; }, hasGuildManageAccess: discord.hasGuildManageAccess },
-  };
+  const source = fs.readFileSync(path.join(__dirname, "..", "src", "pages", "api", "system", "config-backup.ts"), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   const mod = { exports: {} };
-  new Function("require", "module", "exports", "process", compiled)((name) => mocks[name] || require(name), mod, mod.exports, { cwd: () => root });
-  const put = (file, value) => fs.writeFileSync(path.join(dir, file), typeof value === "string" ? value : JSON.stringify(value));
-  const get = (file) => JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
-  const call = async (method, body = {}, query = { guildId: guild }) => {
-    const res = { statusCode: 200, status(n) { this.statusCode = n; return this; }, json(value) { this.body = value; return this; }, setHeader() {} };
-    await mod.exports.default({ method, query, body, cookies: {} }, res);
+  new Function("require", "module", "exports", "process", compiled)((name) => mocks[name] || require(name), mod, mod.exports, process);
+  const call = async (method, body = {}, query = { guildId }, origin = "https://dashboard.example") => {
+    const res = { statusCode: 200, headers: {}, setHeader(key, value) { this.headers[key] = value; }, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; } };
+    await mod.exports.default({ method, query, body, cookies: { session: "session" }, headers: {
+      origin, host: "dashboard.example", "x-forwarded-proto": "https",
+      "content-type": "application/json",
+    } }, res);
     return res;
   };
-  const callSettings = async (route, method, body = {}, query = { guildId: guild }) => {
-    const source = fs.readFileSync(path.join(__dirname, "..", "src", "pages", "api", ...route.split("/")) + ".ts", "utf8");
-    const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
-    const target = { exports: {} };
-    const dependencies = { ...mocks, "@/lib/dashboardAudit": { auditDashboardEvent: async () => {} }, "@/lib/rateLimiter": { enforceDashboardRateLimit: async () => {}, isRateLimitError: () => false } };
-    new Function("require", "module", "exports", "process", js)((name) => dependencies[name] || require(name), target, target.exports, { cwd: () => root });
-    const res = { statusCode: 200, status(n) { this.statusCode = n; return this; }, json(value) { this.body = value; return this; } };
-    await target.exports.default({ method, query, body, cookies: {} }, res);
-    return res;
-  };
-  return { state, put, get, call, callSettings, setup, dir, restore: mod.exports.restoreConfigBackup };
+  return { state, call };
 }
 
-test("export and isolated restore round trip merge and replace without changing other guilds", async (t) => {
-  const f = fixture(t);
-  f.put(audit, { [guild]: { include: { ai: true }, active: true }, [other]: { keep: 7 } });
-  f.put(runtime, { [guild]: { active: true } });
-  f.put("unlisted.json", { [guild]: { private: true } });
-  const response = await f.call("GET");
+test("full export captures dashboard settings and is scoped to the selected guild", async () => {
+  const f = fixture();
+  const response = await f.call("GET", {}, { guildId, action: "export" });
   assert.equal(response.statusCode, 200);
-  const backup = response.body.backup;
-  assert.deepEqual(Object.keys(backup.files), [audit, runtime]);
-  f.put(audit, { [guild]: { include: { moderation: true }, extra: 1 }, [other]: { keep: 7 } });
-  assert.equal(f.restore(guild, backup, "merge").success, true);
-  assert.deepEqual(f.get(audit)[guild], { include: { moderation: true, ai: true }, extra: 1, active: true });
-  assert.deepEqual(f.get(audit)[other], { keep: 7 });
-  assert.equal(f.restore(guild, backup, "replace").success, true);
-  assert.deepEqual(f.get(audit)[guild], backup.files[audit]);
-  assert.deepEqual(f.get(audit)[other], { keep: 7 });
-  const blocked = await f.call("POST", { guildId: guild, payload: backup });
-  assert.equal(blocked.statusCode, 503);
-  assert.match(blocked.body.error, /isolated/);
+  assert.equal(response.body.backup.guildId, guildId);
+  assert.equal(response.body.backup.files["audit-trail-config.json"].value.channelId, "555555555555555555");
+  assert.equal(f.state.botCalls.length, 0);
+});
+test("composite preview reports database changes and restore applies setup files plus bot settings", async () => {
+  const f = fixture();
+  const backup = makeFullBackup();
+  const preview = await f.call("POST", { guildId, action: "preview", backup });
+  assert.equal(preview.statusCode, 200);
+  assert.deepEqual(preview.body.changedDatabaseSettings, ["Automation flows"]);
+  assert.deepEqual(preview.body.changedDashboardFiles, ["audit-trail-config.json"]);
+  const restored = await f.call("POST", { guildId, action: "restore", backup, previewToken: preview.body.token, confirm: true, recoveryDownloaded: true });
+  assert.equal(restored.statusCode, 200);
+  assert.equal(f.state.dashboardCalls.at(-1).action, "restore");
+  assert.deepEqual(f.state.botCalls.map((entry) => entry.action), ["full-preview", "full-restore"]);
+  assert.match(restored.body.warning, /flow definitions/);
 });
 
-test("requires authenticated live guild management and premium access", async (t) => {
-  const f = fixture(t);
-  f.state.session = null; assert.equal((await f.call("GET")).statusCode, 401);
-  f.state.session = { user: { id: "actor" }, accessToken: "token" };
-  f.state.discordUser = { id: "different" }; assert.equal((await f.call("GET")).statusCode, 401);
-  f.state.discordUser = { id: "actor" };
-  f.state.guilds = [{ id: other, owner: true }]; assert.equal((await f.call("GET")).statusCode, 403);
-  f.state.guilds = [{ id: guild, permissions: "0" }]; assert.equal((await f.call("GET")).statusCode, 403);
-  assert.equal((await f.call("POST", { guildId: guild, payload: { guildId: guild, files: {} } })).statusCode, 403);
-  f.state.guilds = Error("offline"); assert.equal((await f.call("GET")).statusCode, 503);
-  f.state.guilds = [{ id: guild, owner: true }]; f.state.premium = false; assert.equal((await f.call("GET")).statusCode, 402);
+test("guild administrators may export but cannot restore another server's dashboard settings", async () => {
+  const f = fixture({ isOwner: false, actorId: adminId });
+  const exportResult = await f.call("GET", {}, { guildId, action: "export" });
+  assert.equal(exportResult.statusCode, 200);
+  const denied = await f.call("POST", { guildId, action: "preview", backup: makeFullBackup() });
+  assert.equal(denied.statusCode, 403);
+  assert.equal(f.state.botCalls.length, 0);
+});
+test("cross-guild backups and cross-origin restore requests are rejected before writes", async () => {
+  const f = fixture();
+  const foreign = makeFullBackup(otherGuildId);
+  const invalid = await f.call("POST", { guildId, action: "preview", backup: foreign });
+  assert.equal(invalid.statusCode, 400);
+  const crossOrigin = await f.call("POST", { guildId, action: "preview", backup: makeFullBackup() }, { guildId }, "https://evil.example");
+  assert.equal(crossOrigin.statusCode, 403);
+  assert.equal(f.state.botCalls.length, 0);
 });
 
-test("rejects cross-guild, unknown files, malformed values and dangerous keys before any writes", async (t) => {
-  const f = fixture(t);
-  f.put(audit, { [other]: { keep: true } });
-  const bad = [
-    { guildId: other, files: { [audit]: {} } },
-    { guildId: guild, files: { "anything.json": {} } },
-    { guildId: guild, files: { "../audit-trail-config.json": {} } },
-    { guildId: guild, files: { [audit]: [] } },
-    JSON.parse(`{"guildId":"${guild}","files":{"${audit}":{"__proto__":{"polluted":true}}}}`),
-  ];
-  for (const payload of bad) {
-    assert.equal((await f.call("POST", { guildId: guild, payload })).statusCode, 400);
-    assert.equal(f.restore(guild, payload, "replace").success, false);
-  }
-  assert.equal((await f.call("POST", { guildId: other, payload: bad[0] })).statusCode, 400);
-  assert.deepEqual(f.get(audit), { [other]: { keep: true } });
-});
-
-test("corrupt or wrong-shaped stores fail export and preflight without writes", async (t) => {
-  const f = fixture(t);
-  f.put(audit, { [guild]: { active: true }, [other]: { keep: true } });
-  for (const corrupt of ["", "{broken", "[]", "null"]) {
-    f.put(runtime, corrupt);
-    assert.equal((await f.call("GET")).statusCode, 500);
-    const result = f.restore(guild, { guildId: guild, files: { [audit]: { active: false }, [runtime]: {} } }, "replace");
-    assert.equal(result.success, false); assert.deepEqual(result.applied, []);
-    assert.deepEqual(f.get(audit)[guild], { active: true });
-    assert.equal(fs.readFileSync(path.join(f.dir, runtime), "utf8"), corrupt);
-  }
-  f.put(runtime, { [other]: { keep: true } }); f.state.failRead = runtime;
-  assert.equal((await f.call("GET")).statusCode, 500);
-  assert.equal(f.restore(guild, { guildId: guild, files: { [runtime]: {} } }, "replace").success, false);
-  assert.deepEqual(f.get(runtime), { [other]: { keep: true } });
-});
-
-test("atomic writes report partial failures and audit errors", (t) => {
-  const f = fixture(t);
-  f.put(audit, { [other]: { keep: true } }); f.put(runtime, { [other]: { keep: 2 } });
-  const payload = { guildId: guild, files: { [audit]: { active: true }, [runtime]: { active: false } } };
-  f.state.failRename = runtime;
-  const partial = f.restore(guild, payload, "replace");
-  assert.equal(partial.success, false); assert.deepEqual(partial.applied, [audit]);
-  assert.deepEqual(f.get(runtime), { [other]: { keep: 2 } });
-  assert.deepEqual(fs.readdirSync(f.dir).filter((name) => name.endsWith(".tmp")), []);
-  f.state.failRename = ""; f.state.auditFail = true;
-  const failedAudit = f.restore(guild, payload, "replace");
-  assert.equal(failedAudit.success, false); assert.deepEqual(failedAudit.applied, [audit, runtime]);
-});
-
-test("live settings routes and backup share a lock and reject corrupt stores", async (t) => {
-  const f = fixture(t);
-  for (const [route, file] of [["audit/config", audit], ["system/runtime-safety", runtime]]) {
-    f.put(file, { [other]: { keep: true } });
-    assert.equal((await f.callSettings(route, "POST", { guildId: guild, patch: { active: false } })).statusCode, 200);
-    assert.equal(f.get(file)[guild].active, false);
-    assert.deepEqual(f.get(file)[other], { keep: true });
-    f.put(file, "{broken");
-    assert.equal((await f.callSettings(route, "POST", { guildId: guild, patch: { active: true } })).statusCode, 500);
-    assert.equal(fs.readFileSync(path.join(f.dir, file), "utf8"), "{broken");
-    f.put(file, { [other]: { keep: true } });
-  }
-  fs.mkdirSync(path.join(f.dir, ".setup-store.lock"));
-  assert.equal((await f.call("GET")).statusCode, 500);
-  assert.equal((await f.callSettings("system/runtime-safety", "POST", { guildId: guild, patch: { active: true } })).statusCode, 500);
-  assert.equal(f.restore(guild, { guildId: guild, files: { [runtime]: { active: true } } }, "replace").success, false);
-  assert.deepEqual(f.get(runtime), { [other]: { keep: true } });
-});

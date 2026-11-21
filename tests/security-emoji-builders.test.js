@@ -50,24 +50,31 @@ test("guild data cache retains the server's emoji tokens", async () => {
 });
 
 test("picker only inserts an available selected emoji", () => {
-  let selected = "";
+  const state = [];
+  let cursor = 0;
   let inserted;
   const picker = load("components/possum/GuildEmojiPicker.tsx", {
     "react/jsx-runtime": jsx,
-    react: { useState: () => [selected, (value) => { selected = value; }] },
+    react: { useState: (initial) => {
+      const index = cursor++;
+      if (!(index in state)) state[index] = initial;
+      return [state[index], (value) => { state[index] = value; }];
+    } },
   }).default;
+  const render = (emojis) => { cursor = 0; return picker({ emojis, onInsert: (value) => { inserted = value; } }); };
   const emojis = [
     { id: "1", name: "wave", token: "<a:wave:1>", animated: true },
     { id: "2", name: "gone", token: "<:gone:2>", available: false },
   ];
-  let tree = picker({ emojis, onInsert: (value) => { inserted = value; } });
-  assert.equal(nodes(tree).filter((node) => node.type === "option").length, 2);
-  assert.equal(nodes(tree).find((node) => node.type === "button").props.disabled, true);
-  nodes(tree).find((node) => node.type === "select").props.onChange({ target: { value: "<a:wave:1>" } });
-  tree = picker({ emojis, onInsert: (value) => { inserted = value; } });
+  let tree = render(emojis);
   nodes(tree).find((node) => node.type === "button").props.onClick();
+  tree = render(emojis);
+  const emojiButtons = nodes(tree).filter((node) => node.type === "button" && String(node.props["aria-label"] || "").startsWith("Insert :"));
+  assert.equal(emojiButtons.length, 1);
+  assert.equal(emojiButtons[0].props["aria-label"], "Insert :wave: animated");
+  emojiButtons[0].props.onClick();
   assert.equal(inserted, "<a:wave:1>");
-  tree = picker({ emojis: [], onInsert() {} });
+  tree = render([]);
   assert.equal(tree.type, "small");
 });
 

@@ -9,6 +9,7 @@ import { buildDashboardHref } from "@/lib/dashboardContext";
 
 type JedConfig = {
   enabled: boolean;
+  adultCatalogEnabled: boolean;
   batchLimit: number;
   publicTTL: number;
   tempTTL: number;
@@ -25,6 +26,7 @@ type JedConfig = {
 
 const DEFAULT_CONFIG: JedConfig = {
   enabled: true,
+  adultCatalogEnabled: false,
   batchLimit: 1,
   publicTTL: 45,
   tempTTL: 60,
@@ -108,7 +110,8 @@ export default function JedPage() {
         the live guild-level grab rules layered on top of your existing bot logic.
       </div>
       <div style={{ color: "#ffbcbc", marginTop: 12 }}>
-        Guild vault assets are never published automatically. Public submissions and JED sharing are not available.
+        Guild vault assets are never published automatically. Review an asset before publishing it to the general-audience JED library.
+        {" "}<Link href={buildDashboardHref("/emotes")} style={{ color: "#ffd0d0" }}>Open Public Emoji, Sticker &amp; GIF Library</Link>
         {" "}<Link href={buildDashboardHref("/dashboard/jed/adult-emotes")} style={{ color: "#ffd0d0" }}>Open Adult Emote Studio</Link>
         {" · "}<Link href={buildDashboardHref("/dashboard/jed/private-media")} style={{ color: "#ffd0d0" }}>Private media status</Link>
       </div>
@@ -180,6 +183,13 @@ export default function JedPage() {
                 <input type="checkbox" checked={config.enabled} onChange={(e) => setConfig((prev) => ({ ...prev, enabled: e.target.checked }))} />
                 JED Enabled
               </label>
+              <label style={{ display: "inline-flex", gap: 8, alignItems: "center", color: "#ffdcdc", fontWeight: 700 }}>
+                <input type="checkbox" checked={config.adultCatalogEnabled === true} onChange={(e) => setConfig((prev) => ({ ...prev, adultCatalogEnabled: e.target.checked }))} />
+                Allow 18+ catalog submissions for this server
+              </label>
+              <div style={{ color: "#ffcc86", lineHeight: 1.6, gridColumn: "1 / -1" }}>
+                Off by default. This records the server&apos;s NSFW preference only; it does not verify a user&apos;s age or unlock adult catalog items. Public 18+ browsing/export stays unavailable until an age-assurance provider and age-gated access checks are configured.
+              </div>
               <div>
                 <div style={label}>Items Per Grab</div>
                 <input

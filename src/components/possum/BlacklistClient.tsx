@@ -8,6 +8,8 @@ import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 type BlacklistCfg = {
   enabled: boolean;
   autoBan: boolean;
+  addAction: "legacy" | "ban" | "kick_dm" | "record_only";
+  kickDmTemplate: string;
   auditChannelId: string;
   staffRoleIds: string[];
   notes: string;
@@ -16,6 +18,8 @@ type BlacklistCfg = {
 const DEFAULT_CFG: BlacklistCfg = {
   enabled: true,
   autoBan: true,
+  addAction: "legacy",
+  kickDmTemplate: "You were removed from {{guildName}}. Reason: {{reason}}",
   auditChannelId: "",
   staffRoleIds: [],
   notes: "",
@@ -135,7 +139,17 @@ export default function BlacklistClient() {
               <label style={{ color: "#ffdcdc", fontWeight: 700 }}>
                 <input type="checkbox" checked={cfg.autoBan} onChange={(e) => setCfg((prev) => ({ ...prev, autoBan: e.target.checked }))} /> Auto-ban on add
               </label>
+              <label>
+                <div style={label}>Action for new blacklist entries</div>
+                <select style={input} value={cfg.addAction || "legacy"} onChange={(e) => setCfg((prev) => ({ ...prev, addAction: e.target.value as BlacklistCfg["addAction"] }))}>
+                  <option value="legacy">Use existing auto-ban setting</option>
+                  <option value="ban">Ban</option>
+                  <option value="kick_dm">DM reason, then kick</option>
+                  <option value="record_only">Record only</option>
+                </select>
+              </label>
             </div>
+            {cfg.addAction === "kick_dm" ? <label style={{ display: "block", marginTop: 12 }}><div style={label}>Kick DM template ({"{{guildName}}"} and {"{{reason}}"})</div><textarea style={{ ...input, minHeight: 90 }} maxLength={1800} value={cfg.kickDmTemplate || ""} onChange={(e) => setCfg((prev) => ({ ...prev, kickDmTemplate: e.target.value }))} /></label> : null}
             <div style={{ color: "#ffb8b8", fontSize: 12, lineHeight: 1.6, marginTop: 10 }}>
               Entries are global, but this page controls whether this guild can manage them, who counts as blacklist staff, and where audit notices are posted.
             </div>
@@ -187,7 +201,7 @@ export default function BlacklistClient() {
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div style={label}>Reason</div>
-                <textarea style={{ ...input, minHeight: 90 }} value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason for deny-list entry" />
+                <textarea style={{ ...input, minHeight: 120 }} maxLength={1800} value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Full reason for the blacklist entry" />
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>

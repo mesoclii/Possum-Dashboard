@@ -267,7 +267,7 @@ export default function PremiumFeaturesClient() {
                 fontSize: "clamp(2rem, 4vw, 3.6rem)",
               }}
             >
-              Possum Pro
+              Possum Plans
             </h1>
             <p style={{ color: "#ffb5b5", lineHeight: 1.7, maxWidth: 860 }}>
               This page only lists paid guild add-ons, plan pricing, and master-owner trial controls. Standard features
@@ -387,7 +387,7 @@ export default function PremiumFeaturesClient() {
             <button
               type="button"
               disabled={saving}
-              onClick={() => void savePlan(true, "PRO")}
+              onClick={() => void savePlan(true, "MONTHLY")}
               style={{
                 ...action,
                 cursor: saving ? "wait" : "pointer",
@@ -396,12 +396,12 @@ export default function PremiumFeaturesClient() {
                 background: "#130707",
               }}
             >
-              Grant Pro
+              Grant Monthly
             </button>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void savePlan(true, "BUSINESS")}
+              onClick={() => void savePlan(true, "YEARLY")}
               style={{
                 ...action,
                 cursor: saving ? "wait" : "pointer",
@@ -410,12 +410,12 @@ export default function PremiumFeaturesClient() {
                 background: "#130707",
               }}
             >
-              Grant Business
+              Grant Yearly
             </button>
             <button
               type="button"
               disabled={saving}
-              onClick={() => void savePlan(true, "ENTERPRISE")}
+              onClick={() => void savePlan(true, "LIFETIME")}
               style={{
                 ...action,
                 cursor: saving ? "wait" : "pointer",
@@ -424,7 +424,7 @@ export default function PremiumFeaturesClient() {
                 background: "#130707",
               }}
             >
-              Grant Enterprise
+              Grant Lifetime
             </button>
             <button
               type="button"
@@ -453,7 +453,7 @@ export default function PremiumFeaturesClient() {
             Private Creator Launch Controls
           </div>
           <p style={{ color: "#ffb5b5", fontSize: 13, lineHeight: 1.65, marginTop: 0 }}>
-            Approved Possum creator staff can manage private controls here. Hiding a Pro feature removes its public listing and regular server-owner navigation; it does not grant access or change billing.
+            Approved Possum creator staff can manage private controls here. Hiding a premium feature removes its public listing and regular server-owner navigation; it does not grant access or change billing.
           </p>
           {creatorSettingsMessage ? <p role="status" style={{ color: "#ffd39a", fontSize: 13 }}>{creatorSettingsMessage}</p> : null}
           {canManageCreatorSettings ? <div style={{ display: "grid", gap: 10 }}>

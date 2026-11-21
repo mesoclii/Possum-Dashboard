@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, type CSSProperties } from "react";
-import { PLAN_COMMON_FEATURES, PLAN_TIERS, type PlanTierKey } from "@/lib/premiumCatalog";
+import { PLAN_TIERS, type PlanTierKey } from "@/lib/premiumCatalog";
 
 type Props = {
   // Dashboard passes a checkout handler; the public page passes buyHref instead.
@@ -17,6 +17,7 @@ const glow: CSSProperties = { color: "#fff1c7", textShadow: "0 0 12px rgba(255,2
 export default function PlanTierPicker({ onBuy, buyHref, buyLabel, disabled }: Props) {
   const [selected, setSelected] = useState<PlanTierKey>("yearly");
   const tier = PLAN_TIERS.find((entry) => entry.key === selected) || PLAN_TIERS[0];
+  const pricingAvailable = typeof tier.priceUsd === "number" && Number.isFinite(tier.priceUsd) && tier.priceUsd >= 0;
 
   const buyStyle: CSSProperties = {
     display: "inline-block",
@@ -60,7 +61,7 @@ export default function PlanTierPicker({ onBuy, buyHref, buyLabel, disabled }: P
                 {entry.label}
               </div>
               <div style={{ fontSize: 28, fontWeight: 900, marginTop: 4 }}>
-                ${entry.priceUsd}
+                {entry.priceUsd === null ? "Price TBD" : `$${entry.priceUsd}`}
                 <span style={{ fontSize: 12, marginLeft: 6, opacity: 0.8 }}>{entry.cadence}</span>
               </div>
               {entry.badge ? (
@@ -73,33 +74,17 @@ export default function PlanTierPicker({ onBuy, buyHref, buyLabel, disabled }: P
 
       <div style={{ marginTop: 18 }}>
         <div style={{ ...glow, fontSize: 18, fontWeight: 900 }}>
-          {tier.label} - ${tier.priceUsd} {tier.cadence}
+          {tier.label} - {tier.priceUsd === null ? "Price and features to be announced" : `$${tier.priceUsd} ${tier.cadence}`}
         </div>
         <div style={{ color: "#ffd0d0", marginTop: 4 }}>{tier.tagline}</div>
 
-        <div style={{ ...glow, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", marginTop: 14 }}>
-          What you get with {tier.label}
-        </div>
-        <div style={{ ...glow, fontWeight: 700, lineHeight: 1.75, marginTop: 6 }}>
-          {tier.extras.map((item) => (
-            <div key={item} style={{ color: "#9dffb0" }}>+ {item}</div>
-          ))}
-        </div>
+        <div style={{ color: "#ffd9d9", marginTop: 10 }}>Plan features are being finalized. No checkout is available until pricing and included features are configured.</div>
 
-        <div style={{ ...glow, fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", marginTop: 14 }}>
-          Included in every plan
-        </div>
-        <div style={{ color: "#ffd9d9", fontSize: 14, lineHeight: 1.75, marginTop: 6 }}>
-          {PLAN_COMMON_FEATURES.map((item) => (
-            <div key={item}>{item}</div>
-          ))}
-        </div>
-
-        {onBuy ? (
+        {onBuy && pricingAvailable ? (
           <button type="button" disabled={disabled} onClick={() => onBuy(tier.key)} style={buyStyle}>
             {buyLabel || `Buy ${tier.label}`}
           </button>
-        ) : buyHref ? (
+        ) : buyHref && pricingAvailable ? (
           <Link href={buyHref} style={buyStyle}>
             {buyLabel || `Get ${tier.label}`}
           </Link>

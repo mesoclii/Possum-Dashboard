@@ -351,7 +351,7 @@ test("visibility writes enforce origin, signed-in owner, and current guild membe
       } },
       "@/lib/personalSocial": { socialOrigin: () => "https://dashboard.example", isSocialOAuthProvider: (value) => ["twitch", "youtube", "reddit", "x", "tiktok"].includes(value) },
     });
-    assert.equal(route.GET().url, "https://dashboard.example/personal-social");
+    assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/") }).url, "https://dashboard.example/personal-social");
     assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123") }).url, "https://dashboard.example/personal-social?guildId=123");
     assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123%2F..%2Fadmin") }).url, "https://dashboard.example/personal-social");
     assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123&provider=twitch") }).url, "https://dashboard.example/personal-social?guildId=123&provider=twitch");

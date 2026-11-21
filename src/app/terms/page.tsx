@@ -9,7 +9,7 @@ export default function TermsPage() {
     <LegalDocument
       title="Terms of Service"
       updated="November 5, 2026"
-      intro="These terms apply when you add Possum Bot to a Discord server, use the Possum dashboard, or buy a Possum Pro plan. By doing any of these you agree to them. If you do not agree, remove the bot and stop using the dashboard."
+      intro="These terms apply when you add Possum Bot to a Discord server, use the Possum dashboard, or buy a Possum monthly, yearly, or lifetime plan. By doing any of these you agree to them. If you do not agree, remove the bot and stop using the dashboard."
       sections={[
         {
           title: "The service",
@@ -40,8 +40,8 @@ export default function TermsPage() {
           body: "If you supply your own bot token to run a branded bot, you are responsible for that bot application and its compliance with Discord's rules. Tokens are stored encrypted and used only to run that server's bot. You can remove a token from the dashboard at any time. Keep your tokens private; anyone who has one can control that bot.",
         },
         {
-          title: "Possum Pro and payments",
-          body: "Some features are part of the paid Possum Pro plan. Payments are handled by Stripe and we never see or store your full card details. Plans are tied to the server they are purchased for. Unless the law requires otherwise, payments are non-refundable once a billing period has started, and you can cancel any time to stop future charges. If a plan ends, Pro-only features may stop working for that server. Prices and plan features may change with notice on the website.",
+          title: "Possum plans and payments",
+          body: "Some features may be part of monthly, yearly, or lifetime plans. Pricing and included features are still being finalized and checkout is unavailable until they are configured. Payments, when enabled, are handled by Stripe and we never see or store your full card details. Plans are tied to the server they are purchased for.",
         },
         {
           title: "AI features",

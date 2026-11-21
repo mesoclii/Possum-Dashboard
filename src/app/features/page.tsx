@@ -154,7 +154,7 @@ export default function FeaturesPage() {
             href="#pro-features"
             style={{ ...action, marginTop: 18, color: "#fff1c7", border: "1px solid rgba(255,200,120,0.55)", background: "rgba(120,0,0,0.35)" }}
           >
-            See Pro features ↓
+            See premium features ↓
           </a>
         </section>
 

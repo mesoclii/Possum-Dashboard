@@ -34,8 +34,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "TTS Engine",
     route: "/dashboard/tts",
     summary: "Voice playback channels, speech routing, queue rules, and live text-to-speech controls.",
-    premiumLabel: "Premium Feature",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Included through paid guild plans."
   },
   {
@@ -43,8 +43,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Persona AI",
     route: "/dashboard/ai/persona",
     summary: "Hosted generative persona replies, prompt shaping, access rules, and persona photos on a path that stays separate from Possum AI and Bot Personalizer.",
-    premiumLabel: "Premium Feature",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Separate from Possum AI and Bot Personalizer."
   },
   {
@@ -52,8 +52,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Heist Engine",
     route: "/dashboard/heist",
     summary: "Heist signup rotations, channel routing, logging, and event-session controls.",
-    premiumLabel: "Premium Feature",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Guild signup engine only."
   },
   {
@@ -79,8 +79,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Advanced Security + Governance Suite",
     route: "/dashboard/premium-features#advanced-security",
     summary: "Threat intel, link intelligence, behavioral drift, trust weighting, risk escalation, and auto-containment tuning layered on top of the free safety baseline.",
-    premiumLabel: "Premium Suite",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Basic safety stays free. Premium unlocks intelligence, automation, and advanced operator control."
   },
   {
@@ -88,8 +88,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Automation + Custom Commands Suite",
     route: "/dashboard/premium-features#automation-suite",
     summary: "Advanced automation rules, higher execution limits, and elevated custom-command capacity without paywalling the basic operating baseline.",
-    premiumLabel: "Premium Suite",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Free tier keeps a smaller cap. Premium expands rule depth and scale."
   },
   {
@@ -97,8 +97,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Pro Alert Inbox",
     route: "/dashboard/alert-inbox",
     summary: "One list for health findings, process health, and Event Reactor failures.",
-    premiumLabel: "Pro Operations",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Included with Pro."
   },
   {
@@ -106,8 +106,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Configuration History",
     route: "/dashboard/config-history",
     summary: "A change record for engine config writes, with section restore.",
-    premiumLabel: "Pro Operations",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Included with Pro."
   },
   {
@@ -115,8 +115,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Scheduled Reports",
     route: "/dashboard/scheduled-reports",
     summary: "Daily, weekly, and monthly server reports. Missing data stays missing.",
-    premiumLabel: "Pro Operations",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Included with Pro."
   },
   {
@@ -124,8 +124,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Analytics",
     route: "/dashboard/analytics",
     summary: "Growth, activity, retention and moderation-action reports for your server.",
-    premiumLabel: "Pro Insights",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Included with Pro."
   },
   {
@@ -133,8 +133,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Config Backup + Restore",
     route: "/dashboard/system-health/backups",
     summary: "Export your full server configuration and restore it any time.",
-    premiumLabel: "Pro Safety",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Protects your setup work."
   },
   {
@@ -142,8 +142,8 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     label: "Possum Underworld TCG",
     route: "/tcg",
     summary: "Private collectible card game with city cards and creature cards sourced from the former Wilds catalog.",
-    premiumLabel: "Premium Feature",
-    includedIn: ["Pro"],
+    premiumLabel: "Plan Details To Be Finalized",
+    includedIn: ["Monthly / Yearly / Lifetime plan assignment pending"],
     pricingNote: "Included through paid guild plans."
   },
   {
@@ -163,7 +163,7 @@ export type PlanTierKey = "monthly" | "yearly" | "lifetime";
 export type PlanTier = {
   key: PlanTierKey;
   label: string;
-  priceUsd: number;
+  priceUsd: number | null;
   cadence: string;
   tagline: string;
   badge?: string;
@@ -171,73 +171,43 @@ export type PlanTier = {
 };
 
 // Every paid tier includes these. Tier extras below are what makes the longer plans worth it.
-export const PLAN_COMMON_FEATURES: string[] = [
-  "TTS Engine",
-  "Persona AI",
-  "Heist Engine",
-  "Possum Underworld TCG",
-  "Advanced Security + Governance Suite",
-  "Automation + Custom Commands Suite",
-  "Analytics (growth, activity, retention, mod actions)",
-  "Config Backup + Restore",
-  "Limited monthly AI usage included (add-ons available)",
-];
+export const PLAN_COMMON_FEATURES: string[] = [];
 
 export const PLAN_TIERS: PlanTier[] = [
   {
     key: "monthly",
     label: "Monthly",
-    priceUsd: 35,
+    priceUsd: null,
     cadence: "/ month",
-    tagline: "Try every premium feature. Cancel any time.",
-    extras: [
-      "100 custom commands, 50 automations",
-      "500 log entries kept",
-      "1 custom token bot (free for everyone)",
-    ],
+    tagline: "Plan features and pricing will be announced.",
+    extras: [],
   },
   {
     key: "yearly",
     label: "Yearly",
-    priceUsd: 70,
+    priceUsd: null,
     cadence: "/ year",
-    tagline: "Best value subscription. Unlocks a second bot.",
-    badge: "Save $350 vs monthly",
-    extras: [
-      "Everything in Monthly",
-      "Second Token Bot: run heavy features on their own bot",
-      "250 custom commands, 100 automations",
-      "1,000 log entries kept",
-      "Higher automation rate limits",
-      "Priority setup help from the developer",
-    ],
+    tagline: "Plan features and pricing will be announced.",
+    extras: [],
   },
   {
     key: "lifetime",
     label: "Lifetime",
-    priceUsd: 100,
+    priceUsd: null,
     cadence: "one time",
-    tagline: "Pay once. Never renew. Our biggest limits.",
-    badge: "Best deal",
-    extras: [
-      "Everything in Yearly",
-      "Third Token Bot",
-      "500 custom commands, 200 automations",
-      "2,000 log entries kept",
-      "Highest automation rate limits",
-      "Never expires, never billed again",
-    ],
+    tagline: "Plan features and pricing will be announced.",
+    extras: [],
   },
 ];
 
 export const PREMIUM_PLANS: SubscriptionPlan[] = [
   {
     id: "pro",
-    label: "Possum Pro",
-    monthlyUsd: 35.0,
-    yearlyUsd: 70.0,
-    lifetimeUsd: 100.0,
-    headline: "Every premium feature for one server, with a limited monthly AI allowance. Longer plans unlock more bots and bigger limits. Need more AI? Buy optional AI usage add-ons.",
+    label: "Possum Plans",
+    monthlyUsd: null,
+    yearlyUsd: null,
+    lifetimeUsd: null,
+    headline: "Monthly, yearly, and lifetime plan options. Pricing and included features are being finalized.",
     included: PLAN_COMMON_FEATURES,
     note: PRICING_FOOTNOTE,
   },

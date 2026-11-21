@@ -5,9 +5,61 @@ import { useSearchParams } from "next/navigation";
 import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { buildDashboardHref, readDashboardGuildId } from "@/lib/dashboardContext";
 import { readModeratorTab, type ModeratorTab } from "@/lib/moderatorNavigation";
+import { fetchRuntimeEngine, saveRuntimeEngine } from "@/lib/liveRuntime";
 
 type Role = { id: string; name: string; position?: number };
 type Channel = { id: string; name: string; type?: number | string };
+type EngineLogField = { engine: string; path: string; label: string };
+
+const ENGINE_LOG_FIELDS: EngineLogField[] = [
+  { engine: "preOnboarding", path: "enforcementChannelId", label: "Pre-onboarding enforcement" },
+  { engine: "onboarding", path: "logChannelId", label: "Onboarding" },
+  { engine: "verification", path: "logChannelId", label: "Verification" },
+  { engine: "tickets", path: "types.support.logChannelId", label: "Support tickets" },
+  { engine: "tickets", path: "types.vip.logChannelId", label: "VIP tickets" },
+  { engine: "tickets", path: "types.drops.logChannelId", label: "Drops tickets" },
+  { engine: "automationStudio", path: "logChannelId", label: "Automation Studio" },
+  { engine: "customCommands", path: "logChannelId", label: "Custom commands" },
+  { engine: "nativeCommands", path: "logChannelId", label: "Slash commands" },
+  { engine: "inviteTracker", path: "joinLogChannelId", label: "Member joins / invites" },
+  { engine: "inviteTracker", path: "leaveLogChannelId", label: "Member departures" },
+  { engine: "blacklist", path: "auditChannelId", label: "Blacklist" },
+  { engine: "activityPrune", path: "logChannelId", label: "Activity pruning" },
+  { engine: "eventPoints", path: "logChannelId", label: "Event points" },
+  { engine: "eventReactor", path: "deadLetter.channelId", label: "Automation failures" },
+  { engine: "giveaways", path: "logChannelId", label: "Giveaways" },
+  { engine: "heist", path: "logChannelId", label: "Heist" },
+  { engine: "jed", path: "auditChannelId", label: "JED" },
+  { engine: "selfroles", path: "logChannelId", label: "Self roles" },
+  { engine: "store", path: "policies.logChannelId", label: "Store" },
+  { engine: "pokemon", path: "catchLogChannelId", label: "Pokémon catches" },
+  { engine: "pokemon", path: "battleLogChannelId", label: "Pokémon battles" },
+  { engine: "pokemon", path: "tradeLogChannelId", label: "Pokémon trades" },
+  { engine: "security.accountIntegrity", path: "logChannelId", label: "Account integrity" },
+  { engine: "security.behavioralDrift", path: "logChannelId", label: "Behavioral drift" },
+  { engine: "security.crewSecurity", path: "logChannelId", label: "Crew security" },
+  { engine: "security.linkIntel", path: "logChannelId", label: "Link intelligence" },
+  { engine: "security.riskEscalation", path: "logChannelId", label: "Risk escalation" },
+  { engine: "security.staffActivityMonitor", path: "logChannelId", label: "Staff activity" },
+  { engine: "security.threatIntel", path: "logChannelId", label: "Threat intelligence" },
+  { engine: "security.trustWeight", path: "logChannelId", label: "Trust-weight review" },
+];
+
+function getPathValue(value: Record<string, any> | undefined, path: string) {
+  return path.split(".").reduce((current, key) => current && typeof current === "object" ? current[key] : undefined, value as any);
+}
+
+function setPathValue(value: Record<string, any>, path: string, nextValue: string) {
+  const next = structuredClone(value || {});
+  const parts = path.split(".");
+  let current = next;
+  for (const part of parts.slice(0, -1)) {
+    if (!current[part] || typeof current[part] !== "object" || Array.isArray(current[part])) current[part] = {};
+    current = current[part];
+  }
+  current[parts[parts.length - 1]] = nextValue;
+  return next;
+}
 
 const AUTOMOD_NOTICE_RULES = [
   ["badWords", "Blocked words"],
@@ -387,6 +439,11 @@ export default function ModeratorClient() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [engineLogConfigs, setEngineLogConfigs] = useState<Record<string, Record<string, any>>>({});
+  const [engineLogLoadErrors, setEngineLogLoadErrors] = useState<string[]>([]);
+  const [engineLogsLoading, setEngineLogsLoading] = useState(false);
+  const [engineLogsSaving, setEngineLogsSaving] = useState(false);
+  const [engineLogsMessage, setEngineLogsMessage] = useState("");
 
   useEffect(() => {
     setTab(readModeratorTab(requestedTab));
@@ -461,6 +518,34 @@ export default function ModeratorClient() {
   useEffect(() => {
     void loadAll(guildId);
   }, [guildId]);
+
+  useEffect(() => {
+    if (tab !== "audit" || !guildId) return;
+    let cancelled = false;
+    const engines = [...new Set(ENGINE_LOG_FIELDS.map((entry) => entry.engine))];
+    setEngineLogsLoading(true);
+    setEngineLogsMessage("");
+    void Promise.all(engines.map(async (engine) => {
+      try {
+        const result: any = await fetchRuntimeEngine(guildId, engine, "", { fresh: true });
+        if (!result?.config || typeof result.config !== "object" || Array.isArray(result.config)) throw new Error("No engine settings returned.");
+        return { engine, config: result.config as Record<string, any>, error: "" };
+      } catch (error) {
+        return { engine, config: null, error: error instanceof Error ? error.message : "Could not load engine settings." };
+      }
+    })).then((results) => {
+      if (cancelled) return;
+      const configs: Record<string, Record<string, any>> = {};
+      const errors: string[] = [];
+      for (const result of results) {
+        if (result.config) configs[result.engine] = result.config;
+        else errors.push(result.engine);
+      }
+      setEngineLogConfigs(configs);
+      setEngineLogLoadErrors(errors);
+    }).finally(() => { if (!cancelled) setEngineLogsLoading(false); });
+    return () => { cancelled = true; };
+  }, [guildId, tab]);
 
   const auditEvents = useMemo(() => ([
     ["memberMuted", "Member muted"],
@@ -559,6 +644,34 @@ export default function ModeratorClient() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function updateEngineLogRoute(entry: EngineLogField, channelId: string) {
+    setEngineLogConfigs((current) => ({
+      ...current,
+      [entry.engine]: setPathValue(current[entry.engine] || {}, entry.path, channelId),
+    }));
+  }
+
+  async function saveEngineLogRoutes() {
+    if (!guildId || engineLogLoadErrors.length || engineLogsLoading) return;
+    setEngineLogsSaving(true);
+    setEngineLogsMessage("");
+    const engines = [...new Set(ENGINE_LOG_FIELDS.map((entry) => entry.engine))];
+    const saved: string[] = [];
+    try {
+      for (const engine of engines) {
+        const result: any = await saveRuntimeEngine(guildId, engine, engineLogConfigs[engine] || {});
+        if (result?.success === false) throw new Error(result?.error || `Could not save ${engine} log routing.`);
+        if (result?.config && typeof result.config === "object") {
+          setEngineLogConfigs((current) => ({ ...current, [engine]: result.config }));
+        }
+        saved.push(engine);
+      }
+      setEngineLogsMessage(`Saved log destinations for ${saved.length} engines. No engine enable/disable settings were changed.`);
+    } catch (error) {
+      setEngineLogsMessage(`${saved.length ? `Saved ${saved.length} engines before this error. ` : ""}${error instanceof Error ? error.message : "Could not save engine log destinations."} Refresh and verify each destination before retrying.`);
+    } finally { setEngineLogsSaving(false); }
   }
 
   if (!guildId) {
@@ -1075,6 +1188,35 @@ export default function ModeratorClient() {
             <label><input type="checkbox" checked={cfg.logging.dontLogBotActions} onChange={(e) => setCfg((prev) => ({ ...prev, logging: { ...prev.logging, dontLogBotActions: e.target.checked } }))} /> Ignore bot actions</label>
             <label><input type="checkbox" checked={cfg.logging.dontDisplayThumbnails} onChange={(e) => setCfg((prev) => ({ ...prev, logging: { ...prev.logging, dontDisplayThumbnails: e.target.checked } }))} /> Hide thumbnails</label>
           </div>
+
+          <section style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid #5f0000" }}>
+            <h3 style={{ color: "#ff5f5f", margin: 0 }}>Engine log destinations</h3>
+            <p style={{ color: "#ffbcbc", lineHeight: 1.6 }}>
+              Each selection saves only that engine&apos;s log-channel field. Feature gates and engine enabled/disabled settings are left unchanged. Blank uses that engine&apos;s normal fallback, including the moderator catch-all where supported.
+            </p>
+            {engineLogsLoading ? <div role="status">Loading engine log routes…</div> : null}
+            {engineLogLoadErrors.length ? <div role="alert" style={{ color: "#ffbf86", marginBottom: 10 }}>
+              Could not load these engine settings, so saving is disabled to avoid overwriting them: {engineLogLoadErrors.join(", ")}. Refresh and try again.
+            </div> : null}
+            {engineLogsMessage ? <div role="status" style={{ color: "#ffb3f0", marginBottom: 10 }}>{engineLogsMessage}</div> : null}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 10 }}>
+              {ENGINE_LOG_FIELDS.map((entry) => (
+                <label key={`${entry.engine}:${entry.path}`} style={{ display: "grid", gap: 5, color: "#ffdcdc" }}>
+                  <span>{entry.label} <small style={{ color: "#ffbcbc" }}>({entry.engine})</small></span>
+                  <select style={input} disabled={engineLogsLoading || engineLogLoadErrors.includes(entry.engine) || !engineLogConfigs[entry.engine]}
+                    value={String(getPathValue(engineLogConfigs[entry.engine], entry.path) || "")}
+                    onChange={(event) => updateEngineLogRoute(entry, event.target.value)}>
+                    <option value="">Use engine fallback</option>
+                    {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+            <button type="button" style={{ ...button, marginTop: 12 }} disabled={engineLogsLoading || engineLogsSaving || engineLogLoadErrors.length > 0}
+              onClick={() => void saveEngineLogRoutes()}>
+              {engineLogsSaving ? "Saving log routes…" : "Save engine log destinations"}
+            </button>
+          </section>
 
           <div style={{ marginTop: 14 }}>
             <h3 style={{ color: "#ff5f5f", marginTop: 0 }}>Ignored Channels</h3>

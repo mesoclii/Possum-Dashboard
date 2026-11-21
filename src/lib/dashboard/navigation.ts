@@ -83,7 +83,6 @@ export function getDashboardNavSections(
         { href: "/dashboard/reviews", label: "Reviews" },
         { href: "/dashboard/search-anything", label: "Search Anything" },
         { href: "/dashboard/channel-flow", label: "Channel Flow" },
-        { href: "/dashboard/economy/radio-birthday", label: "Birthday Tracker (Radio)" },
       ],
     },
     {
@@ -140,6 +139,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/bump-reminder", label: "Bump Reminder" },
         { href: "/dashboard/social-alerts", label: "Social Alerts" },
         { href: "/dashboard/signal-relay", label: "Signal Relay" },
+        { href: "/dashboard/economy/radio-birthday", label: "Birthday Tracker" },
       ],
     },
     {
@@ -158,9 +158,9 @@ export function getDashboardNavSections(
       ],
     },
     {
-      label: "Possum Pro",
+      label: "Premium Plans",
       items: [
-        { href: "/dashboard/premium-features", label: "Possum Pro" },
+        { href: "/dashboard/premium-features", label: "Premium Plans" },
         { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
         { href: "/tcg", label: "Possum Underworld TCG" },

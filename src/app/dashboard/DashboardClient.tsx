@@ -45,7 +45,7 @@ type DashboardSection =
   | "Economy"
   | "Social"
   | "Fun + Games"
-  | "Possum Pro";
+  | "Premium Plans";
 
 const SECTION_ORDER: DashboardSection[] = [
   "Guild Control",
@@ -55,7 +55,7 @@ const SECTION_ORDER: DashboardSection[] = [
   "Economy",
   "Social",
   "Fun + Games",
-  "Possum Pro",
+  "Premium Plans",
 ];
 
 function readBoolPath(input: unknown, path: string[], fallback = false): boolean {
@@ -390,7 +390,7 @@ function getCardSection(card: Card): DashboardSection {
     href === "/dashboard/ai/persona" ||
     href === "/dashboard/ai/openai-platform"
   ) {
-    return "Possum Pro";
+    return "Premium Plans";
   }
   if (
     href === "/dashboard/crew" ||
@@ -577,7 +577,7 @@ const CARDS: Card[] = [
   { href: "/dashboard/failsafe", title: "Failsafe", description: "Emergency pause and safety switches.", toggle: engineController("failsafe") },
   { href: "/dashboard/system-health", title: "System Health", description: "Runtime monitor, drift and health checks.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/master", title: "Master Control", description: "Creator-only global view for guild coverage, route counts, and what is set where.", goOnly: true, goLabel: "Open", creatorOnly: true },
-  { href: "/dashboard/premium-features", title: "Possum Pro", description: "Plan state, paid add-ons, and owner trial controls.", goOnly: true, goLabel: "Go" },
+  { href: "/dashboard/premium-features", title: "Premium Plans", description: "Monthly, yearly, and lifetime plan status and owner trial controls.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/heist", title: "Heist", description: "Heist signup engine controls.", toggle: engineController("heist", ["active"]), premiumRequired: true },
   { href: "/dashboard/tts", title: "TTS", description: "Voice route and TTS runtime control.", toggle: engineController("tts", ["enabled"]), premiumRequired: true },
   { href: "/dashboard/ai/persona", title: "Persona AI", description: "Hosted persona runtime, photos, triggers, and roster controls.", goOnly: true, goLabel: "Go", premiumRequired: true },
@@ -844,7 +844,7 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
             : "Cards are grouped by live engine category. Use toggles here to turn engines on or off for the active guild without leaving the dashboard. Open a card to view its settings."}
         </p>
         <p className="mt-2 text-xs uppercase tracking-[0.14em] text-red-300/70">
-          Possum Pro access: {!premiumEnforced ? "Disabled - all guilds currently run unlocked" : subscription?.developerBypass ? "Developer Override" : subscription?.plan || "Free"}
+          Premium plan access: {!premiumEnforced ? "Disabled - all guilds currently run unlocked" : subscription?.developerBypass ? "Developer Override" : subscription?.plan || "Free"}
         </p>
       </header>
 
@@ -928,7 +928,7 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         {card.goOnly ? (
                           <span className={lockedPremium ? "rounded-full border border-pink-400/60 bg-pink-950/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-pink-200" : "rounded-full border border-red-600/40 px-2 py-1 text-[11px] font-black uppercase tracking-[0.08em] text-red-200/75"}>
-                            {lockedPremium ? "Possum Pro" : "Editor"}
+                            {lockedPremium ? "Premium Plan" : "Editor"}
                           </span>
                         ) : (
                           <>
@@ -939,7 +939,7 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
                               disabled={!guildId || !card.toggle || toggleSaving || toggleLoading || lockedPremium}
                               className="rounded-lg border border-red-600/60 bg-black/50 px-3 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              {toggleSaving ? "Saving" : toggleLoading ? "Loading" : lockedPremium ? "Possum Pro" : state.value ? "Turn Off" : "Turn On"}
+                              {toggleSaving ? "Saving" : toggleLoading ? "Loading" : lockedPremium ? "Premium Plan" : state.value ? "Turn Off" : "Turn On"}
                             </button>
                           </>
                         )}

@@ -10,6 +10,18 @@ type EngineConfigBackup = {
   actorUserId: string;
   engineCount: number;
   featureCount: number;
+  bytes?: number;
+};
+
+type FullDashboardBackup = {
+  kind: "possum-dashboard-full-configuration";
+  version: 1;
+  id: string;
+  guildId: string;
+  name: string;
+  createdAt: string;
+  bot: Record<string, any>;
+  dashboard: Record<string, any>;
 };
 
 type SnapshotChecks = {
@@ -52,18 +64,30 @@ export default function BackupsPage() {
     snapshot: unknown;
   } | null>(null);
   const [featureRecoveryDownloaded, setFeatureRecoveryDownloaded] = useState(false);
+  const [fullPreview, setFullPreview] = useState<{
+    token: string;
+    snapshot: FullDashboardBackup;
+    recovery: FullDashboardBackup;
+    changedEngines: string[];
+    changedFeatures: string[];
+    changedDashboardFiles: string[];
+    changedDatabaseSettings: string[];
+  } | null>(null);
+  const [fullRecoveryDownloaded, setFullRecoveryDownloaded] = useState(false);
   const [authorizationProof, setAuthorizationProof] = useState("");
   const [msg, setMsg] = useState("");
 
   const loadEngineConfigBackups = useCallback(async () => {
     if (!guildId) return;
-    const response = await fetch(`/api/bot/engine-config-backups?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" });
+    const response = await fetch(`/api/system/config-backup?guildId=${encodeURIComponent(guildId)}&action=list`, { cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body?.success === false) {
       setBackupsLoaded(false);
       throw new Error(body?.error || "Failed to load saved engine backups.");
     }
-    setEngineConfigBackups(Array.isArray(body.backups) ? body.backups : []);
+    setEngineConfigBackups(Array.isArray(body.backups) ? body.backups.map((backup: any) => ({
+      ...backup, engineCount: Number(backup.engineCount || 0), featureCount: Number(backup.featureCount || 0),
+    })) : []);
     setBackupsLoaded(true);
   }, [guildId]);
 
@@ -93,7 +117,7 @@ export default function BackupsPage() {
     const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
-    const prefix = snapshot.kind === "guild-raw-configuration" ? "raw-guild-config" : "engine-config";
+    const prefix = snapshot.kind === "possum-dashboard-full-configuration" ? "possum-dashboard-backup" : snapshot.kind === "guild-raw-configuration" ? "raw-guild-config" : "engine-config";
     link.download = `${prefix}-${guildId}-${snapshot.id.replace(/[^a-zA-Z0-9-]/g, "")}.json`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -103,18 +127,21 @@ export default function BackupsPage() {
     if (!guildId) return;
     try {
       setBackupAction(raw ? "download-raw" : "download-new");
-      const response = await fetch("/api/bot/engine-config-backups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId, action: raw ? "download-raw" : "download", name: backupName }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || body?.success !== true || body?.backup?.guildId !== guildId || typeof body?.backup?.id !== "string") {
-        throw new Error(body?.error || "Failed to create a configuration backup.");
+      if (raw) {
+        const response = await fetch("/api/bot/engine-config-backups", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId, action: "download-raw", name: backupName }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body?.success !== true || body?.backup?.guildId !== guildId || typeof body?.backup?.id !== "string") throw new Error(body?.error || "Failed to create a raw configuration archive.");
+        downloadSnapshot(body.backup);
+        setMsg(`Raw archive downloaded. It is not a complete or restorable dashboard backup.${body.warning ? ` ${body.warning}` : ""}`);
+        return;
       }
-      downloadSnapshot(body.backup);
+      const snapshot = await createFullDashboardBackup(backupName);
+      downloadSnapshot(snapshot);
       setBackupName("");
-      setMsg(`Your browser was asked to download the backup. Store it securely; it may contain sensitive settings.${body.warning ? ` ${body.warning}` : ""}`);
+      setMsg("Your browser was asked to download the complete dashboard configuration backup. Store it securely; it can contain private server settings.");
     } catch (error: any) {
       setMsg(error?.message || "Failed to create a configuration backup.");
     } finally {
@@ -122,12 +149,30 @@ export default function BackupsPage() {
     }
   }
 
+  async function createFullDashboardBackup(name = ""): Promise<FullDashboardBackup> {
+    if (!guildId) throw new Error("Select a server first.");
+    const botResponse = await fetch("/api/bot/engine-config-backups", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guildId, action: "download", name }), cache: "no-store",
+    });
+    const botBody = await botResponse.json().catch(() => ({}));
+    if (!botResponse.ok || botBody?.success !== true || botBody?.backup?.guildId !== guildId) throw new Error(botBody?.error || "Could not capture bot settings.");
+    const dashboardResponse = await fetch(`/api/system/config-backup?guildId=${encodeURIComponent(guildId)}&action=export&name=${encodeURIComponent(name)}`, { cache: "no-store" });
+    const dashboardBody = await dashboardResponse.json().catch(() => ({}));
+    if (!dashboardResponse.ok || dashboardBody?.success !== true || dashboardBody?.backup?.guildId !== guildId) throw new Error(dashboardBody?.error || "Could not capture dashboard setup settings.");
+    return {
+      kind: "possum-dashboard-full-configuration", version: 1,
+      id: window.crypto.randomUUID(), guildId, name: name.trim().slice(0, 100) || `Full configuration ${new Date().toISOString()}`,
+      createdAt: new Date().toISOString(), bot: botBody.backup, dashboard: dashboardBody.backup,
+    };
+  }
+
   async function downloadEngineConfigBackup(backup: EngineConfigBackup) {
     if (!guildId) return;
     try {
       setBackupAction(`download:${backup.id}`);
-      const query = new URLSearchParams({ guildId, backupId: backup.id });
-      const response = await fetch(`/api/bot/engine-config-backups?${query}`, { cache: "no-store" });
+      const query = new URLSearchParams({ guildId, action: "download", backupId: backup.id });
+      const response = await fetch(`/api/system/config-backup?${query}`, { cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true || body?.backup?.guildId !== guildId || body?.backup?.id !== backup.id) {
         throw new Error(body?.error || "Failed to download the selected backup.");
@@ -141,12 +186,34 @@ export default function BackupsPage() {
     }
   }
 
+  async function saveEngineConfigBackup() {
+    if (!guildId) return;
+    try {
+      setBackupAction("save-vps");
+      const backup = await createFullDashboardBackup(backupName);
+      const response = await fetch("/api/system/config-backup", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, action: "save", backup }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true || body?.savedBackup?.guildId !== guildId) throw new Error(body?.error || "Could not save the VPS backup.");
+      setBackupName("");
+      setMsg("A complete private dashboard recovery copy was saved on the VPS and downloaded to your computer.");
+      downloadSnapshot(backup);
+      await loadEngineConfigBackups();
+    } catch (error: any) {
+      setMsg(error?.message || "Could not save the VPS backup.");
+    } finally {
+      setBackupAction("");
+    }
+  }
+
   async function validateEngineConfigBackup(compare = false) {
     if (!guildId || !importFile) return;
     setComparison(null);
     setSemanticChecks(null);
-    if (importFile.size > 512 * 1024) {
-      setMsg("Snapshot file exceeds the 512 KiB limit.");
+    if (importFile.size > 8 * 1024 * 1024) {
+      setMsg("Snapshot file exceeds the 8 MiB limit.");
       return;
     }
     try {
@@ -157,11 +224,16 @@ export default function BackupsPage() {
       } catch {
         throw new Error("Snapshot file is not valid JSON.");
       }
-      const response = await fetch("/api/bot/engine-config-backups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId, action: compare ? "compare" : "validate", snapshot }),
-      });
+      const fullBackup = (snapshot as any)?.kind === "possum-dashboard-full-configuration";
+      const response = fullBackup
+        ? await fetch("/api/system/config-backup", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId, action: compare ? "compare" : "validate", backup: snapshot }),
+        })
+        : await fetch("/api/bot/engine-config-backups", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId, action: compare ? "compare" : "validate", snapshot }),
+        });
       const body = await response.json().catch(() => ({}));
       const settingsIssues = response.status === 422 && body?.code === "SNAPSHOT_SETTINGS_ISSUES";
       if ((!response.ok || body?.success !== true) && !settingsIssues) throw new Error(body?.error || "Failed to check the snapshot.");
@@ -176,9 +248,9 @@ export default function BackupsPage() {
           typeof entry?.engine !== "string" || !Array.isArray(entry.fields) || entry.fields.some((field: unknown) => typeof field !== "string")))) {
           throw new Error("Comparison field details were invalid.");
         }
-        setComparison({ changedEngines: body.changedEngines, changedFeatures: body.changedFeatures, changedEngineFields: fields ?? null });
+        setComparison({ changedEngines: [...body.changedEngines, ...(Array.isArray(body.changedDashboardFiles) && body.changedDashboardFiles.length ? [`Dashboard setup files (${body.changedDashboardFiles.length})`] : [])], changedFeatures: body.changedFeatures, changedEngineFields: fields ?? null });
       }
-      setMsg(`${body.semantic.issues.length ? "Limited checks found settings issues." : "File structure, server ID and limited settings checked."} The file was not saved and no settings were changed. Restore remains unavailable; most settings are not verified.${body.warning ? ` ${body.warning}` : ""}`);
+      setMsg(`${body.semantic.issues.length ? "Limited checks found settings issues." : "File structure, server ID, and currently supported settings were checked."} The file was not saved and no settings were changed.${body.warning ? ` ${body.warning}` : ""}`);
     } catch (error: any) {
       setMsg(error?.message || "Failed to check the snapshot.");
     } finally {
@@ -190,16 +262,17 @@ export default function BackupsPage() {
     if (!guildId || !importFile) return;
     setFeaturePreview(null);
     setFeatureRecoveryDownloaded(false);
-    if (importFile.size > 512 * 1024) {
-      setMsg("Snapshot file exceeds the 512 KiB limit.");
+    if (importFile.size > 8 * 1024 * 1024) {
+      setMsg("Snapshot file exceeds the 8 MiB limit.");
       return;
     }
     try {
       setBackupAction("features-preview");
-      const snapshot: unknown = JSON.parse(await importFile.text());
+      const parsed: any = JSON.parse(await importFile.text());
+      const featureSnapshot = parsed?.kind === "possum-dashboard-full-configuration" ? parsed.bot : parsed;
       const response = await fetch("/api/bot/engine-config-backups", {
         method: "POST", headers: { "Content-Type": "application/json", ...(authorizationProof.trim() ? { "x-restore-auth-proof": authorizationProof.trim() } : {}) },
-        body: JSON.stringify({ guildId, action: "features-preview", snapshot }),
+        body: JSON.stringify({ guildId, action: "features-preview", snapshot: featureSnapshot }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true || typeof body.token !== "string" ||
@@ -208,7 +281,7 @@ export default function BackupsPage() {
           !body.recovery?.features || typeof body.recovery.features !== "object") {
         throw new Error(body?.error || "Feature preview failed.");
       }
-      setFeaturePreview({ token: body.token, changedFeatures: body.changedFeatures, recovery: body.recovery, snapshot });
+      setFeaturePreview({ token: body.token, changedFeatures: body.changedFeatures, recovery: body.recovery, snapshot: featureSnapshot });
       setAuthorizationProof("");
       setMsg("Review the feature changes and download the feature recovery file. Feature restore remains disabled until dashboard sessions and bot access are isolated.");
     } catch (error: any) {
@@ -253,11 +326,78 @@ export default function BackupsPage() {
     }
   }
 
+  async function previewFullRestore() {
+    if (!guildId || !importFile) return;
+    setFullPreview(null);
+    setFullRecoveryDownloaded(false);
+    if (importFile.size > 8 * 1024 * 1024) return setMsg("Snapshot file exceeds the 8 MiB limit.");
+    try {
+      setBackupAction("full-preview");
+      const snapshot = JSON.parse(await importFile.text()) as FullDashboardBackup;
+      const response = await fetch("/api/system/config-backup", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, action: "preview", backup: snapshot }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true || typeof body.token !== "string" ||
+          body.recovery?.guildId !== guildId || !body.recovery?.bot || !body.recovery?.dashboard ||
+          !Array.isArray(body.changedEngines) || !Array.isArray(body.changedFeatures) ||
+          !Array.isArray(body.changedDashboardFiles) || !Array.isArray(body.changedDatabaseSettings)) {
+        throw new Error(body?.error || "Full restore preview failed.");
+      }
+      setFullPreview({ token: body.token, snapshot, recovery: body.recovery,
+        changedEngines: body.changedEngines, changedFeatures: body.changedFeatures,
+        changedDashboardFiles: body.changedDashboardFiles, changedDatabaseSettings: body.changedDatabaseSettings });
+      setAuthorizationProof("");
+      setMsg("Review the bot, dashboard-file, and saved-flow differences. Download the complete recovery backup before restoring.");
+    } catch (error: any) {
+      setMsg(error?.message || "Full restore preview failed.");
+    } finally {
+      setBackupAction("");
+    }
+  }
+
+  function downloadFullRecovery() {
+    if (!fullPreview) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(fullPreview.recovery)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `possum-recovery-${guildId}-${fullPreview.recovery.id || "current"}.json`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setFullRecoveryDownloaded(true);
+    setMsg("Recovery backup downloaded. Keep it safe; it contains this server's current settings.");
+  }
+
+  async function restoreFullConfiguration() {
+    if (!fullPreview || !fullRecoveryDownloaded ||
+        !window.confirm(`Restore bot settings, feature gates, dashboard settings, channel/role mappings, and saved flow definitions for server ${guildId}? Discord channels/roles and member/game history will not be changed.`)) return;
+    try {
+      setBackupAction("full-restore");
+      const response = await fetch("/api/system/config-backup", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, action: "restore", backup: fullPreview.snapshot,
+          previewToken: fullPreview.token, confirm: true, recoveryDownloaded: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Restore outcome is unknown. Preserve the downloaded recovery file and compare before retrying.");
+      setMsg(body.warning || "Full configuration restored.");
+      setFullPreview(null);
+      setFullRecoveryDownloaded(false);
+      await loadEngineConfigBackups();
+    } catch (error: any) {
+      setMsg(error?.message || "Restore outcome is unknown. Preserve the recovery file and compare before retrying.");
+    } finally {
+      setAuthorizationProof("");
+      setBackupAction("");
+    }
+  }
+
   async function deleteEngineConfigBackup(backup: EngineConfigBackup) {
     if (!guildId || !window.confirm(`Delete the saved backup "${backup.name}"?`)) return;
     try {
       setBackupAction(backup.id);
-      const response = await fetch("/api/bot/engine-config-backups", {
+      const response = await fetch("/api/system/config-backup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ guildId, action: "delete", backupId: backup.id }),
@@ -359,10 +499,9 @@ export default function BackupsPage() {
 
       <div style={{ marginBottom: 12, padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>
         <h2 style={{ marginTop: 0 }}>Download Server Configuration Backup</h2>
-        <p>Download this server&apos;s effective bot engine configuration and feature toggles to your computer. New copies are not stored on the bot host. This is not a full Discord server or bot data backup: separately stored settings, Discord channels and roles, member data, and databases are not included. Engine settings and feature toggles are captured separately, so concurrent changes can produce a mixed-time snapshot.</p>
-        <p>Raw archive downloads the stored guild engine entry and feature database record without applying defaults. The stores are still read separately; it is not transactionally consistent or restorable. Raw files can be checked for structure and accidental corruption, but cannot be compared here.</p>
-        <p>Files may contain sensitive settings; keep them secure. You can select and upload a same-server snapshot up to 512 KiB for a structural check, limited security field checks, or comparison; it is not saved. These checks do not verify most settings or establish restore safety. Comparison lists changed engine and feature names without showing their values. Current stores are read separately and may change during comparison.</p>
-        <p>Full engine and dashboard settings restore is unavailable. Feature-only review and recovery-file download are available, but feature restore is also disabled. The separate live engine restore below is not protected by these safeguards.</p>
+        <p>The full JSON includes bot engine settings and feature gates, onboarding and verification, channel/role mappings, dashboard setup stores, dashboard access settings, and saved automation/custom-command definitions. It does not include Discord resources, member/game records, message history, or flow execution logs.</p>
+        <p>Backups can include private server configuration and workflow content. Keep downloaded files secure. A same-server full backup may be up to 8 MiB; restore previews identify changed areas, require a recovery download, and expire after five minutes. Restore is limited to the Discord server owner or configured Possum owner/development team.</p>
+        <p>The separate raw archive is diagnostic only; it does not apply defaults and cannot be restored. Restoring settings never creates, deletes, or moves Discord channels or roles.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
             aria-label="Backup name"
@@ -378,19 +517,38 @@ export default function BackupsPage() {
           <button type="button" disabled={Boolean(backupAction) || !guildId} onClick={() => void createEngineConfigBackup(true)}>
             {backupAction === "download-raw" ? "Preparing..." : "Download Raw Archive"}
           </button>
-          <input type="file" accept=".json,application/json" aria-label="Snapshot JSON file" disabled={Boolean(backupAction)} onChange={(event) => { setImportFile(event.target.files?.[0] || null); setComparison(null); setSemanticChecks(null); setFeaturePreview(null); setFeatureRecoveryDownloaded(false); }} />
+          <button type="button" disabled={Boolean(backupAction) || !guildId} onClick={() => void saveEngineConfigBackup()}>
+            {backupAction === "save-vps" ? "Saving..." : "Save VPS Copy + Download"}
+          </button>
+          <input type="file" accept=".json,application/json" aria-label="Snapshot JSON file" disabled={Boolean(backupAction)} onChange={(event) => { setImportFile(event.target.files?.[0] || null); setComparison(null); setSemanticChecks(null); setFeaturePreview(null); setFeatureRecoveryDownloaded(false); setFullPreview(null); setFullRecoveryDownloaded(false); }} />
           <button type="button" disabled={Boolean(backupAction) || !guildId || !importFile} onClick={() => void validateEngineConfigBackup()}>
             {backupAction === "validate" ? "Checking..." : "Check Selected File"}
           </button>
           <button type="button" disabled={Boolean(backupAction) || !guildId || !importFile} onClick={() => void validateEngineConfigBackup(true)}>
             {backupAction === "compare" ? "Comparing..." : "Compare With Current Settings"}
           </button>
-          <button type="button" disabled title="Safe restore is not yet available">Restore unavailable</button>
+          <button type="button" disabled={Boolean(backupAction) || !guildId || !importFile} onClick={() => void previewFullRestore()}>
+            {backupAction === "full-preview" ? "Preparing Restore..." : "Preview Full Restore"}
+          </button>
           <button type="button" disabled={Boolean(backupAction) || !guildId || !importFile} onClick={() => void previewFeatureRestore()}>
             {backupAction === "features-preview" ? "Preparing..." : "Preview Feature Toggles Only"}
           </button>
         </div>
-        <label style={{ display: "block", marginTop: 10 }}>Isolated restore authorization proof (required for feature restore)
+        {fullPreview ? (
+          <div aria-live="polite" style={{ marginTop: 12, padding: 12, border: "1px solid #7a4c10", borderRadius: 8 }}>
+            <strong>Full restore preview</strong>
+            <p>Engines changing: {fullPreview.changedEngines.length ? fullPreview.changedEngines.join(", ") : "None"}</p>
+            <p>Feature toggles changing: {fullPreview.changedFeatures.length ? fullPreview.changedFeatures.join(", ") : "None"}</p>
+            <p>Dashboard setup stores changing: {fullPreview.changedDashboardFiles.length ? fullPreview.changedDashboardFiles.join(", ") : "None"}</p>
+            <p>Saved database settings changing: {fullPreview.changedDatabaseSettings.length ? fullPreview.changedDatabaseSettings.join(", ") : "None"}</p>
+            <p>Restore updates saved configuration and flow definitions only. It does not create or delete Discord resources, alter member/game records, or restore execution history. Preview expires after five minutes.</p>
+            <button type="button" disabled={Boolean(backupAction)} onClick={downloadFullRecovery}>Download Current Recovery Backup</button>
+            <button type="button" disabled={Boolean(backupAction) || !fullRecoveryDownloaded} onClick={() => void restoreFullConfiguration()}>
+              {backupAction === "full-restore" ? "Restoring..." : "Restore Selected Backup"}
+            </button>
+          </div>
+        ) : null}
+        <label style={{ display: "block", marginTop: 10 }}>Optional one-use restore authorization proof (when the isolated broker is configured)
           <textarea aria-label="Isolated restore authorization proof" value={authorizationProof} onChange={(event) => setAuthorizationProof(event.target.value)} rows={3} placeholder="Paste the one-use proof from the isolated restore-authorization service" style={{ display: "block", width: "100%", marginTop: 5, background: "#0c0c0c", color: "#ffd7d7", border: "1px solid #5f0000", borderRadius: 8, padding: "8px 10px", fontFamily: "monospace", fontSize: 12 }} />
         </label>
         {featurePreview ? (
@@ -423,8 +581,8 @@ export default function BackupsPage() {
             <p>Field names are top-level only; unknown fields are grouped as Other settings. Values are not shown. Comparison covers only the settings in this file, not other dashboard settings.</p>
           </div>
         ) : null}
-        <h3>Previously saved server-side backups</h3>
-        <p>Existing copies can be downloaded or deleted. Older backups may contain default feature values if the database could not be read.</p>
+        <h3>Private full backups saved on this VPS</h3>
+        <p>Download a saved copy, select its JSON above, preview it, and restore. Copies are private to this server&apos;s backup area and capped by count and storage size.</p>
         <button type="button" disabled={Boolean(backupAction)} onClick={() => void loadEngineConfigBackups().catch((error) => setMsg(error?.message || "Failed to load saved backups."))}>Refresh Backups</button>
         <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
           {engineConfigBackups.map((backup) => (
@@ -439,7 +597,7 @@ export default function BackupsPage() {
                 <button type="button" disabled={Boolean(backupAction)} onClick={() => void downloadEngineConfigBackup(backup)}>
                   {backupAction === `download:${backup.id}` ? "Downloading..." : "Download JSON"}
                 </button>
-                <button type="button" disabled title="Restore is unavailable until validation, concurrent-write protection, and recovery are in place">Restore unavailable</button>
+                <button type="button" disabled title="Download this copy, select the JSON above, and use Preview Full Restore">Select file to restore</button>
                 <button type="button" disabled={Boolean(backupAction)} onClick={() => void deleteEngineConfigBackup(backup)}>
                   Delete
                 </button>
@@ -450,53 +608,8 @@ export default function BackupsPage() {
         </div>
       </div>
 
-      <div style={{ marginBottom: 12, padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>
-        <div>Dashboard setup snapshots (separate from bot engine backups; not a full server backup)</div>
-        <button onClick={createSnapshot}>Create Snapshot</button>
-        <button style={{ marginLeft: 8 }} onClick={loadSnapshots}>Refresh Snapshot List</button>
-        <div style={{ marginTop: 8, maxHeight: 180, overflow: "auto", background: "#111", padding: 8 }}>
-          {snapshots.map((s, i) => <div key={i}>{typeof s === "string" ? s : JSON.stringify(s)}</div>)}
-          {snapshots.length === 0 && <div>No snapshots found.</div>}
-        </div>
-      </div>
-
       <div style={{ padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>
-        <div>Dashboard setup files only (separate from bot engine configuration)</div>
-        <button onClick={exportConfig}>Export Guild Config</button>
-        <button style={{ marginLeft: 8 }} onClick={() => importConfig("merge")}>Import (Merge)</button>
-        <button style={{ marginLeft: 8 }} onClick={() => importConfig("replace")}>Import (Replace)</button>
-        <textarea
-          value={backupText}
-          onChange={(e) => setBackupText(e.target.value)}
-          placeholder="Backup JSON shows here (or paste to import)"
-          style={{ width: "100%", minHeight: 320, marginTop: 8, background: "#0c0c0c", color: "#ffd7d7" }}
-        />
-      </div>
-
-      <div style={{ marginTop: 12, padding: 12, border: "1px solid #5f0000", borderRadius: 10 }}>
-        <div style={{ marginBottom: 8, color: "#ffd7d7", fontWeight: 700 }}>Live Bot Engine Config</div>
-        <p>Exports engine configuration to the text box only, without feature toggles. Import can overwrite the selected server, does not verify the source server, and does not create a recovery backup.</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <select
-            value={engineFilter}
-            onChange={(e) => setEngineFilter(e.target.value)}
-            style={{ minWidth: 220, background: "#0c0c0c", color: "#ffd7d7", border: "1px solid #5f0000", borderRadius: 8, padding: "8px 10px" }}
-          >
-            <option value="">All engines</option>
-            {engineKeys.map((engineKey) => (
-              <option key={engineKey} value={engineKey}>{engineKey}</option>
-            ))}
-          </select>
-          <button onClick={exportEngineConfig}>Export Bot Engine Config</button>
-          <button onClick={() => importEngineConfig("merge")}>Restore (Merge)</button>
-          <button onClick={() => importEngineConfig("replace")}>Restore (Replace)</button>
-        </div>
-        <textarea
-          value={engineBackupText}
-          onChange={(e) => setEngineBackupText(e.target.value)}
-          placeholder="Live bot engine config backup shows here (or paste exported JSON to restore)"
-          style={{ width: "100%", minHeight: 320, marginTop: 8, background: "#0c0c0c", color: "#ffd7d7" }}
-        />
+        Older separate imports are retired. Use the full backup picker and restore preview above so bot and dashboard settings are recovered together.
       </div>
     </div>
   );

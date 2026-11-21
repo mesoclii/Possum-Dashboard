@@ -1,36 +1,57 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import TradePanel from "./TradePanel";
+import BattlePanel from "./BattlePanel";
 import "./tcg.css";
 
 type Snapshot = { name: string; rarity: string; kind: string; power: number; ability: string; story: string };
 type Card = { id: string; cardKey: string; finish: string; cardSnapshot: Snapshot };
+type Edition = Card & { quantity: number };
+type CardStack = { cardKey: string; quantity: number; editions: Edition[] };
 type Rules = { specialWeights: Record<string, number>; rarityWeights: Record<string, Record<string, number>> };
-type Result = { success?: boolean; error?: string; status?: string; nextAvailableAt?: string; cards?: Card[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
+type Result = { success?: boolean; error?: string; status?: string; replayed?: boolean; nextAvailableAt?: string; stacks?: CardStack[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
 type PackPhase = "idle" | "sealed" | "tearing" | "reveal";
 
 const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical", "celestial"];
 const specials = ["support", "rare", "holo", "shiny"];
 const slots = ["standard", ...specials];
 
-function CardView({ card }: { card: Card }) {
+function CardView({ card, artwork }: { card: Card; artwork?: string }) {
   const details = card.cardSnapshot;
-  return <article className={`tcg-card tcg-finish-${card.finish}`}>
+  return <article className={`tcg-card tcg-rarity-${details.rarity} tcg-finish-${card.finish}`}>
     <div className="tcg-card-top"><span>{details.kind}</span><span>{details.rarity}</span></div>
-    <div className="tcg-card-crest" aria-hidden="true">{details.name.slice(0, 1)}</div>
+    <div className="tcg-card-crest">{artwork ? <img src={`data:image/webp;base64,${artwork}`} alt={`Draft artwork for ${details.name}`} /> : <span aria-label="Artwork unavailable">{details.name.slice(0, 1)}</span>}</div>
     <p className="tcg-card-finish">{card.finish === "standard" ? "Standard edition" : `${card.finish} edition`}</p>
     <h3>{details.name}</h3>
     <div className="tcg-card-power">POWER <strong>{details.power}</strong></div>
     <p className="tcg-card-ability">{details.ability}</p>
     <p className="tcg-card-story">{details.story}</p>
-    <p className="tcg-card-art">Preview design · artwork in development</p>
+    <p className="tcg-card-art">{artwork ? "Private preview artwork · not final" : "Artwork unavailable · private preview"}</p>
   </article>;
 }
 
+function StackView({ stack, artwork }: { stack: CardStack; artwork?: string }) {
+  const [selectedFinish, setSelectedFinish] = useState(stack.editions[0].finish);
+  const selected = stack.editions.find((edition) => edition.finish === selectedFinish) || stack.editions[0];
+  return <div className="tcg-stack">
+    <div className="tcg-stack-count"><strong>{stack.quantity} {stack.quantity === 1 ? "copy" : "copies"}</strong><span>in your collection</span></div>
+    <CardView card={selected} artwork={artwork} />
+    <div className="tcg-editions" aria-label={`${selected.cardSnapshot.name} editions`}>
+      {stack.editions.map((edition) => <button key={edition.finish} type="button" aria-pressed={selected.finish === edition.finish}
+        onClick={() => setSelectedFinish(edition.finish)}>{edition.finish} <strong>×{edition.quantity}</strong></button>)}
+    </div>
+  </div>;
+}
+
 export default function TcgPage() {
-  const [cards, setCards] = useState<Card[]>([]);
+  const [stacks, setStacks] = useState<CardStack[]>([]);
+  const [artwork, setArtwork] = useState<Record<string, string>>({});
+  const [artworkMessage, setArtworkMessage] = useState("");
+  const artworkRequested = useRef(new Set<string>());
   const [cursor, setCursor] = useState<string | null>(null);
   const [opened, setOpened] = useState<Card[]>([]);
+  const [replayedPack, setReplayedPack] = useState(false);
   const [message, setMessage] = useState("Checking your private test access...");
   const [signIn, setSignIn] = useState(false);
   const [ready, setReady] = useState(false);
@@ -49,20 +70,47 @@ export default function TcgPage() {
   const packStage = useRef<HTMLElement | null>(null);
   const opening = packPhase !== "idle" && revealedCount < opened.length;
 
+  const loadArtwork = useCallback(async (newCards: Card[]) => {
+    const keys = [...new Set(newCards.map((card) => card.cardKey))].filter((key) => !artworkRequested.current.has(key));
+    for (let offset = 0; offset < keys.length; offset += 50) {
+      const batch = keys.slice(offset, offset + 50);
+      batch.forEach((key) => artworkRequested.current.add(key));
+      try {
+        const response = await fetch(`/api/tcg?action=artwork&keys=${encodeURIComponent(batch.join(","))}`, { cache: "no-store" });
+        const data: unknown = await response.json();
+        if (!response.ok || !data || typeof data !== "object" || !("success" in data) || data.success !== true ||
+            !("artwork" in data) || !data.artwork || typeof data.artwork !== "object" || !("missing" in data) || !Array.isArray(data.missing)) {
+          throw new Error("Preview artwork could not be loaded.");
+        }
+        const received: Record<string, string> = {};
+        for (const [key, value] of Object.entries(data.artwork)) {
+          if (!batch.includes(key) || typeof value !== "string" || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error("Invalid preview artwork response.");
+          received[key] = value;
+        }
+        setArtwork((current) => ({ ...current, ...received }));
+        if (data.missing.length) setArtworkMessage("Some preview artwork is unavailable.");
+      } catch (error) {
+        batch.forEach((key) => artworkRequested.current.delete(key));
+        setArtworkMessage(error instanceof Error ? error.message : "Preview artwork could not be loaded.");
+      }
+    }
+  }, []);
+
   const loadCollection = useCallback(async (next?: string) => {
-    const query = next ? `?cursor=${encodeURIComponent(next)}` : "";
+    const query = next ? `?view=stacks&cursor=${encodeURIComponent(next)}` : "?view=stacks";
     const response = await fetch(`/api/tcg${query}`, { cache: "no-store" });
     const data: Result = await response.json();
-    if (!response.ok || !data.success || !Array.isArray(data.cards)) {
+    if (!response.ok || !data.success || !Array.isArray(data.stacks)) {
       if (response.status === 401) setSignIn(true);
       throw new Error(data.error || "Your collection is unavailable.");
     }
-    setCards((current) => next ? [...current, ...data.cards!] : data.cards!);
+    setStacks((current) => next ? [...current, ...data.stacks!] : data.stacks!);
+    void loadArtwork(data.stacks.flatMap((stack) => stack.editions));
     setCursor(data.nextCursor || null);
     setUnlimitedTestPacks(data.unlimitedTestPacks === true);
     setReady(true);
     setMessage(data.unlimitedTestPacks ? "Your collection is ready. Unlimited packs are enabled for private testing." : "Your collection is ready. Free packs reset 24 hours after your last claim.");
-  }, []);
+  }, [loadArtwork]);
 
   useEffect(() => {
     void loadCollection().then(async () => {
@@ -111,8 +159,10 @@ export default function TcgPage() {
       revealed.current = 0;
       setRevealedCount(0);
       setOpened(data.pack.cards);
+      setReplayedPack(data.replayed === true);
+      void loadArtwork(data.pack.cards);
       setPackPhase("sealed");
-      setMessage("Your cards are saved. Tear open your pack to reveal them.");
+      setMessage(data.replayed ? "Recovered your previous pack. Check your collection for current ownership." : "Your cards are saved. Tear open your pack to reveal them.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Your pack could not be opened. Please retry.");
     } finally {
@@ -147,10 +197,11 @@ export default function TcgPage() {
     if (index + 1 < opened.length) {
       setMessage("One more card awaits. Reveal your special pull.");
     } else {
-      setMessage("Both cards are saved to your collection.");
+      const savedMessage = replayedPack ? "Previous pack recovered. Check your collection for current ownership." : "Both cards are saved to your collection.";
+      setMessage(savedMessage);
       void loadCollection()
-        .then(() => setMessage("Both cards are saved to your collection."))
-        .catch((error: unknown) => setMessage(error instanceof Error ? `Cards saved, but collection refresh failed: ${error.message}` : "Cards saved, but the collection could not refresh."));
+        .then(() => setMessage(savedMessage))
+        .catch((error: unknown) => setMessage(error instanceof Error ? `Collection refresh failed: ${error.message}` : "The collection could not refresh."));
     }
   }
 
@@ -200,7 +251,8 @@ export default function TcgPage() {
       <div className="tcg-status" role="status" aria-live="polite">{message}</div>
       {signIn && <a className="tcg-button" href="/api/auth/discord/login?returnTo=%2Ftcg">Sign in with Discord</a>}
       {ready && !opening && <button className="tcg-button" disabled={busy} onClick={() => void ripPack()}>{busy ? "Preparing your pack..." : "✦ Rip your free pack"}</button>}
-      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork and stories are not final. Creature cards, rewards, trading and battles will be enabled only through the TCG release gates.</p>
+      <p className="tcg-note">Two cards per pack · {ready && unlimitedTestPacks ? "unlimited packs during private testing" : "one free pack every 24 hours"} · test artwork, stories and battle rules are not final. Wilds unlocks and rewards are not active yet.</p>
+      {artworkMessage && <p className="tcg-note" role="status">{artworkMessage}</p>}
     </section>
     {(packPhase === "sealed" || packPhase === "tearing") && <section ref={packStage} className="tcg-section tcg-opening" aria-label="Pack opening">
       <div className="tcg-opening-copy"><p className="tcg-eyebrow">THE CITY MEETS THE WILDS</p><h2>Your story is sealed inside.</h2><p>{packPhase === "sealed" ? "Drag across the pack or tap to tear it open." : "The seal is breaking..."}</p></div>
@@ -212,26 +264,28 @@ export default function TcgPage() {
           onPointerCancel={() => { pointerStart.current = null; }}
           onClick={tearPack}>
           <span className="tcg-pack-top" aria-hidden="true"><span>TEAR HERE</span></span>
-          <span className="tcg-pack-body" aria-hidden="true"><span className="tcg-pack-edition">PRIVATE TEST · FIRST EDITION</span><span className="tcg-pack-brand">POSSUM<br /><em>TCG</em></span><span className="tcg-pack-emblem">✦</span><span className="tcg-pack-subtitle">THE CITY MEETS THE WILDS</span><span className="tcg-pack-count">2 CARDS INSIDE</span></span>
+          <span className="tcg-pack-body" aria-hidden="true"><span className="tcg-pack-edition">PRIVATE TEST · FIRST EDITION</span><span className="tcg-pack-brand">POSSUM<br /><em>WILDS</em></span><span className="tcg-pack-emblem">✦</span><span className="tcg-pack-subtitle">THE CITY MEETS THE WILDS</span><span className="tcg-pack-count">2 CARDS INSIDE</span></span>
         </button>
         {packPhase === "tearing" && <div className="tcg-pack-burst" aria-hidden="true"><i /><i /><i /><i /><i /><i /></div>}
       </div>
       {packPhase === "tearing" && <button type="button" className="tcg-skip" onClick={finishTear}>Skip animation</button>}
     </section>}
-    {packPhase === "reveal" && opened.length > 0 && <section className="tcg-section tcg-pulls"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR LATEST PULL</p><h2>{opening ? "See what you found." : "Fresh from the pack"}</h2></div><span>{revealedCount} of {opened.length} revealed · saved to your collection</span></div>
+    {packPhase === "reveal" && opened.length > 0 && <section className="tcg-section tcg-pulls"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR LATEST PULL</p><h2>{opening ? "See what you found." : "Fresh from the pack"}</h2></div><span>{revealedCount} of {opened.length} revealed · {replayedPack ? "check collection for current ownership" : "saved to your collection"}</span></div>
       <div className="tcg-grid tcg-reveal-grid">{opened.map((card, index) => <div className={`tcg-flip${index < revealedCount ? " tcg-flip-revealed" : ""}`} key={card.id}>
         <div className="tcg-flip-inner">
           <button type="button" className="tcg-card-back" disabled={index !== revealedCount} onClick={() => revealCard(index)} aria-hidden={index < revealedCount} aria-label={`Reveal card ${index + 1} of ${opened.length}`}>
-            <span className="tcg-card-back-mark">✦</span><strong>POSSUM<br /><em>TCG</em></strong><span>{index === revealedCount ? "TAP TO REVEAL" : "REVEAL IN ORDER"}</span>
+            <span className="tcg-card-back-mark">✦</span><strong>POSSUM<br /><em>WILDS</em></strong><span>{index === revealedCount ? "TAP TO REVEAL" : "REVEAL IN ORDER"}</span>
           </button>
-          <div className="tcg-card-front" aria-hidden={index >= revealedCount}><CardView card={card} /></div>
+          <div className="tcg-card-front" aria-hidden={index >= revealedCount}><CardView card={card} artwork={artwork[card.cardKey]} /></div>
         </div>
       </div>)}</div>
     </section>}
-    {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{cards.length} loaded</span></div>
-      {cards.length ? <div className="tcg-grid">{cards.map((card) => <CardView key={card.id} card={card} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
+    {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{stacks.length} unique cards · {stacks.reduce((total, stack) => total + stack.quantity, 0)} copies loaded</span></div>
+      {stacks.length ? <div className="tcg-grid">{stacks.map((stack) => <StackView key={stack.cardKey} stack={stack} artwork={artwork[stack.cardKey]} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
     </section>}
+    {ready && !opening && <TradePanel stacks={stacks} refreshCollection={loadCollection} />}
+    {ready && !opening && <BattlePanel stacks={stacks} refreshCollection={loadCollection} artwork={artwork} loadArtwork={loadArtwork} />}
     {rules && <section className="tcg-section tcg-admin"><details><summary>Developer controls <span>Drop-rate settings</span></summary>
       <p>All values are percentages. Each row must total 100%. Changes affect future packs only.</p>
       <div className="tcg-rules"><div className="tcg-rule-row"><strong>Special type</strong>{specials.map((key) => <label key={key}>{key}<input type="number" min="0" max="100" step="0.01" value={rules.specialWeights[key] / 100} onChange={(event) => changeWeight("special", key, event.target.value)} /></label>)}</div>

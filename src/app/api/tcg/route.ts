@@ -19,8 +19,23 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
     return reply({ error: "TCG access is temporarily unavailable." }, 503);
   }
   const action = request.nextUrl.searchParams.get("action") || "collection";
-  if ((method === "GET" && !["collection", "rules"].includes(action)) ||
-      (method === "POST" && action !== "open") || (method === "PUT" && action !== "rules")) {
+  const tradeActions: Record<string, string> = {
+    trades: "trades",
+    tradeRespond: "trades/respond",
+    tradeComplete: "trades/complete",
+    tradeCancel: "trades/cancel",
+    battles: "battles",
+    battleChallenge: "battles/challenge",
+    battleRespond: "battles/respond",
+    battleConfirm: "battles/confirm",
+    battlePlay: "battles/play",
+    battleCancel: "battles/cancel",
+    battleForfeit: "battles/forfeit",
+    battleTimeout: "battles/timeout",
+  };
+  if ((method === "GET" && !["collection", "rules", "artwork", "trades", "battles"].includes(action)) ||
+      (method === "POST" && !["open", "trades", "tradeRespond", "tradeComplete", "tradeCancel", "battleChallenge", "battleRespond", "battleConfirm", "battlePlay", "battleCancel", "battleForfeit", "battleTimeout"].includes(action)) ||
+      (method === "PUT" && action !== "rules")) {
     return reply({ error: "Invalid TCG action." }, 400);
   }
   let base: URL;
@@ -32,10 +47,17 @@ async function handle(request: NextRequest, method: "GET" | "POST" | "PUT") {
     console.error("[TCG] Bot API must use a loopback origin.", error instanceof Error ? error.name : "UnknownError");
     return reply({ error: "TCG service is not configured." }, 503);
   }
-  const url = new URL(`/api/tcg/${action}`, base);
+  const url = new URL(`/api/tcg/${tradeActions[action] || action}`, base);
   if (method === "GET" && action === "collection") {
     const cursor = request.nextUrl.searchParams.get("cursor");
     if (cursor !== null) url.searchParams.set("cursor", cursor);
+    const view = request.nextUrl.searchParams.get("view");
+    if (view !== null) url.searchParams.set("view", view);
+  }
+  if (method === "GET" && action === "artwork") {
+    const keys = request.nextUrl.searchParams.get("keys");
+    if (!keys || keys.length > 4096) return reply({ error: "Invalid artwork request." }, 400);
+    url.searchParams.set("keys", keys);
   }
   let body: string | undefined;
   if (method !== "GET") {

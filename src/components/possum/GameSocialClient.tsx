@@ -17,7 +17,7 @@ type EnginePayload = {
 };
 type GuildChannel = { id: string; name: string; type: number; parentId?: string | null; position?: number };
 type GuildRole = { id: string; name: string; position?: number };
-type Props = { guildId: string; guildName: string; mode: "member" | "admin"; authenticatedUserId?: string };
+type Props = { guildId: string; guildName: string; mode: "member" | "admin" | "auto"; authenticatedUserId?: string };
 
 const card: CSSProperties = { border: "1px solid rgba(255,0,0,.22)", borderRadius: 12, padding: 12, background: "rgba(30,8,12,.42)", marginBottom: 10 };
 const input: CSSProperties = { width: "100%", background: "#070707", border: "1px solid rgba(255,0,0,.45)", color: "#ffd3d3", borderRadius: 10, padding: "10px 12px" };
@@ -275,9 +275,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
     "member_gaming_portal"
   );
   const canManageGaming = viewerScope === "admin";
-  const canManageServer = Object.values(engines).some((payload) => payload.details?.adminControlsAvailable === true);
   const memberHubHref = `/dashboard/games?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(viewerUserId || "")}`;
-  const adminHubHref = `/dashboard/games/admin?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(viewerUserId || "")}`;
   const myIdentities = listRows(memberState?.identities);
   const myPendingVerifications = listRows(memberState?.pendingVerifications);
   const myNotifications = listRows(memberState?.notifications);
@@ -364,7 +362,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
     return <div role="status" style={{ width: "100%", padding: 24, color: "#a9c5d1" }}>Loading Gaming Hub…</div>;
   }
 
-  if (!loading && mode === "member") {
+  if (!loading && (mode === "member" || (mode === "auto" && !canManageGaming))) {
     return (
       <MemberGamingHub
         key={`${guildId}:${viewerUserId || ""}`}
@@ -376,7 +374,6 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
         saving={saving}
         message={message}
         warnings={loadWarnings}
-        adminHref={canManageServer ? adminHubHref : ""}
         onReload={() => void loadAll(guildId, false, true)}
         onAction={runAction}
         buildConnectHref={buildConnectHref}

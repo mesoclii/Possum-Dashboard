@@ -22,7 +22,6 @@ type Props = {
   saving: boolean;
   message: string;
   warnings: string[];
-  adminHref?: string;
   onReload: () => void;
   onAction: (engine: EngineKey, action: string, payload: Record<string, unknown>, success: string) => Promise<any>;
   buildConnectHref: (providerKey: string, platform?: string) => string;
@@ -150,7 +149,6 @@ export default function MemberGamingHub({
   saving,
   message,
   warnings,
-  adminHref,
   onReload,
   onAction,
   buildConnectHref,
@@ -729,7 +727,6 @@ export default function MemberGamingHub({
         <div style={{ color: colors.muted }}>{guildName || guildId} · players, profiles, sessions, and teams</div>
         {viewer.name ? <div style={{ color: colors.text, marginTop: 10 }}>Welcome back, {viewer.name}</div> : null}
         <a href="/gaming" style={{ display: "inline-block", marginTop: 12, marginRight: 16, color: colors.accent, fontSize: 13, fontWeight: 700 }}>Public Gaming Hub &amp; sharing</a>
-        {adminHref ? <a href={adminHref} style={{ display: "inline-block", marginTop: 12, color: colors.accent, fontSize: 13, fontWeight: 700 }}>Server gaming settings</a> : null}
       </header>
 
       <nav aria-label="Gaming Hub sections" style={{ display: "flex", gap: 7, overflowX: "auto", padding: "2px 0 5px" }}>

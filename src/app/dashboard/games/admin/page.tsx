@@ -1,5 +1,5 @@
-import GamesClient from "../GamesClient";
+import { redirect } from "next/navigation";
 
 export default function GamesAdminPage() {
-  return <GamesClient mode="admin" />;
+  redirect("/dashboard/games");
 }

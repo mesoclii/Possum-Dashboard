@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { resolveGuildContext } from "@/lib/liveRuntime";
 import GameSocialClient from "@/components/possum/GameSocialClient";
 
-type GamesClientProps = { mode: "member" | "admin" };
+type GamesClientProps = { mode: "member" | "admin" | "auto" };
 
 export default function GamesClient({ mode }: GamesClientProps) {
   const [guildContext, setGuildContext] = useState({ guildId: "", guildName: "", userId: "" });

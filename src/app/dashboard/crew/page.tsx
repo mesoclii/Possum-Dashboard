@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import EngineContractPanel from "@/components/possum/EngineContractPanel";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 type CrewCfg = {
   enabled: boolean;
@@ -140,7 +141,7 @@ export default function CrewEnginePage() {
   async function sendInvite() {
     const targetUserId = normalizeUserId(inviteTargetUserId);
     if (!targetUserId) {
-      setInviteMessage("Enter a member mention or Discord user ID.");
+      setInviteMessage("Choose a server member.");
       return;
     }
     if (!inviteCrewName.trim()) {
@@ -375,15 +376,7 @@ export default function CrewEnginePage() {
                   {crewChoices.map((crewName) => <option key={crewName} value={crewName} />)}
                 </datalist>
               </div>
-              <div>
-                <div style={{ marginBottom: 6 }}>Member Mention or ID</div>
-                <input
-                  style={input}
-                  value={inviteTargetUserId}
-                  onChange={(e) => setInviteTargetUserId(e.target.value)}
-                  placeholder="@member or 123456789012345678"
-                />
-              </div>
+              <DiscordMemberPicker guildId={guildId} label="Invite member" value={inviteTargetUserId} onChange={(value) => setInviteTargetUserId(String(value || ""))} />
               <div style={{ gridColumn: "1 / -1" }}>
                 <div style={{ marginBottom: 6 }}>Invite Note</div>
                 <textarea

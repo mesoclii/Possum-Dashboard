@@ -166,12 +166,12 @@ function cloneImportedSelfrolesConfig(source: Partial<Config>, sourceGuildName: 
             ? panel.options.map((option) => ({
                 ...newOption(),
                 ...option,
-                roleId: "",
+                roleId: String(option?.roleId || ""),
               }))
             : [],
         }))
       : [],
-    notes: [source.notes?.trim(), `Imported from ${sourceGuildName} on ${stamp}. Role and channel IDs were cleared for remapping.`]
+    notes: [source.notes?.trim(), `Imported from ${sourceGuildName} on ${stamp}. Channels were cleared for this server; required roles were mapped by name.`]
       .filter(Boolean)
       .join("\n\n"),
     updatedAt: "",
@@ -254,7 +254,7 @@ export default function SelfrolesPage() {
     const confirmed = typeof window === "undefined"
       ? true
       : window.confirm(
-          `Import all selfroles from ${selected.name}? This replaces the current selfroles template on this page. Channel IDs, log channel, verification role, and panel role IDs will be cleared so you can remap them for this guild.`
+          `Add all selfroles from ${selected.name}? Your current panels and settings will stay. Missing roles will be created in this server without permissions, and imported panels will need a destination channel.`
         );
     if (!confirmed) return;
 
@@ -270,9 +270,33 @@ export default function SelfrolesPage() {
       }
 
       const imported = cloneImportedSelfrolesConfig(json?.config || {}, selected.name);
-      setCfg(imported);
+      const sourceRoleIds = [...new Set(imported.panels.flatMap((panel) => panel.options.map((option) => option.roleId).filter(Boolean)))];
+      let mapping: Record<string, string> = {};
+      if (sourceRoleIds.length) {
+        const roleResponse = await fetch("/api/bot/selfroles/import-roles", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sourceGuildId: selected.id, targetGuildId: guildId, roleIds: sourceRoleIds }),
+        });
+        const rolePayload = await roleResponse.json().catch(() => ({}));
+        if (!roleResponse.ok || !rolePayload?.success) throw new Error(rolePayload?.error || "The selfrole panels loaded, but the configured roles could not be added to this server.");
+        mapping = rolePayload.mapping || {};
+      }
+      imported.panels = imported.panels.map((panel) => ({
+        ...panel,
+        options: panel.options.map((option) => ({ ...option, roleId: mapping[option.roleId] || "" })),
+      }));
+      const existingPanelIds = new Set((cfg.panels || []).map((panel) => panel.id));
+      const importedPanels = imported.panels
+        .map((panel, index) => ({ ...panel, id: `import_${selected.id.slice(-6)}_${panel.id || index}` }))
+        .filter((panel) => !existingPanelIds.has(panel.id));
+      setCfg({
+        ...cfg,
+        panels: [...(cfg.panels || []), ...importedPanels],
+        notes: [cfg.notes?.trim(), imported.notes].filter(Boolean).join("\n\n"),
+      });
       setImportMessage(
-        `Imported ${imported.panels.length} selfrole panel${imported.panels.length === 1 ? "" : "s"} from ${selected.name}. Role and channel mappings were cleared for this guild.`
+        `Added ${importedPanels.length} selfrole panel${importedPanels.length === 1 ? "" : "s"} from ${selected.name}. Your existing panels and settings were kept. Required roles were reused or created with no permissions; imported channels still need mapping.`
       );
     } catch (err: any) {
       setImportMessage(err?.message || "Failed to import selfroles.");
@@ -330,7 +354,7 @@ export default function SelfrolesPage() {
       <div style={box}>
         <h3 style={{ marginTop: 0, color: "#ff4444" }}>Import From Another Guild</h3>
         <p style={{ marginTop: 0, marginBottom: 10, color: "#ffd7d7" }}>
-          Copy a full selfroles setup from Saviors or any other installed guild, then just remap the roles and channels for this server.
+          Add panels from another installed server without removing the selfroles you already configured here.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 1fr) auto", gap: 10, alignItems: "end" }}>
           <div>
@@ -349,13 +373,13 @@ export default function SelfrolesPage() {
             disabled={importing || !sourceGuildId}
             style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #7a0000", background: "#220000", color: "#ffd7d7", minWidth: 220 }}
           >
-            {importing ? "Importing..." : "Import Selfroles Template"}
+            {importing ? "Importing..." : "Add Selfroles from Another Server"}
           </button>
         </div>
         <div style={{ marginTop: 10, color: "#ffb3b3", fontSize: 13 }}>
-          Preserved: panel layout, text, emoji, button styles, embed styling, webhook styling, defaults, and limits.
+          Preserved: every existing panel and setting. Imported panel layout, text, emoji, button styles, embed styling, and webhook styling are appended.
           <br />
-          Cleared on purpose: panel role IDs, panel channel IDs, log channel, and verification role, so this guild can be remapped cleanly.
+          Required roles are reused by name or created without permissions. Imported panels still need destination channel mappings.
         </div>
       </div>
 

@@ -912,6 +912,9 @@ export default function ModeratorClient() {
             <div style={{ color: "#ffbcbc", marginBottom: 10 }}>
               Use this when you want Twitch, YouTube, or other trusted domains to pass only in selected promo channels while the rest of the server stays locked down.
             </div>
+            <div style={{ color: "#b6edc4", marginBottom: 10 }}>
+              TikTok links, including tiktok.com short links, are allowed across the server even when external-link moderation is enabled.
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
               <div>
                 <label>Allowed external link domains</label>

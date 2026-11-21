@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -42,6 +42,8 @@ type RuntimeRow = {
   linkedServerIds?: string[];
   notes?: string;
 };
+
+type GuildOption = { id: string; name: string };
 
 const DEFAULT_CFG: ModderIntelConfig = {
   enabled: true,
@@ -156,6 +158,19 @@ export default function ModderIntelClient() {
     preserveRestrictions: true,
   });
   const [removeLookup, setRemoveLookup] = useState("");
+  const [availableGuilds, setAvailableGuilds] = useState<GuildOption[]>([]);
+
+  useEffect(() => {
+    if (!guildId) return;
+    let active = true;
+    void fetch("/api/bot/guilds", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => {
+        if (active) setAvailableGuilds(Array.isArray(payload?.guilds) ? payload.guilds.filter((row: any) => row?.id && row?.name) : []);
+      })
+      .catch(() => { if (active) setAvailableGuilds([]); });
+    return () => { active = false; };
+  }, [guildId]);
 
   async function addEntry() {
     const memberLookup = String(form.memberLookup || "").trim();
@@ -311,15 +326,19 @@ export default function ModderIntelClient() {
               Linked Menu / Reseller Discord Servers
             </div>
             <div style={{ color: "#ffb7b7", marginBottom: 12, lineHeight: 1.6 }}>
-              Add Discord server IDs the bot is also in. If a member joins one of those linked servers and this guild, the modder database can auto-add them using the selected source preset.
+              Choose other servers the bot is in. If a member joins one of those linked servers and this guild, the modder database can auto-add them using the selected source preset.
             </div>
             <div style={{ display: "grid", gap: 12 }}>
               {(cfg.linkedSourceServers || []).map((entry, index) => (
                 <div key={`${entry.guildId || "new"}_${index}`} style={{ border: "1px solid #3b0000", borderRadius: 12, padding: 12, background: "#0a0a0a" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
                     <div>
-                      <div style={label}>Linked Server ID</div>
-                      <input style={input} value={entry.guildId} onChange={(e) => updateLinkedServer(index, { guildId: e.target.value })} placeholder="Discord guild ID" />
+                      <div style={label}>Linked Server</div>
+                      <select style={input} value={entry.guildId} onChange={(e) => updateLinkedServer(index, { guildId: e.target.value })}>
+                        <option value="">Choose a server</option>
+                        {entry.guildId && !availableGuilds.some((guild) => guild.id === entry.guildId) ? <option value={entry.guildId}>{entry.label || "Saved server (choose to remap)"}</option> : null}
+                        {availableGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
+                      </select>
                     </div>
                     <div>
                       <div style={label}>Display Label</div>
@@ -380,7 +399,7 @@ export default function ModderIntelClient() {
                   style={input}
                   value={form.memberLookup}
                   onChange={(e) => setForm((prev) => ({ ...prev, memberLookup: e.target.value }))}
-                  placeholder="User ID, mention, nickname, or username"
+                  placeholder="Member mention, nickname, or username"
                 />
               </div>
               <div>
@@ -433,13 +452,16 @@ export default function ModderIntelClient() {
                 />
               </div>
               <div>
-                <div style={label}>Linked Server IDs (CSV)</div>
-                <input
-                  style={input}
-                  value={form.linkedServerIds}
-                  onChange={(e) => setForm((prev) => ({ ...prev, linkedServerIds: e.target.value }))}
-                  placeholder="123..., 456..."
-                />
+                <div style={label}>Linked servers</div>
+                <select
+                  multiple
+                  style={{ ...input, minHeight: 110 }}
+                  value={String(form.linkedServerIds || "").split(",").map((id) => id.trim()).filter(Boolean)}
+                  onChange={(event) => setForm((prev) => ({ ...prev, linkedServerIds: Array.from(event.target.selectedOptions, (option) => option.value).join(", ") }))}
+                >
+                  {String(form.linkedServerIds || "").split(",").map((id) => id.trim()).filter((id) => id && !availableGuilds.some((guild) => guild.id === id)).map((id) => <option key={id} value={id}>Saved server (unavailable)</option>)}
+                  {availableGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
+                </select>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div style={label}>Restriction Surfaces</div>
@@ -479,7 +501,7 @@ export default function ModderIntelClient() {
           <section style={card}>
             <div style={label}>Remove Intel Record</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12 }}>
-              <input style={input} value={removeLookup} onChange={(e) => setRemoveLookup(e.target.value)} placeholder="User ID, mention, nickname, or username" />
+              <input style={input} value={removeLookup} onChange={(e) => setRemoveLookup(e.target.value)} placeholder="Member mention, nickname, or username" />
               <button onClick={() => void removeEntry()} disabled={saving || !String(removeLookup || "").trim()} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }}>
                 {saving ? "Working..." : "Remove"}
               </button>

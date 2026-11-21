@@ -32,12 +32,6 @@ function parseIdCsv(value: string): string[] {
     .filter((v) => /^\d{16,20}$/.test(v));
 }
 
-function appendIdCsv(csv: string, id: string): string {
-  const list = parseIdCsv(csv);
-  if (!list.includes(id)) list.push(id);
-  return list.join(", ");
-}
-
 export default function SecurityLockdownEditor({
   title,
   description,
@@ -50,8 +44,6 @@ export default function SecurityLockdownEditor({
   const [cfg, setCfg] = useState<LockdownConfig>(DEFAULTS);
   const [roles, setRoles] = useState<Role[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [pickRole, setPickRole] = useState("");
-  const [pickChannel, setPickChannel] = useState("");
   const [status, setStatus] = useState("Loading...");
   const [saving, setSaving] = useState(false);
 
@@ -254,70 +246,19 @@ export default function SecurityLockdownEditor({
       <PossumCard title="Exemptions">
         <div style={{ display: "grid", gap: 12 }}>
           <div>
-            <div style={{ color: possum.soft, marginBottom: 4 }}>Exempt Role IDs (CSV)</div>
-            <input
-              value={cfg.exemptRoleIdsCsv}
-              onChange={(e) => setCfg((v) => ({ ...v, exemptRoleIdsCsv: e.target.value }))}
-              placeholder="123..., 456..."
-              style={{ width: "100%", padding: 10, borderRadius: 10, border: `1px solid ${possum.border}`, background: "#0b0b0b", color: "#fff" }}
-            />
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <select
-                value={pickRole}
-                onChange={(e) => setPickRole(e.target.value)}
-                style={{ flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${possum.border}`, background: "#0b0b0b", color: "#fff" }}
-              >
-                <option value="">-- choose role --</option>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.id})
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="possum-btn"
-                onClick={() => pickRole && setCfg((v) => ({ ...v, exemptRoleIdsCsv: appendIdCsv(v.exemptRoleIdsCsv, pickRole) }))}
-                style={{ padding: "10px 12px" }}
-              >
-                Add
-              </button>
-            </div>
+            <div style={{ color: possum.soft, marginBottom: 4 }}>Exempt roles</div>
+            <select multiple value={parseIdCsv(cfg.exemptRoleIdsCsv)} onChange={(e) => setCfg((v) => ({ ...v, exemptRoleIdsCsv: Array.from(e.target.selectedOptions, (option) => option.value).join(", ") }))} style={{ width: "100%", minHeight: 110, padding: 10, borderRadius: 10, border: `1px solid ${possum.border}`, background: "#0b0b0b", color: "#fff" }}>
+              {parseIdCsv(cfg.exemptRoleIdsCsv).filter((id) => !roles.some((role) => role.id === id)).map((id) => <option key={id} value={id}>Unavailable role</option>)}
+              {roles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
+            </select>
           </div>
 
           <div>
-            <div style={{ color: possum.soft, marginBottom: 4 }}>Exempt Channel IDs (CSV)</div>
-            <input
-              value={cfg.exemptChannelIdsCsv}
-              onChange={(e) => setCfg((v) => ({ ...v, exemptChannelIdsCsv: e.target.value }))}
-              placeholder="123..., 456..."
-              style={{ width: "100%", padding: 10, borderRadius: 10, border: `1px solid ${possum.border}`, background: "#0b0b0b", color: "#fff" }}
-            />
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <select
-                value={pickChannel}
-                onChange={(e) => setPickChannel(e.target.value)}
-                style={{ flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${possum.border}`, background: "#0b0b0b", color: "#fff" }}
-              >
-                <option value="">-- choose channel --</option>
-                {channels.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.id})
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="possum-btn"
-                onClick={() =>
-                  pickChannel &&
-                  setCfg((v) => ({ ...v, exemptChannelIdsCsv: appendIdCsv(v.exemptChannelIdsCsv, pickChannel) }))
-                }
-                style={{ padding: "10px 12px" }}
-              >
-                Add
-              </button>
-            </div>
+            <div style={{ color: possum.soft, marginBottom: 4 }}>Exempt channels</div>
+            <select multiple value={parseIdCsv(cfg.exemptChannelIdsCsv)} onChange={(e) => setCfg((v) => ({ ...v, exemptChannelIdsCsv: Array.from(e.target.selectedOptions, (option) => option.value).join(", ") }))} style={{ width: "100%", minHeight: 110, padding: 10, borderRadius: 10, border: `1px solid ${possum.border}`, background: "#0b0b0b", color: "#fff" }}>
+              {parseIdCsv(cfg.exemptChannelIdsCsv).filter((id) => !channels.some((channel) => channel.id === id)).map((id) => <option key={id} value={id}>Unavailable channel</option>)}
+              {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+            </select>
           </div>
         </div>
       </PossumCard>

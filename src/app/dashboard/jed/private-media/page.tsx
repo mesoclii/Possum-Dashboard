@@ -3,6 +3,8 @@
 /* eslint-disable @next/next/no-img-element -- Private previews must not pass through an image optimizer. */
 import { useEffect, useMemo, useState } from "react";
 import { createJedPrivateClient, type MediaItem, type ReviewItem, type ReviewPreview } from "@/lib/jedPrivateClient";
+import { resolveGuildContext } from "@/lib/liveRuntime";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 export default function JedPrivateMediaPage() {
   const api = useMemo(() => createJedPrivateClient(), []);
@@ -24,6 +26,11 @@ export default function JedPrivateMediaPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [takedownId, setTakedownId] = useState("");
   const [takedownConsent, setTakedownConsent] = useState(false);
+  const [guildId, setGuildId] = useState("");
+
+  useEffect(() => {
+    setGuildId(resolveGuildContext().guildId);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -84,7 +91,7 @@ export default function JedPrivateMediaPage() {
           {selected && image ? <div>
             <p>{selected.id} <img src={image} alt="Selected private media" style={{ maxWidth: 160, maxHeight: 160 }} /></p>
             {selected.role === "owner" ? <>
-              <label>Recipient Discord user ID <input value={recipient} onChange={(event) => setRecipient(event.target.value)} /></label>
+              <DiscordMemberPicker guildId={guildId} label="Share with member" value={recipient} onChange={(value) => setRecipient(String(value || ""))} />
               <p><label><input type="checkbox" checked={shareConsent} onChange={(event) => setShareConsent(event.target.checked)} /> I consent to sharing this item with this recipient.</label></p>
               <button type="button" disabled={selected.review_status !== "approved" || !shareConsent} onClick={() => void run(async () => { await api.share(selected.id, recipient, shareConsent); setShareConsent(false); setMessage("Recipient granted access."); })}>Share</button>{" "}
               <button type="button" onClick={() => void run(async () => { await api.revoke(selected.id, recipient); setMessage("Recipient access revoked."); })}>Revoke</button>{" "}

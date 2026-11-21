@@ -72,7 +72,7 @@ export default function AlertInboxPage() {
   return (
     <div style={{ color: "#ffe9f6", padding: 18, maxWidth: 980 }}>
       <h1 style={{ margin: 0, letterSpacing: "0.08em", textTransform: "uppercase" }}>Alert Inbox</h1>
-      <p>{editor.guildName || editor.guildId}</p>
+      <p>{editor.guildName || "Selected server"}</p>
       <label><input type="checkbox" checked={editor.config.processHealth === true} onChange={(event) => editor.setConfig({ ...editor.config, processHealth: event.target.checked })} /> Publish process health for this server</label>
       <button type="button" onClick={() => void editor.save()} disabled={editor.saving} style={{ marginLeft: 12 }}>{editor.saving ? "Saving" : "Save"}</button>
       <div style={{ display: "flex", gap: 8, marginTop: 16 }}>

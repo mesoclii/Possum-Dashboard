@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 type AccountIntegrityConfig = {
   enabled: boolean;
@@ -153,7 +154,6 @@ export default function AccountIntegrityClient() {
   const detections = useMemo(() => rows((details as any)?.detections), [details]);
   const recentActivity = useMemo(() => rows((details as any)?.recentActivity), [details]);
   const trackedProfiles = useMemo(() => rows((details as any)?.trackedProfiles), [details]);
-  const exemptUserText = useMemo(() => (cfg.exemptUserIds || []).join(", "), [cfg.exemptUserIds]);
 
   function patch(next: Partial<AccountIntegrityConfig>) {
     setConfig((prev) => ({ ...(prev || cfg), ...next }));
@@ -274,8 +274,7 @@ export default function AccountIntegrityClient() {
               </div>
             </div>
             <div style={{ marginTop: 14 }}>
-              <div style={label}>Exempt User IDs</div>
-              <textarea style={{ ...input, minHeight: 90 }} value={exemptUserText} onChange={(e) => patch({ exemptUserIds: parseUserList(e.target.value) })} placeholder="Comma-separated Discord user IDs" />
+              <DiscordMemberPicker guildId={guildId} label="Exempt members" multiple value={cfg.exemptUserIds || []} onChange={(value) => patch({ exemptUserIds: Array.isArray(value) ? value : [] })} />
             </div>
             <div style={{ marginTop: 14 }}>
               <div style={label}>Operator Notes</div>

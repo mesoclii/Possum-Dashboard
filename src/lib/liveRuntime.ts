@@ -7,6 +7,8 @@ export type GuildChannel = {
   parentId?: string | null;
 };
 
+export type GuildMember = { id: string; name: string; username?: string };
+
 export type GuildRole = {
   id: string;
   name: string;
@@ -17,6 +19,7 @@ export type GuildRole = {
 export type GuildDataPayload = {
   guild?: { id?: string; name?: string };
   channels?: GuildChannel[];
+  members?: GuildMember[];
   roles?: GuildRole[];
   emojis?: import("@/components/possum/GuildEmojiPicker").GuildEmoji[];
 };

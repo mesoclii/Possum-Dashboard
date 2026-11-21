@@ -142,6 +142,24 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
     }
   }
 
+  async function deleteEpisode(episode: Episode) {
+    if (!window.confirm(`Delete "${episode.title}" and its audio? This also removes it from the public feed if published.`)) return;
+    try {
+      setBusy(true);
+      setError("");
+      setMessage("");
+      const response = await fetch(`/api/podcast/${guildId}/episodes/${episode.id}`, { method: "DELETE" });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Could not delete this episode.");
+      await load();
+      setMessage(`Deleted "${episode.title}" and its audio.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not delete this episode.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!guildId) return <p>Select a server before opening podcast controls.</p>;
   const textChannels = channels.filter((channel) => Number(channel.type) === 0 || Number(channel.type) === 5);
   const voiceChannels = channels.filter((channel) => Number(channel.type) === 2);
@@ -201,14 +219,14 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
               <label>Podcast voice channel
                 <select style={field} value={existing?.channelId || panelVoiceChannel} onChange={(event) => setPanelVoiceChannel(event.target.value)} disabled={!!existing || !directoryReady}>
                   <option value="">Create a new voice channel</option>
-                  {existing && !voiceChannels.some((channel) => channel.id === existing.channelId) ? <option value={existing.channelId}>Configured channel ({existing.channelId})</option> : null}
+                  {existing && !voiceChannels.some((channel) => channel.id === existing.channelId) ? <option value={existing.channelId}>Configured voice channel (unavailable)</option> : null}
                   {voiceChannels.map((channel) => <option key={channel.id} value={channel.id}>{channel.name}</option>)}
                 </select>
               </label>
               <label>Dedicated access role
                 <select style={field} value={existing?.roleId || panelRole} onChange={(event) => setPanelRole(event.target.value)} disabled={!!existing || !directoryReady}>
                   <option value="">Create a new access role</option>
-                  {existing && !accessRoles.some((role) => role.id === existing.roleId) ? <option value={existing.roleId}>Configured role ({existing.roleId})</option> : null}
+                  {existing && !accessRoles.some((role) => role.id === existing.roleId) ? <option value={existing.roleId}>Configured access role (unavailable)</option> : null}
                   {accessRoles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
                 </select>
               </label>
@@ -273,6 +291,9 @@ export default function PodcastControlClient({ initialGuildId = "" }: { initialG
             ) : null}
             <button type="button" style={secondaryButton} disabled={busy || (episode.state !== "completed" && !episode.published) || (!!episode.sourceEpisodeId && !episode.reviewedAt && !episode.published)} onClick={() => void send("publication", { episodeId: episode.id, published: !episode.published })}>
               {episode.published ? "Make private" : "Publish"}
+            </button>
+            <button type="button" style={{ ...secondaryButton, marginLeft: 8, borderColor: "#b95743" }} disabled={busy || ["recording", "rendering"].includes(episode.state)} onClick={() => void deleteEpisode(episode)}>
+              Delete episode
             </button>
           </div>
         ))}

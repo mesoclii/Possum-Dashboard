@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 type HouseConfig = {
   id: string;
@@ -523,7 +524,7 @@ export default function EventPointsClient() {
           </div>
           <div>
             <label>Member reward (optional)</label>
-            <input style={input} value={awardForm.memberUserId} onChange={(e) => setAwardForm((prev) => ({ ...prev, memberUserId: e.target.value }))} placeholder="User ID or mention" />
+            <DiscordMemberPicker guildId={guildId} label="Member reward (optional)" value={awardForm.memberUserId} onChange={(value) => setAwardForm((prev) => ({ ...prev, memberUserId: String(value || "") }))} />
           </div>
           <div style={{ gridColumn: "1 / -1" }}>
             <label>Reason</label>

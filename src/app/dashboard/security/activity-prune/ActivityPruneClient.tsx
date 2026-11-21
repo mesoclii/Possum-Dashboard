@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { CSSProperties } from "react";
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 type ActivityPruneConfig = {
   enabled: boolean;
@@ -150,7 +151,6 @@ export default function ActivityPruneClient() {
   const pendingGrace = useMemo(() => sectionRows(Array.isArray((details as any)?.pendingGrace) ? (details as any).pendingGrace : []), [details]);
   const trackedMembers = useMemo(() => sectionRows(Array.isArray((details as any)?.trackedMembers) ? (details as any).trackedMembers : []), [details]);
   const recentActions = useMemo(() => sectionRows(Array.isArray((details as any)?.recentActions) ? (details as any).recentActions : []), [details]);
-  const exemptUserText = useMemo(() => (cfg.exemptUserIds || []).join(", "), [cfg.exemptUserIds]);
 
   function patch(next: Partial<ActivityPruneConfig>) {
     setConfig((prev) => ({ ...(prev || cfg), ...next }));
@@ -307,8 +307,7 @@ export default function ActivityPruneClient() {
           <section style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
               <div>
-                <div style={label}>Exempt Users</div>
-                <input style={input} value={exemptUserText} onChange={(e) => patch({ exemptUserIds: parseUserList(e.target.value) })} placeholder="User IDs or mentions, comma separated" />
+                <DiscordMemberPicker guildId={guildId} label="Exempt members" multiple value={cfg.exemptUserIds || []} onChange={(value) => patch({ exemptUserIds: Array.isArray(value) ? value : [] })} />
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div style={label}>Exempt Roles</div>

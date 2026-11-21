@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import EngineContractPanel from "@/components/possum/EngineContractPanel";
 import EngineInsights from "@/components/possum/EngineInsights";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 
 type BlacklistCfg = {
@@ -192,12 +193,10 @@ export default function BlacklistClient() {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
               <div>
-                <div style={label}>Add User ID</div>
-                <input style={input} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} placeholder="Discord user ID" />
+                <DiscordMemberPicker guildId={guildId} label="Add member" value={targetUserId} onChange={(value) => setTargetUserId(String(value || ""))} />
               </div>
               <div>
-                <div style={label}>Remove User ID</div>
-                <input style={input} value={removeUserId} onChange={(e) => setRemoveUserId(e.target.value)} placeholder="Discord user ID" />
+                <DiscordMemberPicker guildId={guildId} label="Remove member" value={removeUserId} onChange={(value) => setRemoveUserId(String(value || ""))} />
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div style={label}>Reason</div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { resolveGuildContext, fetchRuntimeEngine, saveRuntimeEngine, fetchDashboardConfig, saveDashboardConfig, readJsonOrThrow } from "@/lib/liveRuntime";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 type EnginePayload = {
   config?: Record<string, any>;
@@ -145,7 +146,7 @@ export default function EconomyClient() {
     const targetUserId = readSnowflake(coinGrant.targetUserId);
     const amount = Math.floor(Number(coinGrant.amount || 0));
     if (!targetUserId) {
-      setMessage("Enter a valid member ID or paste a Discord mention.");
+      setMessage("Choose a server member.");
       return;
     }
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) {
@@ -262,15 +263,7 @@ export default function EconomyClient() {
               Grant coins from this guild control panel. Coins are shared on the bot account, and the grant is logged against this guild.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.7fr 1fr auto", gap: 10, alignItems: "end" }}>
-              <div>
-                <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Member ID or Mention</div>
-                <input
-                  style={input}
-                  value={coinGrant.targetUserId}
-                  onChange={(event) => setCoinGrant((prev) => ({ ...prev, targetUserId: event.target.value }))}
-                  placeholder="Paste a Discord ID or @mention"
-                />
-              </div>
+              <DiscordMemberPicker guildId={guildId} label="Member" value={coinGrant.targetUserId} onChange={(value) => setCoinGrant((prev) => ({ ...prev, targetUserId: String(value || "") }))} />
               <div>
                 <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Coins</div>
                 <input

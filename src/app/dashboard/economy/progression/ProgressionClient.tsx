@@ -391,12 +391,18 @@ export default function ProgressionPage() {
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <label>Ignored channels (comma IDs)</label>
-              <input style={input} value={toCsv(cfg.xp.ignoredChannelIds)} onChange={(e) => setCfg({ ...cfg, xp: { ...cfg.xp, ignoredChannelIds: fromCsv(e.target.value) } })} />
+              <label>Ignored channels</label>
+              <select multiple style={{ ...input, minHeight: 100 }} value={cfg.xp.ignoredChannelIds} onChange={(e) => setCfg({ ...cfg, xp: { ...cfg.xp, ignoredChannelIds: Array.from(e.target.selectedOptions, (option) => option.value) } })}>
+                {cfg.xp.ignoredChannelIds.filter((id) => !channels.some((channel) => channel.id === id)).map((id) => <option key={id} value={id}>Unavailable channel</option>)}
+                {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+              </select>
             </div>
             <div style={{ marginTop: 10 }}>
-              <label>Ignored roles (comma IDs)</label>
-              <input style={input} value={toCsv(cfg.xp.ignoredRoleIds)} onChange={(e) => setCfg({ ...cfg, xp: { ...cfg.xp, ignoredRoleIds: fromCsv(e.target.value) } })} />
+              <label>Ignored roles</label>
+              <select multiple style={{ ...input, minHeight: 100 }} value={cfg.xp.ignoredRoleIds} onChange={(e) => setCfg({ ...cfg, xp: { ...cfg.xp, ignoredRoleIds: Array.from(e.target.selectedOptions, (option) => option.value) } })}>
+                {cfg.xp.ignoredRoleIds.filter((id) => !roles.some((role) => role.id === id)).map((id) => <option key={id} value={id}>Unavailable role</option>)}
+                {roles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
+              </select>
             </div>
           </div>
 
@@ -422,7 +428,7 @@ export default function ProgressionPage() {
             <div style={{ marginTop: 10 }}>
               <label>Level-up card background</label>
               <select style={input} value={cfg.levelUp.cardBackgroundId} onChange={(e) => setCfg({ ...cfg, levelUp: { ...cfg.levelUp, cardBackgroundId: e.target.value } })}>
-                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label} ({bg.id})</option>)}
+                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
               </select>
             </div>
 
@@ -448,7 +454,7 @@ export default function ProgressionPage() {
             <div style={{ marginTop: 10 }}>
               <label>Achievement pop background</label>
               <select style={input} value={cfg.achievements.cardBackgroundId} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, cardBackgroundId: e.target.value } })}>
-                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label} ({bg.id})</option>)}
+                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
               </select>
             </div>
 
@@ -494,7 +500,7 @@ export default function ProgressionPage() {
             <div style={{ marginTop: 10 }}>
               <label>Badge card background</label>
               <select style={input} value={cfg.badges.cardBackgroundId} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, cardBackgroundId: e.target.value } })}>
-                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label} ({bg.id})</option>)}
+                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
               </select>
             </div>
           </div>
@@ -569,12 +575,18 @@ export default function ProgressionPage() {
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <label>VIP role IDs (comma)</label>
-              <input style={input} value={toCsv(cfg.multipliers.vipRoleIds)} onChange={(e) => setCfg({ ...cfg, multipliers: { ...cfg.multipliers, vipRoleIds: fromCsv(e.target.value) } })} />
+              <label>VIP roles</label>
+              <select multiple style={{ ...input, minHeight: 100 }} value={cfg.multipliers.vipRoleIds} onChange={(e) => setCfg({ ...cfg, multipliers: { ...cfg.multipliers, vipRoleIds: Array.from(e.target.selectedOptions, (option) => option.value) } })}>
+                {cfg.multipliers.vipRoleIds.filter((id) => !roles.some((role) => role.id === id)).map((id) => <option key={id} value={id}>Unavailable role</option>)}
+                {roles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
+              </select>
             </div>
             <div style={{ marginTop: 10 }}>
-              <label>Booster role IDs (comma)</label>
-              <input style={input} value={toCsv(cfg.multipliers.boosterRoleIds)} onChange={(e) => setCfg({ ...cfg, multipliers: { ...cfg.multipliers, boosterRoleIds: fromCsv(e.target.value) } })} />
+              <label>Booster roles</label>
+              <select multiple style={{ ...input, minHeight: 100 }} value={cfg.multipliers.boosterRoleIds} onChange={(e) => setCfg({ ...cfg, multipliers: { ...cfg.multipliers, boosterRoleIds: Array.from(e.target.selectedOptions, (option) => option.value) } })}>
+                {cfg.multipliers.boosterRoleIds.filter((id) => !roles.some((role) => role.id === id)).map((id) => <option key={id} value={id}>Unavailable role</option>)}
+                {roles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
+              </select>
             </div>
 
             <hr style={{ borderColor: "#440000", margin: "12px 0" }} />

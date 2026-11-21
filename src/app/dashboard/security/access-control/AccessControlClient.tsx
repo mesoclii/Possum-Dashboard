@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import DiscordMemberPicker from "@/components/possum/DiscordMemberPicker";
 
 type Role = { id: string; name: string; position?: number };
 
@@ -69,10 +70,6 @@ function idsToCsv(ids: string[]) {
   return (ids || []).join(", ");
 }
 
-function toggleId(ids: string[], id: string): string[] {
-  return ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id];
-}
-
 function accessReasonLabel(reason: string) {
   switch (reason) {
     case "ok_global_owner":
@@ -104,6 +101,20 @@ function accessReasonLabel(reason: string) {
     default:
       return reason || "Unknown";
   }
+}
+
+function RolePicker({ label, roles, selected, onChange }: { label: string; roles: Role[]; selected: string[]; onChange: (value: string[]) => void }) {
+  const roleIds = new Set(roles.map((role) => role.id));
+  const unavailable = selected.filter((id) => !roleIds.has(id));
+  return (
+    <div>
+      <div style={{ marginBottom: 6, color: "#ffb3b3", fontSize: 12 }}>{label}</div>
+      <div style={{ display: "grid", gap: 5, maxHeight: 180, overflowY: "auto", padding: 8, border: "1px solid rgba(255,0,0,.28)", borderRadius: 8 }}>
+        {unavailable.map((id) => <label key={id}><input type="checkbox" checked onChange={() => onChange(selected.filter((value) => value !== id))} /> Unavailable role</label>)}
+        {roles.map((role) => <label key={role.id}><input type="checkbox" checked={selected.includes(role.id)} onChange={() => onChange(selected.includes(role.id) ? selected.filter((id) => id !== role.id) : [...selected, role.id])} /> @{role.name}</label>)}
+      </div>
+    </div>
+  );
 }
 
 function roleNameMap(roles: Role[]) {
@@ -242,7 +253,7 @@ export default function AccessControlClient() {
   }
 
   const roleLookup = useMemo(() => roleNameMap(roles), [roles]);
-  const viewerName = session?.user?.globalName || session?.user?.username || session?.user?.id || "Unknown";
+  const viewerName = session?.user?.globalName || session?.user?.username || "Unknown user";
   const counts = [
     { label: "Bot Master Roles", value: cfg.adminRoleIds.length },
     { label: "Staff Roles", value: cfg.staffRoleIds.length },
@@ -341,75 +352,8 @@ export default function AccessControlClient() {
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <div style={{ marginBottom: 6, color: "#ffb3b3", fontSize: 12 }}>Bot master roles</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 180, overflowY: "auto", padding: 8, border: "1px solid rgba(255,0,0,.28)", borderRadius: 8 }}>
-                  {roles.map((role) => {
-                    const selected = cfg.adminRoleIds.includes(role.id);
-                    return (
-                      <button
-                        type="button"
-                        key={`admin-${role.id}`}
-                        onClick={() => setCfg((prev) => ({ ...prev, adminRoleIds: toggleId(prev.adminRoleIds, role.id) }))}
-                        style={{
-                          borderRadius: 999,
-                          border: selected ? "1px solid #ff5555" : "1px solid #553030",
-                          background: selected ? "rgba(255,0,0,.24)" : "rgba(255,255,255,.03)",
-                          color: selected ? "#fff" : "#ffb3b3",
-                          padding: "6px 10px",
-                          cursor: "pointer",
-                          fontSize: 12,
-                        }}
-                      >
-                        {role.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <input
-                    style={input}
-                    value={idsToCsv(cfg.adminRoleIds)}
-                    onChange={(event) => setCfg((prev) => ({ ...prev, adminRoleIds: csvToIds(event.target.value) }))}
-                    placeholder="Bot master role IDs (csv)"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div style={{ marginBottom: 6, color: "#ffb3b3", fontSize: 12 }}>Staff dashboard roles</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 180, overflowY: "auto", padding: 8, border: "1px solid rgba(255,0,0,.28)", borderRadius: 8 }}>
-                  {roles.map((role) => {
-                    const selected = cfg.staffRoleIds.includes(role.id);
-                    return (
-                      <button
-                        type="button"
-                        key={`staff-${role.id}`}
-                        onClick={() => setCfg((prev) => ({ ...prev, staffRoleIds: toggleId(prev.staffRoleIds, role.id) }))}
-                        style={{
-                          borderRadius: 999,
-                          border: selected ? "1px solid #ff5555" : "1px solid #553030",
-                          background: selected ? "rgba(255,0,0,.24)" : "rgba(255,255,255,.03)",
-                          color: selected ? "#fff" : "#ffb3b3",
-                          padding: "6px 10px",
-                          cursor: "pointer",
-                          fontSize: 12,
-                        }}
-                      >
-                        {role.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <input
-                    style={input}
-                    value={idsToCsv(cfg.staffRoleIds)}
-                    onChange={(event) => setCfg((prev) => ({ ...prev, staffRoleIds: csvToIds(event.target.value) }))}
-                    placeholder="Support access role IDs (csv)"
-                  />
-                </div>
-              </div>
+              <RolePicker label="Bot master roles" roles={roles} selected={cfg.adminRoleIds} onChange={(value) => setCfg((prev) => ({ ...prev, adminRoleIds: value }))} />
+              <RolePicker label="Staff dashboard roles" roles={roles} selected={cfg.staffRoleIds} onChange={(value) => setCfg((prev) => ({ ...prev, staffRoleIds: value }))} />
             </div>
           </section>
 
@@ -430,24 +374,8 @@ export default function AccessControlClient() {
             </label>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 }}>
-              <div>
-                <div style={{ marginBottom: 6, color: "#ffb3b3", fontSize: 12 }}>Member portal role IDs</div>
-                <textarea
-                  style={{ ...input, minHeight: 80 }}
-                  value={idsToCsv(cfg.memberGamingPortalRoleIds)}
-                  onChange={(event) => setCfg((prev) => ({ ...prev, memberGamingPortalRoleIds: csvToIds(event.target.value) }))}
-                  placeholder="Role IDs for additional member portal routes"
-                />
-              </div>
-              <div>
-                <div style={{ marginBottom: 6, color: "#ffb3b3", fontSize: 12 }}>Member portal user IDs</div>
-                <textarea
-                  style={{ ...input, minHeight: 80 }}
-                  value={idsToCsv(cfg.memberGamingPortalUserIds)}
-                  onChange={(event) => setCfg((prev) => ({ ...prev, memberGamingPortalUserIds: csvToIds(event.target.value) }))}
-                  placeholder="User IDs for additional member portal routes"
-                />
-              </div>
+              <RolePicker label="Member portal roles" roles={roles} selected={cfg.memberGamingPortalRoleIds} onChange={(value) => setCfg((prev) => ({ ...prev, memberGamingPortalRoleIds: value }))} />
+              <DiscordMemberPicker guildId={guildId} label="Member portal members" multiple value={cfg.memberGamingPortalUserIds} onChange={(value) => setCfg((prev) => ({ ...prev, memberGamingPortalUserIds: Array.isArray(value) ? value : [] }))} />
             </div>
 
             <div style={{ marginTop: 10 }}>
@@ -470,7 +398,7 @@ export default function AccessControlClient() {
                 <div style={{ color: "#ffb3b3", marginBottom: 8 }}>Configured bot master roles</div>
                 <div style={{ color: "#ffbcbc", lineHeight: 1.7 }}>
                   {cfg.adminRoleIds.length
-                    ? cfg.adminRoleIds.map((roleId) => roleLookup.get(roleId) || roleId).join(", ")
+                    ? cfg.adminRoleIds.map((roleId) => roleLookup.get(roleId) || "Unavailable role").join(", ")
                     : "No admin roles configured."}
                 </div>
               </div>
@@ -478,7 +406,7 @@ export default function AccessControlClient() {
                 <div style={{ color: "#ffb3b3", marginBottom: 8 }}>Configured staff roles</div>
                 <div style={{ color: "#ffbcbc", lineHeight: 1.7 }}>
                   {cfg.staffRoleIds.length
-                    ? cfg.staffRoleIds.map((roleId) => roleLookup.get(roleId) || roleId).join(", ")
+                    ? cfg.staffRoleIds.map((roleId) => roleLookup.get(roleId) || "Unavailable role").join(", ")
                     : "No staff roles configured."}
                 </div>
               </div>
@@ -507,22 +435,10 @@ export default function AccessControlClient() {
             </h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <label style={{ display: "block", marginBottom: 6 }}>Explicitly allowed user IDs</label>
-                <textarea
-                  style={{ ...input, minHeight: 100 }}
-                  value={idsToCsv(cfg.allowedUserIds)}
-                  onChange={(event) => setCfg((prev) => ({ ...prev, allowedUserIds: csvToIds(event.target.value) }))}
-                  placeholder="111, 222, 333"
-                />
+                <DiscordMemberPicker guildId={guildId} label="Allowed members" multiple value={cfg.allowedUserIds} onChange={(value) => setCfg((prev) => ({ ...prev, allowedUserIds: Array.isArray(value) ? value : [] }))} />
               </div>
               <div>
-                <label style={{ display: "block", marginBottom: 6 }}>Explicitly denied user IDs</label>
-                <textarea
-                  style={{ ...input, minHeight: 100 }}
-                  value={idsToCsv(cfg.deniedUserIds)}
-                  onChange={(event) => setCfg((prev) => ({ ...prev, deniedUserIds: csvToIds(event.target.value) }))}
-                  placeholder="444, 555"
-                />
+                <DiscordMemberPicker guildId={guildId} label="Denied members" multiple value={cfg.deniedUserIds} onChange={(value) => setCfg((prev) => ({ ...prev, deniedUserIds: Array.isArray(value) ? value : [] }))} />
               </div>
             </div>
             <div style={{ marginTop: 10 }}>

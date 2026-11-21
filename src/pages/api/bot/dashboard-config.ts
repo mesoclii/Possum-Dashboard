@@ -20,7 +20,7 @@ import { deleteServerCachePrefix } from "@/lib/serverCache";
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "4mb",
+      sizeLimit: "12mb",
     },
   },
 };

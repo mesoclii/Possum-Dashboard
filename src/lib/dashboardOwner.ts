@@ -18,6 +18,17 @@ export function isDashboardControlOwner(userId?: string | null) {
   return Boolean(normalized && CONTROL_OWNER_USER_IDS.includes(normalized));
 }
 
+export function isPokemonDashboardOperator(userId?: string | null) {
+  const normalized = String(userId || "").trim();
+  if (!normalized) return false;
+  if (isDashboardControlOwner(normalized)) return true;
+  const staffIds = String(process.env.POKEMON_DASHBOARD_STAFF_USER_IDS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => /^\d{16,20}$/.test(value));
+  return new Set(staffIds).has(normalized);
+}
+
 export const FALLBACK_GUILD_NAMES: Record<string, string> = {
   "1431799056211906582": "Saviors Gaming 18+",
   "1336178965202599936": "Possum Bot Games",

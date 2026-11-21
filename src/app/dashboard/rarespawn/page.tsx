@@ -1,6 +1,7 @@
 "use client";
 
 import { clampNumber } from "@/lib/dashboard/numberInput";
+import { channelEntryId, toggleChannelEntries, type ChannelEntry } from "@/lib/dashboard/channelEntries";
 
 import EngineInsights from "@/components/possum/EngineInsights";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -14,7 +15,7 @@ type RareSpawnCfg = {
   rotationOffsetMinutes: number;
   rewardCoinsMin: number;
   rewardCoinsMax: number;
-  channels: string[];
+  channels: ChannelEntry[];
   categories: string[];
   spawnWindows: string[];
   logChannelId: string;
@@ -127,7 +128,7 @@ export default function RareSpawnEnginePage() {
             <div style={{ maxHeight: 180, overflowY: "auto", border: "1px solid #500000", borderRadius: 8, padding: 8 }}>
               {textChannels.map((c) => (
                 <label key={c.id} style={{ display: "block", marginBottom: 4 }}>
-                  <input type="checkbox" checked={cfg.channels.includes(c.id)} onChange={() => setCfg((p) => ({ ...p, channels: toggle(p.channels, c.id) }))} /> #{c.name}
+                  <input type="checkbox" checked={(cfg.channels || []).some((entry) => channelEntryId(entry) === c.id)} onChange={() => setCfg((p) => ({ ...p, channels: toggleChannelEntries(p.channels, c.id) }))} /> #{c.name}
                 </label>
               ))}
             </div>

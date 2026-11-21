@@ -55,6 +55,8 @@ test("personalizer links to studio and the local studio or redirect keeps the se
   assert.match(personalizer, /PodcastVoiceBotSelect value=\{podcastLane\}/);
   assert.match(personalizer, /podcastStudioHref\(guildId, podcastLane\)/);
   assert.match(personalizer, /does not save a server-wide default or start recording/);
+  assert.match(personalizer, /<section id="podcast-recording-bot"[^>]*>[\s\S]*?<PodcastVoiceBotSelect value=\{podcastLane\}/);
+  assert.match(personalizer, /Voice: Podcast[\s\S]*?Chosen for each session, not saved as per-feature routing\.[\s\S]*?href="#podcast-recording-bot"/);
   const studioPath = "src/app/dashboard/podcast/PodcastControlClient.tsx";
   if (fs.existsSync(path.join(root, studioPath))) {
     const studio = read(studioPath);

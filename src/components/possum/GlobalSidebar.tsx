@@ -15,15 +15,15 @@ function isItemActive(pathname: string | null, href: string) {
 export default function GlobalSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMasterOwner, isPrimaryOwner } = useDashboardSessionState();
+  const { isMasterOwner, isPrimaryOwner, isPokemonOperator } = useDashboardSessionState();
   const featureVisibility = usePublicFeatureVisibility();
   const topLinks = useMemo(
-    () => getDashboardNavTopLinks(isMasterOwner, isPrimaryOwner),
-    [isMasterOwner, isPrimaryOwner]
+    () => getDashboardNavTopLinks(isMasterOwner, isPrimaryOwner, isPokemonOperator),
+    [isMasterOwner, isPrimaryOwner, isPokemonOperator]
   );
   const sections = useMemo(
-    () => getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner),
-    [featureVisibility, isMasterOwner, isPrimaryOwner]
+    () => getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner, isPokemonOperator),
+    [featureVisibility, isMasterOwner, isPrimaryOwner, isPokemonOperator]
   );
   const [sectionOverride, setSectionOverride] = useState<{ pathname: string | null; label: string | null } | null>(null);
   const routeSection = sections.find((section) =>

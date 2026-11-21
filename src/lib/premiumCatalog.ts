@@ -138,10 +138,10 @@ export const PREMIUM_FEATURES: PremiumFeature[] = [
     pricingNote: "Protects your setup work."
   },
   {
-    id: "wilds",
-    label: "Possum Wilds",
-    route: "/dashboard/games/wilds",
-    summary: "Pro creature-collection game: encounters, captures, battles, progression, and species art/asset management.",
+    id: "tcg",
+    label: "Possum Underworld TCG",
+    route: "/tcg",
+    summary: "Private collectible card game with city cards and creature cards sourced from the former Wilds catalog.",
     premiumLabel: "Premium Feature",
     includedIn: ["Pro"],
     pricingNote: "Included through paid guild plans."
@@ -175,7 +175,7 @@ export const PLAN_COMMON_FEATURES: string[] = [
   "TTS Engine",
   "Persona AI",
   "Heist Engine",
-  "Possum Wilds",
+  "Possum Underworld TCG",
   "Advanced Security + Governance Suite",
   "Automation + Custom Commands Suite",
   "Analytics (growth, activity, retention, mod actions)",

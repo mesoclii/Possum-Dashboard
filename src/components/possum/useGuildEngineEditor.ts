@@ -73,13 +73,11 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
         return;
       }
       contextRef.current = { guildId: nextGuildId, viewerUserId: nextUserId };
-      if (engine === "botPersonalizer") {
-        setConfig({ ...(defaultsRef.current as any) });
-        setSummary([]);
-        setDetails({});
-        setGuildName("");
-        setLoading(true);
-      }
+      setConfig({ ...(defaultsRef.current as any) });
+      setSummary([]);
+      setDetails({});
+      setGuildName("");
+      setLoading(true);
       setEmojis([]);
       if (nextGuildId) {
         localStorage.setItem("activeGuildId", nextGuildId);
@@ -207,8 +205,8 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     try {
       const submittedDraft = config;
       const patch = { ...(config as any), ...(nextPatch || {}) };
-      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, patch, userId: viewerUserId })).length > 4 * 1024 * 1024) {
-        throw new Error("Personalizer save exceeds the 4 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
+      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, patch, userId: viewerUserId })).length > 12 * 1024 * 1024) {
+        throw new Error("Personalizer save exceeds the 12 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
       }
       const validateRes = await fetch("/api/runtime/engine-validate", {
         method: "POST",
@@ -270,8 +268,8 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
     setSaving(true);
     setMessage("");
     try {
-      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, action, payload, userId: viewerUserId })).length > 4 * 1024 * 1024) {
-        throw new Error("Personalizer action exceeds the 4 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
+      if (engine === "botPersonalizer" && new TextEncoder().encode(JSON.stringify({ guildId, engine, action, payload, userId: viewerUserId })).length > 12 * 1024 * 1024) {
+        throw new Error("Personalizer action exceeds the 12 MB request limit. Remove or replace saved uploads with smaller images or image URLs; no changes were saved.");
       }
       const res = await fetch("/api/runtime/engine-action", {
         method: "POST",

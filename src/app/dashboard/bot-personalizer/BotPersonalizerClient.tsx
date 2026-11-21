@@ -825,7 +825,7 @@ export default function BotPersonalizerClient() {
 
       {!loading ? (
         <>
-          <section style={card}>
+          <section id="podcast-recording-bot" style={card}>
             <h2 style={{ marginTop: 0, color: "#ff6666" }}>Podcast recording bot</h2>
             <PodcastVoiceBotSelect value={podcastLane} onChange={(lane) => setPodcastChoice({ guildId, lane })} style={input} />
             <p style={hint}>Choose the bot for your next session, then open Podcast Studio to prepare it. This does not save a server-wide default or start recording. Save and deploy a custom bot above or below first; it must be ready and able to join your voice channel.</p>
@@ -1046,6 +1046,13 @@ export default function BotPersonalizerClient() {
                               </select>
                             </div>
                           ))}
+                          <div>
+                            <div>Voice: Podcast</div>
+                            <div style={{ ...hint, marginTop: 6 }}>
+                              Chosen for each session, not saved as per-feature routing.{" "}
+                              <a href="#podcast-recording-bot" style={{ color: "#ff9f9f" }}>Choose the podcast recording bot</a>
+                            </div>
+                          </div>
                           {DM_ROUTE_FEATURES.map((feature) => (
                             <div key={`dm-${feature.key}`}>
                               <label>{feature.label}</label>

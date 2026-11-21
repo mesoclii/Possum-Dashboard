@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 const SETUP_DIR = path.join(process.cwd(), "data", "setup");
 const AUDIT_FILE = path.join(SETUP_DIR, "dashboard-audit.ndjson");
@@ -9,21 +10,58 @@ function ensureDir() {
 }
 
 export function readStore(fileName: string): Record<string, any> {
-  ensureDir();
   const fp = path.join(SETUP_DIR, fileName);
-  if (!fs.existsSync(fp)) return {};
   try {
-    const raw = fs.readFileSync(fp, "utf8");
-    return raw ? JSON.parse(raw) : {};
+    if (!fs.lstatSync(fp).isFile()) throw new Error("Not a regular file");
+  } catch (error: any) {
+    if (error?.code === "ENOENT") return {};
+    throw new Error(`Cannot read setup store: ${fileName}`);
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(fp, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid store");
+    return parsed;
   } catch {
-    return {};
+    throw new Error(`Cannot read setup store: ${fileName}`);
   }
 }
 
 export function writeStore(fileName: string, store: Record<string, any>) {
   ensureDir();
   const fp = path.join(SETUP_DIR, fileName);
-  fs.writeFileSync(fp, JSON.stringify(store, null, 2), "utf8");
+  const tmp = path.join(SETUP_DIR, `.${fileName}.${crypto.randomBytes(16).toString("hex")}.tmp`);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(store, null, 2), { encoding: "utf8", flag: "wx", mode: 0o600 });
+    fs.renameSync(tmp, fp);
+  } catch (error) {
+    try { fs.unlinkSync(tmp); } catch { /* Preserve the write error. */ }
+    throw error;
+  }
+}
+
+export function withSetupStoreLock<T>(callback: () => T): T {
+  ensureDir();
+  const lock = path.join(SETUP_DIR, ".setup-store.lock");
+  try {
+    fs.mkdirSync(lock);
+  } catch (error: any) {
+    if (error?.code === "EEXIST") throw new Error("Setup stores are locked; retry or investigate an interrupted writer.");
+    throw error;
+  }
+  try {
+    return callback();
+  } finally {
+    fs.rmdirSync(lock);
+  }
+}
+
+export function updateStore<T>(fileName: string, update: (store: Record<string, any>) => T): T {
+  return withSetupStoreLock(() => {
+    const store = readStore(fileName);
+    const result = update(store);
+    writeStore(fileName, store);
+    return result;
+  });
 }
 
 export function deepMerge<T>(base: T, patch: any): T {

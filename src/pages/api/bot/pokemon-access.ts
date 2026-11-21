@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { isDashboardControlOwner } from "@/lib/dashboardOwner";
+import { isPokemonDashboardOperator } from "@/lib/dashboardOwner";
 import { BOT_API, buildBotApiHeaders, fetchBotApi, readActorUserId, readJsonSafe } from "@/lib/botApi";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -7,7 +7,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!actorUserId) {
     return res.status(401).json({ success: false, error: "A valid dashboard session is required." });
   }
-  if (!isDashboardControlOwner(actorUserId)) {
+  if (!isPokemonDashboardOperator(actorUserId)) {
     return res.status(403).json({ success: false, error: "Pokémon access controls are available only to the Possum creator." });
   }
 

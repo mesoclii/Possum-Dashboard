@@ -305,21 +305,25 @@ function directoryCursorKey() {
   return crypto.createHash("sha256").update(`personal-social-directory:${secret}`).digest();
 }
 
-function encodeDirectoryCursor(userId: string, provider: string, guildId: string) {
+function directoryCursorScope(guildId: string, filter?: OAuthProvider) {
+  return filter ? `${guildId}:${filter}` : guildId;
+}
+
+function encodeDirectoryCursor(userId: string, provider: string, guildId: string, filter?: OAuthProvider) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", directoryCursorKey(), iv);
-  cipher.setAAD(Buffer.from(guildId));
+  cipher.setAAD(Buffer.from(directoryCursorScope(guildId, filter)));
   const encrypted = Buffer.concat([cipher.update(JSON.stringify([userId, provider]), "utf8"), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString("base64url");
 }
 
-export function decodeDirectoryCursor(cursor: string, guildId: string) {
+export function decodeDirectoryCursor(cursor: string, guildId: string, filter?: OAuthProvider) {
   if (!cursor || cursor.length > 300 || !/^[A-Za-z0-9_-]+$/.test(cursor)) return null;
   try {
     const bytes = Buffer.from(cursor, "base64url");
     if (bytes.length < 29) return null;
     const decipher = crypto.createDecipheriv("aes-256-gcm", directoryCursorKey(), bytes.subarray(0, 12));
-    decipher.setAAD(Buffer.from(guildId));
+    decipher.setAAD(Buffer.from(directoryCursorScope(guildId, filter)));
     decipher.setAuthTag(bytes.subarray(12, 28));
     const parsed: unknown = JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString("utf8"));
     if (!Array.isArray(parsed) || parsed.length !== 2 ||
@@ -329,14 +333,17 @@ export function decodeDirectoryCursor(cursor: string, guildId: string) {
   } catch { return null; }
 }
 
-export async function visibleDirectory(guildId: string, viewerToken: string, cursor?: { userId: string; provider: string } | null) {
+export async function visibleDirectory(guildId: string, viewerToken: string, cursor?: { userId: string; provider: string } | null, filter?: OAuthProvider) {
   if (!(await memberGuilds(viewerToken)).some((guild) => guild.id === guildId)) throw new Error("Not a member.");
   const afterUser = cursor?.userId || "";
   const afterProvider = cursor?.provider || "";
-  const rows = await prisma.$queryRaw<{ userId: string; provider: string; providerId: string; label: string; url: string }[]>`
-    SELECT a."userId", a."provider", a."providerId", a."label", a."url"
+  const providerFilter = filter || "";
+  const rows = await prisma.$queryRaw<{ userId: string; provider: string; providerId: string; revision: string | null }[]>`
+    SELECT a."userId", a."provider", a."providerId", r."revision"
     FROM "PersonalSocialVisibility" v JOIN "PersonalSocialAccount" a ON a."userId" = v."userId" AND a."provider" = v."provider"
+    LEFT JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider"
     WHERE v."guildId" = ${guildId}
+      AND (${providerFilter} = '' OR a."provider" = ${providerFilter})
       AND (${afterUser} = '' OR a."userId" > ${afterUser} OR (a."userId" = ${afterUser} AND a."provider" > ${afterProvider}))
     ORDER BY a."userId", a."provider" LIMIT 21`;
   const page = rows.slice(0, 20);
@@ -348,20 +355,34 @@ export async function visibleDirectory(guildId: string, viewerToken: string, cur
   for (const session of sessions) if (!tokens.has(session.discordId)) tokens.set(session.discordId, session.accessToken);
   const checked = await Promise.all(page.map(async (row) => {
     const token = tokens.get(row.userId);
-    if (!token) return null;
+    if (!token || !row.revision) return null;
     try {
       if (!(await memberGuilds(token)).some((guild) => guild.id === guildId)) return null;
-      const current = await prisma.$queryRaw<{ label: string; url: string }[]>`
-        SELECT a."label", a."url" FROM "PersonalSocialVisibility" v
-        JOIN "PersonalSocialAccount" a ON a."userId" = v."userId" AND a."provider" = v."provider"
-        WHERE v."guildId" = ${guildId} AND a."userId" = ${row.userId} AND a."provider" = ${row.provider} AND a."providerId" = ${row.providerId}`;
-      return current[0] ? { userId: row.userId, provider: row.provider, ...current[0] } : null;
+      return row;
     }
     catch { return null; }
   }));
+  // The viewer may have left or lost access while owner memberships were checked.
+  if (!(await memberGuilds(viewerToken)).some((guild) => guild.id === guildId)) throw new Error("Not a member.");
+  // Recheck all grants together after every membership lookup has finished.
+  const current = await prisma.$queryRaw<{ userId: string; provider: string; providerId: string; revision: string; label: string; url: string }[]>`
+    SELECT a."userId", a."provider", a."providerId", r."revision", a."label", a."url"
+    FROM "PersonalSocialVisibility" v JOIN "PersonalSocialAccount" a ON a."userId" = v."userId" AND a."provider" = v."provider"
+    JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider"
+    WHERE v."guildId" = ${guildId}
+      AND (${providerFilter} = '' OR a."provider" = ${providerFilter})
+      AND (${afterUser} = '' OR a."userId" > ${afterUser} OR (a."userId" = ${afterUser} AND a."provider" > ${afterProvider}))
+    ORDER BY a."userId", a."provider" LIMIT 21`;
+  const verified = new Map(checked.filter((entry) => entry !== null)
+    .map((row) => [`${row.userId}:${row.provider}`, row]));
+  const accounts = current.flatMap((row) => {
+    const previous = verified.get(`${row.userId}:${row.provider}`);
+    return previous && previous.providerId === row.providerId && previous.revision === row.revision
+      ? [{ userId: row.userId, provider: row.provider, label: row.label, url: row.url }] : [];
+  });
   const last = page[page.length - 1];
   return {
-    accounts: checked.filter((entry) => entry !== null),
-    nextCursor: rows.length > 20 && last ? encodeDirectoryCursor(last.userId, last.provider, guildId) : null,
+    accounts,
+    nextCursor: rows.length > 20 && last ? encodeDirectoryCursor(last.userId, last.provider, guildId, filter) : null,
   };
 }

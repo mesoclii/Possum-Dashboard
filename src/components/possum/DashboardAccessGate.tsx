@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
-const ACCESS_CACHE_TTL_MS = 60 * 1000;
+const ACCESS_CACHE_TTL_MS = 15 * 60 * 1000;
 const SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 
 type AccessCacheEntry = {

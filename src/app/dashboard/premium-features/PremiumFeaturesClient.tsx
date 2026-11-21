@@ -40,7 +40,7 @@ const action: CSSProperties = {
 };
 
 export default function PremiumFeaturesClient() {
-  const { isMasterOwner, loading: sessionLoading } = useDashboardSessionState();
+  const { isMasterOwner, isPokemonOperator, loading: sessionLoading } = useDashboardSessionState();
   const guildId = readDashboardGuildId();
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
@@ -118,7 +118,7 @@ export default function PremiumFeaturesClient() {
   }, []);
 
   useEffect(() => {
-    if (sessionLoading || !isMasterOwner) return;
+    if (sessionLoading || !isPokemonOperator) return;
     let active = true;
     fetch("/api/bot/pokemon-access", { cache: "no-store" })
       .then(async (response) => {
@@ -137,7 +137,7 @@ export default function PremiumFeaturesClient() {
     return () => {
       active = false;
     };
-  }, [isMasterOwner, sessionLoading]);
+  }, [isPokemonOperator, sessionLoading]);
 
   async function saveFeatureVisibility(featureId: string, visible: boolean) {
     const next = { ...featureVisibility, [featureId]: visible };
@@ -447,16 +447,16 @@ export default function PremiumFeaturesClient() {
         </section>
       ) : null}
 
-      {canManageCreatorSettings ? (
+      {canManageCreatorSettings || isPokemonOperator ? (
         <section style={{ ...card, marginBottom: 16 }}>
           <div style={{ color: "#ff9a9a", fontSize: 12, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 8 }}>
             Private Creator Launch Controls
           </div>
           <p style={{ color: "#ffb5b5", fontSize: 13, lineHeight: 1.65, marginTop: 0 }}>
-            Only the primary Possum creator account can change these controls. Hiding a Pro feature removes its public listing and regular server-owner navigation; it does not grant access or change billing.
+            Approved Possum creator staff can manage private controls here. Hiding a Pro feature removes its public listing and regular server-owner navigation; it does not grant access or change billing.
           </p>
           {creatorSettingsMessage ? <p role="status" style={{ color: "#ffd39a", fontSize: 13 }}>{creatorSettingsMessage}</p> : null}
-          <div style={{ display: "grid", gap: 10 }}>
+          {canManageCreatorSettings ? <div style={{ display: "grid", gap: 10 }}>
             {PREMIUM_FEATURES.filter((feature) => !feature.creatorOnly).map((feature) => (
               <label key={feature.id} style={{ display: "flex", alignItems: "flex-start", gap: 12, border: "1px solid rgba(255,0,0,.24)", borderRadius: 12, padding: 12 }}>
                 <input
@@ -473,7 +473,7 @@ export default function PremiumFeaturesClient() {
                 </span>
               </label>
             ))}
-          </div>
+          </div> : null}
 
           <div style={{ marginTop: 20, borderTop: "1px solid rgba(255,0,0,.3)", paddingTop: 16 }}>
             <h2 style={{ color: "#ff9a9a", fontSize: 13, letterSpacing: "0.16em", textTransform: "uppercase" }}>Private Pokémon Guild Allowlist</h2>

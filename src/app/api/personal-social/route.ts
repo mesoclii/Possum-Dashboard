@@ -18,12 +18,14 @@ export async function GET(request: NextRequest) {
     const guildId = request.nextUrl.searchParams.get("guildId");
     if (guildId) {
       if (!/^\d{1,20}$/.test(guildId)) return reply({ error: "Invalid server." }, 400);
+      const provider = request.nextUrl.searchParams.get("provider");
+      if (provider !== null && !isSocialOAuthProvider(provider)) return reply({ error: "Unsupported provider." }, 400);
       const rawCursor = request.nextUrl.searchParams.get("cursor");
-      const cursor = rawCursor ? decodeDirectoryCursor(rawCursor, guildId) : null;
+      const cursor = rawCursor ? decodeDirectoryCursor(rawCursor, guildId, provider || undefined) : null;
       if (rawCursor !== null && !cursor) return reply({ error: "Invalid directory cursor." }, 400);
       try { await directoryLimiter.consume(session.user.id); }
       catch { return reply({ error: "Too many directory requests. Please retry shortly." }, 429); }
-      return reply(await visibleDirectory(guildId, session.accessToken, cursor));
+      return reply(await visibleDirectory(guildId, session.accessToken, cursor, provider || undefined));
     }
     const [guilds, { accounts, visibility }] = await Promise.all([
       memberGuilds(session.accessToken).catch(() => null),

@@ -548,6 +548,7 @@ export default function SystemHealthPage() {
       <div style={box}>
         <b>Quick Links</b>
         <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link href={`/dashboard/system-health/backups?guildId=${encodeURIComponent(guildId)}`}>Configuration Backups</Link>
           <Link href={`/dashboard/ai/memory?guildId=${guildId}`}>AI Memory</Link>
           <Link href={`/dashboard/settings/event-routing?guildId=${guildId}`}>Event Routing</Link>
           <Link href={`/dashboard/economy/radio-birthday?guildId=${guildId}`}>Radio</Link>

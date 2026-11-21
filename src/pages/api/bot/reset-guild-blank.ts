@@ -12,7 +12,6 @@ const BLANK = {
     verificationEnabled: true,
     heistEnabled: true,
     rareDropEnabled: true,
-    pokemonEnabled: true,
     aiEnabled: true,
     birthdayEnabled: true,
     economyEnabled: true,

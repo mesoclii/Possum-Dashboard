@@ -176,7 +176,7 @@ export default function WildsAssetsClient() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1180 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>Possum Wilds art</h1>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>TCG creature-card source art</h1>
       <p style={{ color: "#9a9a9a", marginBottom: 16, fontSize: 13 }}>
         Point each species at an image, record where it came from, and approve the ones that may appear in game.
         Entries are stored in one manifest the bot reads; approving without a URL does nothing.

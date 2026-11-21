@@ -45,12 +45,94 @@ test("guild selector shows only guilds returned for the signed-in user", async (
         useEffect: (fn) => fn(),
       },
       "@/lib/publicLinks": { buildPublicInviteUrl: () => "" },
+      "@/lib/guildDisplayOrder": load("lib/guildDisplayOrder.ts", {}),
     }).default;
     page();
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(state[0].map((guild) => guild.id), ["member", "own"]);
   } finally {
     global.fetch = originalFetch;
+  }
+});
+
+test("owner display order is a non-mutating sort of returned guilds only", () => {
+  const { orderGuildsForDisplay } = load("lib/guildDisplayOrder.ts", {});
+  const policy = { primaryGuildId: "saviors", gamesBaselineGuildId: "1336178965202599936" };
+  const guilds = [
+    { id: "saviors", name: "Saviors", botPresent: true },
+    { id: "1567807367427661895", name: "Support", botPresent: true },
+    { id: "1336178965202599936", name: "Alexandria", botPresent: true },
+    { id: "other", name: "Other", botPresent: true },
+    { id: "1519823415119446146", name: "Lotus", botPresent: false },
+  ];
+  assert.deepEqual(orderGuildsForDisplay(guilds, policy, true).map((g) => g.id), [
+    "1336178965202599936", "1519823415119446146", "1567807367427661895", "saviors", "other",
+  ]);
+  assert.deepEqual(orderGuildsForDisplay(guilds, policy, false).map((g) => g.id), [
+    "saviors", "1336178965202599936", "other", "1567807367427661895", "1519823415119446146",
+  ]);
+  assert.deepEqual(guilds.map((g) => g.id), [
+    "saviors", "1567807367427661895", "1336178965202599936", "other", "1519823415119446146",
+  ]);
+  assert.deepEqual(orderGuildsForDisplay([guilds[0], guilds[4]], policy, true).map((g) => g.id), [
+    "1519823415119446146", "saviors",
+  ]);
+});
+
+test("guild selector applies owner ordering only for the matching authenticated owner session", async () => {
+  const originalFetch = global.fetch;
+  const originalWindow = global.window;
+  const originalStorage = global.localStorage;
+  const ids = ["1431799056211906582", "1336178965202599936", "1519823415119446146", "1567807367427661895"];
+  try {
+    for (const [session, expected] of [
+      [{ loggedIn: true, isMasterOwner: true, user: { id: "owner" } }, [ids[1], ids[2], ids[3], ids[0]]],
+      [{ loggedIn: true, isMasterOwner: false, user: { id: "owner" } }, [ids[0], ids[1], ids[2], ids[3]]],
+      [{ loggedIn: true, isMasterOwner: true, user: { id: "different" } }, [ids[0], ids[1], ids[2], ids[3]]],
+      [{ loggedIn: false, isMasterOwner: true, user: { id: "owner" } }, [ids[0], ids[1], ids[2], ids[3]]],
+    ]) {
+      const state = [];
+      let stateIndex = 0;
+      let firstRender = true;
+      const storage = new Map([["activeGuildId", "saved"], ["activeGuildName", "Saved server"]]);
+      global.localStorage = { getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value) };
+      global.window = { location: { search: "" } };
+      global.fetch = async (url) => ({
+        ok: true,
+        json: async () => url === "/api/guilds" ? { loggedIn: true, user: { id: "owner" }, guilds: [] }
+          : url === "/api/guilds/installed" ? { guilds: ids.map((id, i) => ({ id, name: String(i) })) }
+            : url === "/api/auth/session?brief=1" ? session : {},
+      });
+      const page = load("app/guilds/page.tsx", {
+        "react/jsx-runtime": jsx,
+        react: {
+          useState(value) {
+            const i = stateIndex++;
+            if (firstRender) state[i] = value;
+            return [state[i], (next) => { state[i] = next; }];
+          },
+          useMemo: (fn) => fn(),
+          useEffect: (fn) => { if (firstRender) fn(); },
+        },
+        "@/lib/publicLinks": { buildPublicInviteUrl: () => "" },
+        "@/lib/guildDisplayOrder": load("lib/guildDisplayOrder.ts", {}),
+      }).default;
+      page();
+      await new Promise((resolve) => setImmediate(resolve));
+      firstRender = false;
+      stateIndex = 0;
+      const tree = page();
+      const shown = nodes(tree).filter((node) =>
+        node.type === "div" && Array.isArray(node.props?.children) && node.props.children[0] === "Guild "
+      ).map((node) => node.props.children[1]);
+      assert.deepEqual(shown, expected);
+      assert.equal(storage.get("activeGuildId"), "saved");
+      assert.equal(storage.get("activeGuildName"), "Saved server");
+    }
+  } finally {
+    global.fetch = originalFetch;
+    global.window = originalWindow;
+    global.localStorage = originalStorage;
   }
 });
 

@@ -739,6 +739,9 @@ export default function SlashCommandsClient() {
             <div style={{ marginTop: 12, color: "#ffbcbc" }}>
               These are the slash commands the bot would register for this guild right now. Turning a command family off here removes it from the next guild sync without touching `!custom`.
             </div>
+            <div style={{ marginTop: 8, color: "#ffbcbc" }}>
+              An overlap set means multiple slash entries share an access target; the number is the entries in that set. It is not necessarily a problem and does not change your commands.
+            </div>
 
             <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
               {deployment.deployedTopLevelCommands.length ? deployment.deployedTopLevelCommands.map((command) => (

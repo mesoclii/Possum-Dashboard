@@ -11,6 +11,7 @@ type Data = {
 };
 type DirectoryEntry = { userId: string; provider: string; label: string; url: string };
 const names: Record<string, string> = { facebook: "Facebook", x: "X", youtube: "YouTube", twitch: "Twitch", instagram: "Instagram", tiktok: "TikTok", reddit: "Reddit" };
+const directoryProviders = ["twitch", "youtube", "reddit", "x", "tiktok"];
 
 export default function PersonalSocialPage() {
   const [data, setData] = useState<Data | null>(null);
@@ -21,15 +22,38 @@ export default function PersonalSocialPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [directoryBusy, setDirectoryBusy] = useState(false);
   const directoryRequest = useRef(0);
+  const initialGuild = useRef("");
+  const [returnTo, setReturnTo] = useState("/personal-social");
+  const initialProvider = useRef("");
+  const [directoryProvider, setDirectoryProvider] = useState("");
 
   async function load() {
     const response = await fetch("/api/personal-social", { cache: "no-store" });
     const body = await response.json();
     if (!response.ok) { setMessage(body.error || "Could not load accounts."); return; }
     setData(body);
+    const guildId = initialGuild.current;
+    initialGuild.current = "";
+    if (guildId && body.guildsVerified && body.guilds.some((guild: { id: string }) => guild.id === guildId)) {
+      void showDirectory(guildId, undefined, initialProvider.current);
+    }
   }
   useEffect(() => {
-    const result = new URLSearchParams(window.location.search).get("result");
+    const params = new URLSearchParams(window.location.search);
+    const guildId = params.get("guildId") || "";
+    const requestedProvider = params.get("provider") || "";
+    const provider = directoryProviders.includes(requestedProvider) ? requestedProvider : "";
+    initialProvider.current = provider;
+    setDirectoryProvider(provider);
+    const returnParams = new URLSearchParams();
+    if (/^\d{1,20}$/.test(guildId)) {
+      initialGuild.current = guildId;
+      returnParams.set("guildId", guildId);
+    }
+    if (provider) returnParams.set("provider", provider);
+    const query = returnParams.toString();
+    if (query) setReturnTo(`/personal-social?${query}`);
+    const result = params.get("result");
     if (result) {
       const messages: Record<string, string> = { connected: "Profile verified. Check your server sharing choices below.", invalid: "The connection request expired or did not match your session. Try again.", cancelled: "Connection was cancelled.", failed: "Profile verification failed. Try again." };
       setMessage(messages[result] || "Connection could not be completed.");
@@ -64,7 +88,7 @@ export default function PersonalSocialPage() {
       window.location.assign(body.url);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Connection failed."); setBusy(false); }
   }
-  async function showDirectory(guildId: string, cursor?: string) {
+  async function showDirectory(guildId: string, cursor?: string, provider = directoryProvider) {
     const requestId = ++directoryRequest.current;
     if (!cursor) { setSelected(guildId); setDirectory(null); setNextCursor(null); }
     setMessage("");
@@ -72,6 +96,7 @@ export default function PersonalSocialPage() {
     setDirectoryBusy(true);
     try {
       const params = new URLSearchParams({ guildId });
+      if (provider) params.set("provider", provider);
       if (cursor) params.set("cursor", cursor);
       const response = await fetch(`/api/personal-social?${params}`, { cache: "no-store" });
       const body = await response.json();
@@ -80,7 +105,11 @@ export default function PersonalSocialPage() {
       setDirectory((current) => cursor ? [...(current || []), ...body.accounts] : body.accounts);
       setNextCursor(body.nextCursor);
     } catch (error) {
-      if (requestId === directoryRequest.current) setMessage(error instanceof Error ? error.message : "Could not load directory.");
+      if (requestId === directoryRequest.current) {
+        setDirectory(null);
+        setNextCursor(null);
+        setMessage(error instanceof Error ? error.message : "Could not load directory.");
+      }
     } finally { if (requestId === directoryRequest.current) setDirectoryBusy(false); }
   }
 
@@ -89,7 +118,7 @@ export default function PersonalSocialPage() {
     <h1>Personal social accounts</h1>
     <p>Accounts are private until you choose a server. Sharing is separate for each server and can be turned off at any time. Server members can view shared profiles here; server alerts are separate. If you leave and rejoin a server, its sharing choice remains until you turn it off.</p>
     <p>Only accounts verified with the provider are linked. No manually entered URLs are treated as verified.</p>
-    {message && <p role="alert">{message} {message.includes("Sign in") && <a href="/api/auth/discord/login?returnTo=%2Fpersonal-social">Sign in</a>}</p>}
+    {message && <p role="alert">{message} {message.includes("Sign in") && <a href={`/api/auth/discord/login?returnTo=${encodeURIComponent(returnTo)}`}>Sign in</a>}</p>}
     {!data && !message && <p>Loading…</p>}
     {data && !data.guildsVerified && <p>Discord membership could not be checked. Existing sharing choices can still be removed below.</p>}
     {data?.providers.map((provider) => {
@@ -100,6 +129,8 @@ export default function PersonalSocialPage() {
         {provider.id === "tiktok" && provider.status !== "unsupported" && <p>TikTok requires basic and profile permissions; profile access may require provider approval.</p>}
         {account ? <>
           <p>Verified when linked: <a href={account.url} target="_blank" rel="noreferrer">{account.label}</a> (not a live connection)</p>
+          {provider.status === "available" && <button disabled={busy} onClick={() => void connect(provider.id)}>Reconnect with {names[provider.id]}</button>}
+          <p>Reconnect to refresh this profile. Sharing is kept for the same account and removed if you connect a different account.</p>
           <button disabled={busy} onClick={() => void action({ action: "disconnect", provider: provider.id })}>Disconnect and remove all sharing</button>
           <p>Show this profile to members of:</p>
           {!account.revision && <p>Sharing is unavailable until this account is refreshed. Existing sharing can still be removed.</p>}
@@ -123,6 +154,7 @@ export default function PersonalSocialPage() {
       <h2>Server member directory</h2>
       <p>Only explicitly shared profiles are shown, and only while both members can be verified. A member may need to sign in again to appear. More pages may be available even when none are shown on this page.</p>
       <label>Server: <select value={selected} onChange={(event) => void showDirectory(event.target.value)}><option value="">Choose a server</option>{data.guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}</select></label>
+      <label> Platform: <select value={directoryProvider} onChange={(event) => { const provider = event.target.value; setDirectoryProvider(provider); if (selected) void showDirectory(selected, undefined, provider); }}><option value="">All platforms</option>{directoryProviders.map((provider) => <option key={provider} value={provider}>{names[provider]}</option>)}</select></label>
       {directory && (directory.length ? <ul>{directory.map((entry) => <li key={`${entry.userId}-${entry.provider}`}>Discord ID {entry.userId}: {names[entry.provider]} — <a href={entry.url} target="_blank" rel="noreferrer">{entry.label}</a></li>)}</ul> : <p>No verified shared profiles are available.</p>)}
       {nextCursor && <button disabled={directoryBusy} onClick={() => void showDirectory(selected, nextCursor)}>Load more</button>}
     </section>}

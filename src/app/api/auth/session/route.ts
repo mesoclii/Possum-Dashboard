@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
-import { MASTER_OWNER_USER_ID, isDashboardControlOwner } from "@/lib/dashboardOwner";
+import { MASTER_OWNER_USER_ID, isDashboardControlOwner, isPokemonDashboardOperator } from "@/lib/dashboardOwner";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { fetchDiscordGuilds, hasGuildManageAccess, isDiscordOauthConfigured } from "@/lib/discordOAuth";
 
@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
       loggedIn: false,
       isMasterOwner: false,
       isPrimaryOwner: false,
+      isPokemonOperator: false,
       canEnterDashboard: false,
       accessibleGuildCount: 0,
       user: null,
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
   const actorUserId = String(session.user.id || "").trim();
   const isMasterOwner = isDashboardControlOwner(actorUserId);
   const isPrimaryOwner = Boolean(actorUserId && actorUserId === MASTER_OWNER_USER_ID);
+  const isPokemonOperator = isPokemonDashboardOperator(actorUserId);
 
   if (brief) {
     return NextResponse.json({
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
       loggedIn: true,
       isMasterOwner,
       isPrimaryOwner,
+      isPokemonOperator,
       canEnterDashboard: true,
       accessibleGuildCount: null,
       counts: null,
@@ -71,6 +74,7 @@ export async function GET(request: NextRequest) {
     loggedIn: true,
     isMasterOwner,
     isPrimaryOwner,
+    isPokemonOperator,
     canEnterDashboard: isMasterOwner || accessibleGuildCount > 0,
     accessibleGuildCount,
     counts: {

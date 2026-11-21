@@ -1,18 +1,51 @@
 .possum-dashboard.possum-bg {
   background:
-    radial-gradient(ellipse at 10% 0%, rgba(255, 0, 123, 0.19), transparent 38%),
-    radial-gradient(ellipse at 90% 15%, rgba(255, 31, 57, 0.17), transparent 42%),
-    #090008;
+    radial-gradient(ellipse at 10% 0%, rgba(255, 72, 157, 0.20), transparent 38%),
+    radial-gradient(ellipse at 90% 15%, rgba(255, 103, 95, 0.16), transparent 42%),
+    #100c0f;
 }
 
 .possum-dashboard > div > aside {
   border-color: rgba(255, 47, 134, 0.7);
-  background: linear-gradient(180deg, rgba(28, 0, 20, 0.97), rgba(8, 0, 8, 0.98));
+  background: linear-gradient(180deg, rgba(35, 14, 25, 0.97), rgba(14, 11, 13, 0.98));
   box-shadow: 0 0 24px rgba(255, 0, 102, 0.18);
 }
 
 .possum-dashboard .possum-header {
-  background: rgba(20, 0, 14, 0.92);
+  background: rgba(28, 16, 21, 0.94);
+}
+
+.possum-dashboard .possum-soft {
+  color: #ffadd1;
+}
+
+.possum-dashboard main p:not(.possum-banner-sub),
+.possum-dashboard main .text-pink-100,
+.possum-dashboard main .text-pink-200 {
+  color: #ffb9d8;
+}
+
+.possum-dashboard .dashboard-account-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: #ffb9d8;
+  font-size: 0.75rem;
+}
+
+.possum-dashboard .dashboard-account-summary div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.possum-dashboard .dashboard-account-summary span {
+  color: #ffadd1;
+}
+
+.possum-dashboard .dashboard-account-summary strong {
+  color: #ff70b6;
+  overflow-wrap: anywhere;
 }
 
 .possum-dashboard .possum-border,
@@ -31,7 +64,7 @@
 .possum-dashboard h1,
 .possum-dashboard h2,
 .possum-dashboard main h3 {
-  background-image: linear-gradient(100deg, #ffadd3, #ff42a4 45%, #ff304b);
+  background-image: linear-gradient(100deg, #ff9acf, #ff62af 55%, #ff8bb5);
   filter: drop-shadow(0 0 6px rgba(255, 0, 120, 0.45));
 }
 

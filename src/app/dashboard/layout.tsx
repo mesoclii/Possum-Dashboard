@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import PossumSidebar from "@/components/possum/PossumSidebar";
 import DashboardAccessGate from "@/components/possum/DashboardAccessGate";
 import GuildNameBootstrap from "@/components/possum/GuildNameBootstrap";
 import DashboardBanner from "@/components/possum/DashboardBanner";
+import DashboardAccountSummary from "@/components/possum/DashboardAccountSummary";
 import "./dashboard-theme.css";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -24,6 +25,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   Possum Dashboard
                 </Link>
               </div>
+
+              <Suspense fallback={null}>
+                <DashboardAccountSummary />
+              </Suspense>
 
               <div className="flex items-center gap-2">
                 <Link

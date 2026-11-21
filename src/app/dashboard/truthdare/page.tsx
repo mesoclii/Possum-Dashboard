@@ -77,6 +77,12 @@ export default function TruthDareEnginePage() {
           </section>
 
           <section style={card}>
+            <label><input type="checkbox" checked={false} disabled /> Adult-only prompt mode (unavailable)</label>
+            <p>Discord does not currently provide this bot with a verified-age signal for the installer and each participant. An age-restricted channel alone is not proof of age, so this mode cannot be enabled.</p>
+            <p>Existing custom and generated prompts are not automatically age-classified. Use age-appropriate prompts until verified-age and participant-consent checks are available.</p>
+          </section>
+
+          <section style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
               <div>
                 <div style={{ marginBottom: 6 }}>Locked Channel</div>

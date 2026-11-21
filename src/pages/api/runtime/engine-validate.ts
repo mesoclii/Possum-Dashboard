@@ -7,7 +7,7 @@ import { normalizeEngineKey } from "@/lib/engineKeys";
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "4mb",
+      sizeLimit: "12mb",
     },
   },
 };

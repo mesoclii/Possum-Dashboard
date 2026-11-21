@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { buildPublicInviteUrl } from "@/lib/publicLinks";
+import { orderGuildsForDisplay } from "@/lib/guildDisplayOrder";
 
 type Guild = {
   id: string;
@@ -107,6 +108,7 @@ export default function GuildsPage() {
   const [oauthConfigured, setOauthConfigured] = useState(false);
   const [oauthLoggedIn, setOauthLoggedIn] = useState(false);
   const [oauthUser, setOauthUser] = useState<DiscordUser | null>(null);
+  const [isControlOwner, setIsControlOwner] = useState(false);
   const [policy, setPolicy] = useState<PolicyState>({
     primaryGuildId: "1431799056211906582",
     gamesBaselineGuildId: "1336178965202599936",
@@ -153,13 +155,15 @@ export default function GuildsPage() {
           }
         }
 
-        const [oauthRes, installedRes] = await Promise.all([
+        const [oauthRes, installedRes, sessionRes] = await Promise.all([
           fetch("/api/guilds", { cache: "no-store" }).catch(() => null),
           fetch("/api/guilds/installed", { cache: "no-store" }).catch(() => null),
+          fetch("/api/auth/session?brief=1", { cache: "no-store" }).catch(() => null),
         ]);
 
         const oauthJson = oauthRes ? await oauthRes.json().catch(() => ({})) : {};
         const installedJson = installedRes ? await installedRes.json().catch(() => ({})) : {};
+        const sessionJson = sessionRes?.ok ? await sessionRes.json().catch(() => ({})) : {};
 
         const oauthUserValue =
           oauthJson?.user && typeof oauthJson.user.id === "string"
@@ -174,6 +178,11 @@ export default function GuildsPage() {
         setOauthConfigured(Boolean(oauthJson?.oauthConfigured));
         setOauthLoggedIn(Boolean(oauthJson?.loggedIn));
         setOauthUser(oauthUserValue);
+        setIsControlOwner(Boolean(
+          oauthRes?.ok && oauthJson?.loggedIn && oauthUserValue?.id &&
+          sessionJson?.loggedIn && sessionJson?.isMasterOwner === true &&
+          sessionJson?.user?.id === oauthUserValue.id
+        ));
 
         if (oauthUserValue?.id && typeof window !== "undefined") {
           localStorage.setItem("dashboardUserId", oauthUserValue.id);
@@ -232,21 +241,8 @@ export default function GuildsPage() {
   }, []);
 
   const orderedGuilds = useMemo(() => {
-    return [...guilds].sort((a, b) => {
-      const rank = (guildId: string) => {
-        if (guildId === policy.primaryGuildId) return 0;
-        if (guildId === policy.gamesBaselineGuildId) return 1;
-        return 2;
-      };
-      const ap = rank(a.id);
-      const bp = rank(b.id);
-      if (ap !== bp) return ap - bp;
-      if ((a.botPresent ? 1 : 0) !== (b.botPresent ? 1 : 0)) {
-        return a.botPresent ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
-  }, [guilds, policy.gamesBaselineGuildId, policy.primaryGuildId]);
+    return orderGuildsForDisplay(guilds, policy, isControlOwner);
+  }, [guilds, policy, isControlOwner]);
 
   const summary = useMemo(() => {
     const installed = orderedGuilds.filter((guild) => guild.botPresent !== false).length;
@@ -306,6 +302,9 @@ export default function GuildsPage() {
         >
           Choose a server you can access, or invite the bot to a server you manage.
         </p>
+        {isControlOwner ? (
+          <p style={{ color: "#ffd7d7" }}>Preferred servers appear first for display only. This does not change your selected server or server configuration.</p>
+        ) : null}
         <p><a href="/api/personal-social/dashboard">Personal social accounts and server visibility</a></p>
 
         {loading ? <p style={{ color: "#ffd7d7" }}>Loading...</p> : null}

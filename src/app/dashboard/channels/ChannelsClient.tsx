@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { fetchGuildData } from "@/lib/liveRuntime";
+import { extractIdList, toggleChannelEntries } from "@/lib/dashboard/channelEntries";
 
 type GuildChannel = { id: string; name: string; type?: number | string };
 
@@ -311,35 +312,11 @@ function writePath(input: any, path: string[], value: any) {
   return next;
 }
 
-function toggleId(list: string[], id: string) {
+function toggleIdEntries(list: string[], id: string) {
   const set = new Set(list || []);
   if (set.has(id)) set.delete(id);
   else set.add(id);
   return Array.from(set);
-}
-
-function extractIdList(value: any): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      if (typeof entry === "string") return entry.trim();
-      if (entry && typeof entry === "object") return String(entry.id || "").trim();
-      return "";
-    })
-    .filter(Boolean);
-}
-
-function toggleIdEntries(value: any, id: string) {
-  const current = Array.isArray(value) ? value : [];
-  const currentIds = new Set(extractIdList(current));
-  if (currentIds.has(id)) {
-    return current.filter((entry) => {
-      if (typeof entry === "string") return entry.trim() !== id;
-      if (entry && typeof entry === "object") return String(entry.id || "").trim() !== id;
-      return false;
-    });
-  }
-  return [...current, id];
 }
 
 async function readEngineConfig(guildId: string, engine: string) {
@@ -540,7 +517,7 @@ export default function ChannelsClient() {
     const routes = Array.isArray(current.routes) ? current.routes : [];
     const route = routes[index] || {};
     const list = Array.isArray(route[fieldKey]) ? route[fieldKey] : [];
-    const next = toggleId(list, channelId);
+    const next = toggleIdEntries(list, channelId);
     updateRoute(sectionKey, index, { [fieldKey]: next });
   }
 
@@ -602,7 +579,7 @@ export default function ChannelsClient() {
                               <input
                                 type="checkbox"
                                 checked={list.includes(c.id)}
-                                onChange={() => updateField(section.key, field, toggleIdEntries(value, c.id))}
+                                onChange={() => updateField(section.key, field, toggleChannelEntries(value, c.id))}
                               />{" "}
                               {field.type === "category-multi" ? c.name : `#${c.name}`}
                             </label>
@@ -701,7 +678,7 @@ export default function ChannelsClient() {
                                     type="checkbox"
                                     checked={sourceIds.includes(c.id)}
                                     onChange={() => {
-                                      const next = toggleId(sourceIds, c.id);
+                                      const next = toggleIdEntries(sourceIds, c.id);
                                       updateRoute(section.key, index, { sourceChannelIds: next, sourceChannelId: next[0] || "" });
                                     }}
                                   />{" "}

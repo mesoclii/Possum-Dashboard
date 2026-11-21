@@ -4,7 +4,9 @@
 import { useMemo, useState } from "react";
 import ConfigJsonEditor from "@/components/possum/ConfigJsonEditor";
 import EngineInsights from "@/components/possum/EngineInsights";
+import GuildEmojiPicker from "@/components/possum/GuildEmojiPicker";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
+import { useGuildEmojis } from "@/components/possum/useGuildEmojis";
 
 type Channel = { id: string; name: string; type?: number | string };
 type Role = { id: string; name: string };
@@ -405,6 +407,7 @@ export default function CommunityStudioClient() {
     runAction,
   } = useGuildEngineEditor<CommunityStudioConfig>("communityStudio", DEFAULT_CONFIG);
 
+  const emojis = useGuildEmojis(guildId);
   const cfg = useMemo(() => normalizeConfig(rawCfg), [rawCfg]);
   const [localMsg, setLocalMsg] = useState("");
   const [bulletinIndex, setBulletinIndex] = useState(0);
@@ -712,9 +715,17 @@ export default function CommunityStudioClient() {
                     <div style={{ marginBottom: 8, fontWeight: 700 }}>Poll Options</div>
                     <div style={{ display: "grid", gap: 10 }}>
                       {activePoll.options.map((option, optionIndex) => (
-                        <div key={option.id} style={{ display: "grid", gridTemplateColumns: "120px minmax(0,1fr) auto", gap: 10, alignItems: "center" }}>
-                          <input style={input} placeholder="Emoji" value={option.emoji} onChange={(e) => replaceListItem("polls", activePollIndex, { ...activePoll, options: activePoll.options.map((entry, entryIndex) => entryIndex === optionIndex ? { ...entry, emoji: e.target.value } : entry) })} />
-                          <input style={input} placeholder={`Option ${optionIndex + 1}`} value={option.label} onChange={(e) => replaceListItem("polls", activePollIndex, { ...activePoll, options: activePoll.options.map((entry, entryIndex) => entryIndex === optionIndex ? { ...entry, label: e.target.value } : entry) })} />
+                        <div key={option.id} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                            <input style={input} placeholder="Emoji" value={option.emoji} onChange={(e) => replaceListItem("polls", activePollIndex, { ...activePoll, options: activePoll.options.map((entry, entryIndex) => entryIndex === optionIndex ? { ...entry, emoji: e.target.value } : entry) })} />
+                            <GuildEmojiPicker emojis={emojis} onInsert={(token) => setCfg((prev) => {
+                              const next = normalizeConfig(prev);
+                              return { ...next, polls: next.polls.map((poll) => poll.id !== activePoll.id ? poll : {
+                                ...poll, options: poll.options.map((entry, entryIndex) => entryIndex === optionIndex && entry.id === option.id ? { ...entry, emoji: token } : entry),
+                              }) };
+                            })} />
+                          </div>
+                          <input style={{ ...input, flex: "2 1 160px", minWidth: 0 }} placeholder={`Option ${optionIndex + 1}`} value={option.label} onChange={(e) => replaceListItem("polls", activePollIndex, { ...activePoll, options: activePoll.options.map((entry, entryIndex) => entryIndex === optionIndex ? { ...entry, label: e.target.value } : entry) })} />
                           <button
                             type="button"
                             style={button}

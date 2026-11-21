@@ -107,6 +107,11 @@ export default function JedPage() {
         emoji, GIF/media URLs, uploaded files, and custom emoji tokens, converts them when needed, and deploys the result into the guild. This page only tunes
         the live guild-level grab rules layered on top of your existing bot logic.
       </div>
+      <div style={{ color: "#ffbcbc", marginTop: 12 }}>
+        Guild vault assets are never published automatically. Public submissions and JED sharing are not available.
+        {" "}<Link href={buildDashboardHref("/dashboard/jed/adult-emotes")} style={{ color: "#ffd0d0" }}>Open Adult Emote Studio</Link>
+        {" · "}<Link href={buildDashboardHref("/dashboard/jed/private-media")} style={{ color: "#ffd0d0" }}>Private media status</Link>
+      </div>
 
       <section style={box}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12 }}>

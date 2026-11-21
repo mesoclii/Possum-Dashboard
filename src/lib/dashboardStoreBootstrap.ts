@@ -84,6 +84,9 @@ function bootstrapWithSqlite() {
       "userId" TEXT NOT NULL, "provider" TEXT NOT NULL, "revision" TEXT NOT NULL,
       PRIMARY KEY ("userId", "provider")
     );
+    CREATE TABLE IF NOT EXISTS "PersonalSocialBridgeNonce" (
+      "nonce" TEXT NOT NULL PRIMARY KEY, "expiresAt" INTEGER NOT NULL
+    );
     INSERT OR IGNORE INTO "PersonalSocialRevision" ("userId", "provider", "revision")
       SELECT "userId", "provider", lower(hex(randomblob(16))) FROM "PersonalSocialAccount";
     CREATE TABLE IF NOT EXISTS "PersonalSocialVisibility" (

@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { appendAudit, deepMerge, readStore, writeStore } from "@/lib/setupStore";
+import { appendAudit, deepMerge, readStore, updateStore } from "@/lib/setupStore";
 
 const FILE = "runtime-safety.json";
 
@@ -46,18 +46,27 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   const gid = guildId(req);
   if (!gid) return res.status(400).json({ success: false, error: "guildId required" });
 
-  const store = readStore(FILE);
-  const current = store[gid] || defaults();
-
   if (req.method === "GET") {
-    return res.status(200).json({ success: true, guildId: gid, config: current });
+    try {
+      const store = readStore(FILE);
+      return res.status(200).json({ success: true, guildId: gid, config: store[gid] || defaults() });
+    } catch {
+      return res.status(500).json({ success: false, error: "Cannot read runtime safety settings." });
+    }
   }
 
   if (req.method === "POST") {
     const patch = req.body?.patch || {};
-    const next = deepMerge(current, patch);
-    store[gid] = next;
-    writeStore(FILE, store);
+    let next;
+    try {
+      next = updateStore(FILE, (store) => {
+        const updated = deepMerge(store[gid] || defaults(), patch);
+        store[gid] = updated;
+        return updated;
+      });
+    } catch {
+      return res.status(500).json({ success: false, error: "Cannot save runtime safety settings; no change was confirmed." });
+    }
     appendAudit({
       guildId: gid,
       area: "runtime-safety",

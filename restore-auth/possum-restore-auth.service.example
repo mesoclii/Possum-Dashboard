@@ -1,0 +1,33 @@
+[Unit]
+Description=Possum independent restore authorization broker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+Group=www-data
+WorkingDirectory=/opt/possum/restore-auth
+EnvironmentFile=/etc/possum/restore-auth.conf
+Environment=RESTORE_AUTH_SOCKET=/run/possum-restore-auth/broker.sock
+LoadCredential=discord-client-secret:/etc/possum/restore-auth-discord-secret
+LoadCredential=signing-key:/etc/possum/restore-auth-signing-key.pem
+RuntimeDirectory=possum-restore-auth
+RuntimeDirectoryMode=0750
+UMask=0077
+ExecStart=/usr/bin/node /opt/possum/restore-auth/broker.cjs
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

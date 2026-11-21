@@ -95,6 +95,10 @@ test("directory requires viewer and owner current membership and fails closed", 
       return { ok: true, json: async () => token === "Bearer viewer" || ownerMember ? [{ id: "123" }] : [] };
     };
     assert.equal((await lib.visibleDirectory("123", "viewer")).accounts.length, 1);
+    const revision = db.prepare("SELECT revision FROM PersonalSocialRevision WHERE userId = 'owner'").get().revision;
+    db.prepare("DELETE FROM PersonalSocialRevision WHERE userId = 'owner'").run();
+    assert.equal((await lib.visibleDirectory("123", "viewer")).accounts.length, 0);
+    db.prepare("INSERT INTO PersonalSocialRevision VALUES ('owner', 'twitch', ?)").run(revision);
     ownerMember = false;
     assert.equal((await lib.visibleDirectory("123", "viewer")).accounts.length, 0);
     await assert.rejects(() => lib.visibleDirectory("123", "bad"));
@@ -295,6 +299,7 @@ test("visibility writes enforce origin, signed-in owner, and current guild membe
         addAccount.run(id, id, `user${id}`, `https://www.twitch.tv/user${id}`);
         addShare.run(id);
       }
+      db.prepare("INSERT INTO PersonalSocialRevision VALUES ('1021', 'twitch', 'revision')").run();
       db.prepare("INSERT INTO DashboardSession VALUES (?, ?, ?)").run("1021", "last", Date.now() + 60000);
       global.fetch = async () => ({ ok: true, json: async () => [{ id: "123" }] });
       const first = await lib.visibleDirectory("123", "viewer");
@@ -344,12 +349,124 @@ test("visibility writes enforce origin, signed-in owner, and current guild membe
         json: (body, options) => ({ body, status: options.status }),
         redirect: (url, status) => ({ url, status, headers: new Headers() }),
       } },
-      "@/lib/personalSocial": { socialOrigin: () => "https://dashboard.example" },
+      "@/lib/personalSocial": { socialOrigin: () => "https://dashboard.example", isSocialOAuthProvider: (value) => ["twitch", "youtube", "reddit", "x", "tiktok"].includes(value) },
     });
     assert.equal(route.GET().url, "https://dashboard.example/personal-social");
+    assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123") }).url, "https://dashboard.example/personal-social?guildId=123");
+    assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123%2F..%2Fadmin") }).url, "https://dashboard.example/personal-social");
+    assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123&provider=twitch") }).url, "https://dashboard.example/personal-social?guildId=123&provider=twitch");
+    assert.equal(route.GET({ nextUrl: new URL("https://untrusted.example/?guildId=123&provider=facebook") }).url, "https://dashboard.example/personal-social?guildId=123");
     const guildsPage = fs.readFileSync(path.join(__dirname, "..", "src", "app", "guilds", "page.tsx"), "utf8");
     assert.match(guildsPage, /href="\/api\/personal-social\/dashboard"/);
   });
+
+test("filtered directory paginates shared profiles and binds cursors to server and provider", async () => {
+  const { db, prisma, lib } = fixture();
+  const oldFetch = global.fetch;
+  const env = { ...process.env };
+  process.env.SESSION_SECRET = "test-session-secret";
+  global.fetch = async () => ({ ok: true, json: async () => [{ id: "123" }, { id: "456" }] });
+  const route = load("app/api/personal-social/route.ts", {
+    "next/server": { NextResponse: { json: (body, options) => ({ body, status: options.status }) } },
+    "@/lib/prisma": prisma,
+    "@/lib/session": { DASHBOARD_SESSION_COOKIE: "session", readDashboardSessionValue: async () => ({ user: { id: "viewer" }, accessToken: "viewer-token" }) },
+    "@/lib/personalSocial": lib,
+    "@/lib/rateLimiter": { enforceDashboardRateLimit: async () => {} },
+  });
+  const get = (query) => route.GET({ cookies: { get: () => ({ value: "session" }) }, nextUrl: new URL(`https://dashboard.example/api/personal-social?${query}`) });
+  try {
+    for (let i = 0; i < 21; i++) {
+      const user = String(1000 + i);
+      await lib.saveSocial("twitch", user, { id: user, label: user, url: `https://www.twitch.tv/user${user}` });
+      db.prepare("INSERT INTO PersonalSocialVisibility VALUES (?, 'twitch', '123')").run(user);
+      db.prepare("INSERT INTO DashboardSession VALUES (?, ?, ?)").run(user, "owner-token", Date.now() + 60000);
+    }
+    await lib.saveSocial("youtube", "1000", { id: "youtube-id", label: "youtube", url: "https://www.youtube.com/channel/example" });
+    db.prepare("INSERT INTO PersonalSocialVisibility VALUES ('1000', 'youtube', '123')").run();
+    const first = await get("guildId=123&provider=twitch");
+    assert.equal(first.status, 200);
+    assert.equal(first.body.accounts.length, 20);
+    assert.ok(first.body.accounts.every((entry) => entry.provider === "twitch"));
+    assert.ok(first.body.nextCursor);
+    const cursor = encodeURIComponent(first.body.nextCursor);
+    const second = await get(`guildId=123&provider=twitch&cursor=${cursor}`);
+    assert.equal(second.body.accounts.length, 1);
+    assert.equal(second.body.nextCursor, null);
+    const youtube = await get("guildId=123&provider=youtube");
+    assert.deepEqual(youtube.body.accounts.map((entry) => entry.provider), ["youtube"]);
+    assert.equal((await get(`guildId=123&provider=youtube&cursor=${cursor}`)).status, 400);
+    assert.equal((await get(`guildId=456&provider=twitch&cursor=${cursor}`)).status, 400);
+    assert.equal((await get("guildId=123&provider=facebook")).status, 400);
+  } finally { global.fetch = oldFetch; process.env = env; db.close(); }
+});
+
+test("Discord social link opens a directory only for a verified current server", async () => {
+  const oldFetch = global.fetch;
+  const oldWindow = global.window;
+  try {
+    for (const [guildId, guildsVerified, expectedDirectory] of [["123", true, true], ["999", true, false], ["123", false, false]]) {
+      const calls = [];
+      global.window = { location: { search: `?guildId=${guildId}&provider=twitch` }, history: { replaceState() {} } };
+      global.fetch = async (url) => {
+        calls.push(url);
+        return { ok: true, json: async () => url.includes("?guildId=")
+          ? { accounts: [], nextCursor: null }
+          : { providers: [], accounts: [], visibility: [], guilds: [{ id: "123", name: "Server" }], guildsVerified } };
+      };
+      const jsx = { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
+      const page = load("app/personal-social/page.tsx", {
+        react: {
+          useState: (value) => [value, () => {}],
+          useRef: (value) => ({ current: value }),
+          useEffect: (effect) => effect(),
+        },
+        "react/jsx-runtime": jsx,
+      }).default;
+      page();
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(calls.includes(`/api/personal-social?guildId=${guildId}&provider=twitch`), expectedDirectory);
+    }
+  } finally { global.fetch = oldFetch; global.window = oldWindow; }
+});
+
+test("Discord social link retains its server through the sign-in prompt", async () => {
+  const oldFetch = global.fetch;
+  const oldWindow = global.window;
+  global.window = { location: { search: "?guildId=123&provider=twitch" }, history: { replaceState() {} } };
+  global.fetch = async () => ({ ok: false, json: async () => ({ error: "Sign in with Discord first." }) });
+  const states = [], refs = [];
+  let stateIndex = 0, refIndex = 0, effectRan = false;
+  const jsx = { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
+  const page = load("app/personal-social/page.tsx", {
+    react: {
+      useState: (initial) => {
+        const index = stateIndex++;
+        if (!(index in states)) states[index] = initial;
+        return [states[index], (value) => { states[index] = value; }];
+      },
+      useRef: (initial) => {
+        const index = refIndex++;
+        if (!refs[index]) refs[index] = { current: initial };
+        return refs[index];
+      },
+      useEffect: (effect) => { if (!effectRan) { effectRan = true; effect(); } },
+    },
+    "react/jsx-runtime": jsx,
+  }).default;
+  function nodes(node) {
+    if (Array.isArray(node)) return node.flatMap(nodes);
+    if (!node || typeof node !== "object") return [];
+    return [node, ...nodes(node.props?.children)];
+  }
+  try {
+    page();
+    await new Promise((resolve) => setImmediate(resolve));
+    stateIndex = 0; refIndex = 0;
+    const signIn = nodes(page()).find((node) => node.type === "a" && node.props.children === "Sign in");
+    const url = new URL(signIn.props.href, "https://dashboard.example");
+    assert.equal(url.searchParams.get("returnTo"), "/personal-social?guildId=123&provider=twitch");
+  } finally { global.fetch = oldFetch; global.window = oldWindow; }
+});
 
 test("former-server grant is presented with a functional individual revoke control", async () => {
   const data = {
@@ -490,6 +607,41 @@ test("real Prisma transaction rejects stale decisions and permits a fresh consen
   } finally { await prisma.$disconnect(); }
 });
 
+test("directory API fails closed when viewer membership changes during owner verification", async () => {
+  const { db, prisma, lib } = fixture();
+  const oldFetch = global.fetch;
+  let release, entered, viewerMember = true;
+  const waiting = new Promise((resolve) => { entered = resolve; });
+  global.fetch = async (_url, options) => {
+    if (options.headers.Authorization === "Bearer owner-token") {
+      entered();
+      await new Promise((resolve) => { release = resolve; });
+      return { ok: true, json: async () => [{ id: "123" }] };
+    }
+    return { ok: true, json: async () => viewerMember ? [{ id: "123" }] : [] };
+  };
+  const route = load("app/api/personal-social/route.ts", {
+    "next/server": { NextResponse: { json: (body, options) => ({ body, status: options.status, headers: options.headers }) } },
+    "@/lib/prisma": prisma,
+    "@/lib/session": { DASHBOARD_SESSION_COOKIE: "session", readDashboardSessionValue: async () => ({ user: { id: "viewer" }, accessToken: "viewer-token" }) },
+    "@/lib/personalSocial": lib,
+    "@/lib/rateLimiter": { enforceDashboardRateLimit: async () => {} },
+  });
+  try {
+    await lib.saveSocial("twitch", "1001", { id: "42", label: "private-profile", url: "https://www.twitch.tv/one" });
+    db.prepare("INSERT INTO PersonalSocialVisibility VALUES ('1001', 'twitch', '123')").run();
+    db.prepare("INSERT INTO DashboardSession VALUES (?, ?, ?)").run("1001", "owner-token", Date.now() + 60000);
+    const pending = route.GET({ cookies: { get: () => ({ value: "session" }) }, nextUrl: new URL("https://dashboard.example/api/personal-social?guildId=123") });
+    await waiting;
+    viewerMember = false;
+    release();
+    const response = await pending;
+    assert.equal(response.status, 503);
+    assert.equal(response.headers["Cache-Control"], "private, no-store");
+    assert.equal(JSON.stringify(response.body).includes("private-profile"), false);
+  } finally { global.fetch = oldFetch; db.close(); }
+});
+
 test("directory omits a profile revoked during membership verification", async () => {
   const { db, lib } = fixture();
   const oldFetch = global.fetch;
@@ -512,6 +664,39 @@ test("directory omits a profile revoked during membership verification", async (
     db.prepare("DELETE FROM PersonalSocialVisibility WHERE userId = '1001'").run();
     release();
     assert.deepEqual((await pending).accounts, []);
+  } finally { global.fetch = oldFetch; db.close(); }
+});
+
+test("directory rechecks earlier profiles after all membership lookups, including re-sharing", async () => {
+  const { db, lib } = fixture();
+  const oldFetch = global.fetch;
+  let release;
+  let entered;
+  let blocked = false;
+  const waiting = new Promise((resolve) => { entered = resolve; });
+  global.fetch = async (_url, options) => {
+    if (options.headers.Authorization === "Bearer slow-owner" && !blocked) {
+      blocked = true;
+      entered();
+      await new Promise((resolve) => { release = resolve; });
+    }
+    return { ok: true, json: async () => [{ id: "123" }] };
+  };
+  try {
+    for (const [user, token] of [["1001", "fast-owner"], ["1002", "slow-owner"]]) {
+      await lib.saveSocial("twitch", user, { id: user, label: user, url: `https://www.twitch.tv/${user}` });
+      db.prepare("INSERT INTO PersonalSocialVisibility VALUES (?, 'twitch', '123')").run(user);
+      db.prepare("INSERT INTO DashboardSession VALUES (?, ?, ?)").run(user, token, Date.now() + 60000);
+    }
+    const pending = lib.visibleDirectory("123", "viewer");
+    await waiting;
+    await new Promise((resolve) => setImmediate(resolve));
+    await lib.setSocialVisibility("twitch", "1001", "123", false);
+    const revision = db.prepare("SELECT revision FROM PersonalSocialRevision WHERE userId = '1001'").get().revision;
+    assert.equal(await lib.setSocialVisibility("twitch", "1001", "123", true, "1001", revision), true);
+    release();
+    assert.deepEqual((await pending).accounts.map((entry) => entry.userId), ["1002"]);
+    assert.deepEqual((await lib.visibleDirectory("123", "viewer")).accounts.map((entry) => entry.userId), ["1001", "1002"]);
   } finally { global.fetch = oldFetch; db.close(); }
 });
 

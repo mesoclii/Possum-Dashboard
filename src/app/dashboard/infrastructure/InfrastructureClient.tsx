@@ -36,6 +36,8 @@ type AdaptPreview = { wrote?: boolean; planned?: AdaptRow[]; skipped?: { id: str
 
 type Report = {
   ready?: boolean;
+  panelSetupPolicy?: string;
+  channelCreationPolicy?: string;
   reason?: string;
   healthScore?: number;
   counts?: { critical: number; warning: number; notice: number; optional?: number; healthy: number };
@@ -76,6 +78,10 @@ type ApiJson = {
 type Notice = { id: number; tone: "ok" | "err"; title: string; detail?: string };
 type PendingWrite = { title: string; detail: string; confirmLabel: string; body: Record<string, unknown> };
 type DialogKind = "repair" | "adapt" | "";
+
+function isPanelField(row: { engine: string; field: string }) {
+  return /panel|deploy/i.test(`${row.engine}:${row.field}`);
+}
 
 async function readJson(response: Response): Promise<ApiJson> {
   try {
@@ -120,7 +126,7 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
         title: `Automatic resource creation ${body.automaticProvisioningEnabled ? "enabled" : "disabled"}`,
         lines: [
           body.automaticProvisioningEnabled
-            ? "Missing channels, categories, and roles may be created for tracked engines."
+            ? "Missing non-panel resources may be created for tracked engines. Uncertain creates require manual review."
             : "Missing Discord resources will be reported for owner review.",
           "Existing mappings and protected onboarding, verification, pre-onboarding, and Heist flows stay unchanged.",
         ],
@@ -131,7 +137,7 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
         title: `Infrastructure Autopilot ${body.autopilotEnabled ? "enabled" : "disabled"}`,
         lines: [
           body.autopilotEnabled
-            ? "Safe repairs and unique, unambiguous channel/category reroutes may run automatically."
+            ? "Unique, unambiguous channel/category reroutes may run automatically. Channel repair is disabled."
             : "Infrastructure will monitor and report findings without automatic repairs.",
           "Roles, permissions, protected flows, and healthy mappings are never changed automatically.",
         ],
@@ -179,6 +185,7 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
       lines: [
         ...(names.length ? [`Created: ${names.join(", ")}`] : []),
         `Deferred ${countOf(result.deferred)}. Configuration write: ${result.wroteConfig === true ? "yes" : "no"}. Mode ${String(result.mode || "full-setup")}.`,
+        ...(result.channelCreationDisabled ? ["Channel and category creation is disabled; configure existing resources manually."] : []),
         ...(result.message ? [String(result.message)] : []),
       ],
     };
@@ -366,6 +373,8 @@ export default function InfrastructureClient() {
   const [preview, setPreview] = useState<AdaptPreview | null>(null);
   const [pending, setPending] = useState<PendingWrite | null>(null);
   const inFlight = useRef(false);
+  const loadSequence = useRef(0);
+  const loadedContext = useRef("");
   const noticeId = useRef(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -388,18 +397,44 @@ export default function InfrastructureClient() {
   }
 
   useEffect(() => {
-    const nextGuild = readDashboardGuildId();
-    const nextUser = readDashboardUserId();
-    setGuildId(nextGuild);
-    setUserId(nextUser);
-    if (!nextGuild) return;
-    fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(nextGuild)}&userId=${encodeURIComponent(nextUser)}`, { cache: "no-store" })
-      .then(async (response) => {
-        const json = await readJson(response);
-        if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
-        setReport(json.report || null);
-      })
-      .catch((error: unknown) => notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed"));
+    let active = true;
+    const load = () => {
+      const nextGuild = readDashboardGuildId();
+      const nextUser = readDashboardUserId();
+      const context = `${nextGuild}:${nextUser}`;
+      if (context === loadedContext.current) return;
+      loadedContext.current = context;
+      const sequence = ++loadSequence.current;
+      setGuildId(nextGuild);
+      setUserId(nextUser);
+      setReport(null);
+      if (!nextGuild) return;
+      fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(nextGuild)}&userId=${encodeURIComponent(nextUser)}`, { cache: "no-store" })
+        .then(async (response) => {
+          const json = await readJson(response);
+          if (!response.ok || json.success === false) throw new Error(json.error || "Could not load the saved scan.");
+          if (!active || sequence !== loadSequence.current || readDashboardGuildId() !== nextGuild) return;
+          if (json.report && String((json.report as Report & { guildId?: string }).guildId || nextGuild) !== nextGuild) {
+            throw new Error("The infrastructure response belonged to a different server and was discarded.");
+          }
+          setReport(json.report || null);
+        })
+        .catch((error: unknown) => {
+          if (active && sequence === loadSequence.current) notify("err", "Could not load the saved scan", error instanceof Error ? error.message : "Request failed");
+        });
+    };
+    load();
+    window.addEventListener("popstate", load);
+    window.addEventListener("storage", load);
+    window.addEventListener("focus", load);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      active = false;
+      window.removeEventListener("popstate", load);
+      window.removeEventListener("storage", load);
+      window.removeEventListener("focus", load);
+      document.removeEventListener("visibilitychange", load);
+    };
   }, []);
 
   async function post(actionKey: string, body: Record<string, unknown>) {
@@ -409,6 +444,17 @@ export default function InfrastructureClient() {
     }
     if (!guildId) {
       notify("err", "No server selected", "Choose a server in the dashboard before running infrastructure actions.");
+      return;
+    }
+    const needsPanelPolicy = ["approve", "provision", "repair", "decide"].includes(String(body.action)) ||
+      (body.action === "adapt" && body.confirmed === true) ||
+      (body.action === "settings" && (body.autopilotEnabled === true || body.automaticProvisioningEnabled === true));
+    if (needsPanelPolicy && report?.panelSetupPolicy !== "manual-only-v1") {
+      notify("err", "Update the bot first", "This bot has not confirmed that setup leaves panels for separate configuration.");
+      return;
+    }
+    if (needsPanelPolicy && report?.channelCreationPolicy !== "single-post-v1") {
+      notify("err", "Update the bot first", "This bot has not confirmed the single-request creation policy.");
       return;
     }
     const before = report?.healthScore;
@@ -426,12 +472,20 @@ export default function InfrastructureClient() {
         return;
       }
       if (json.result?.duplicate === true || json.result?.stale === true) {
+        if ((rowsOf(json.result?.planned) as unknown as AdaptRow[]).some(isPanelField)) {
+          notify("err", "Panel mapping refused", "Update the bot before running setup; configure panels separately.");
+          return;
+        }
         setPreview({ wrote: false, planned: rowsOf(json.result?.planned) as unknown as AdaptRow[], skipped: rowsOf(json.result?.skipped) as unknown as { id: string; reason: string }[] });
         setConfirm("adapt");
         notify("err", "The inventory changed", String(json.result?.reason || "Review the new preview before applying."));
         return;
       }
       if (json.preview) {
+        if ((json.preview.planned || []).some(isPanelField)) {
+          notify("err", "Panel mapping refused", "Update the bot before running setup; configure panels separately.");
+          return;
+        }
         setPreview(json.preview);
         setConfirm("adapt");
         notify("ok", "Preview ready", `${json.preview.planned?.length || 0} empty mapping${json.preview.planned?.length === 1 ? "" : "s"} can be filled. Nothing was written.`);
@@ -564,15 +618,17 @@ export default function InfrastructureClient() {
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
           <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked} onClick={() => post("adapt-preview", { action: "adapt" })} />
-          <ActionButton label={`Autopilot ${report?.settings?.autopilotEnabled ? "On" : "Off"}`} tip="Opt in to safe automatic repair of Possum-created channels and rerouting only to a unique, unused existing channel/category. Roles, permissions, protected flows, healthy mappings, and deletions are never automated." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
-          <ActionButton label={`Auto-create ${report?.settings?.automaticProvisioningEnabled ? "On" : "Off"}`} tip="When enabled, infrastructure may create missing channels, categories, and roles for tracked engines. It never overwrites mappings or creates resources for protected onboarding, verification, pre-onboarding, or Heist flows." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
-          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Toggle whether a later confirmed repair is allowed. This click does not recreate channels." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
-          <ActionButton label="Confirm Repair" tip="Open the confirmation for recreating channels Possum previously recorded." busy={false} locked={locked} onClick={() => setConfirm("repair")} />
+          <ActionButton label={`Autopilot ${report?.settings?.autopilotEnabled ? "On" : "Off"}`} tip="Reroute only to a unique, unused existing channel/category. Channel repair is disabled." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
+          <ActionButton label={`Auto-create ${report?.settings?.automaticProvisioningEnabled ? "On" : "Off"}`} tip="When enabled, infrastructure may create missing non-panel resources. Uncertain creates require manual review." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
+          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Save the repair preference. Channel and category repair is currently disabled." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
           <ActionButton label="TXT" tip="Download the directory as text." busy={busyAction === "export-txt"} busyLabel="Exporting…" locked={locked} onClick={() => download("txt")} />
         </div>
         <p className="mt-2 text-xs text-red-200/70">Mode {report?.settings?.mode || "discovery"}. Selected system groups control what health and Auto-Adapt consider. Protected onboarding, verification, pre-onboarding, and heist fields stay suggestion-only.</p>
+        <p className="mt-2 text-xs text-red-200/70">Undo Setup is available in <a className="underline" href="/dashboard/server-setup">Server Setup</a> only to the current Discord server owner or globally authorized Possum emergency staff, not other administrators or dashboard roles.</p>
+        <p className="mt-1 text-xs text-red-200/70">Undo Setup is currently disabled until dashboard sessions and bot ingress are isolated from other services.</p>
+        <p className="mt-1 text-xs text-red-200/70"><a className="underline" href="/emergency-undo">Emergency access by server ID</a> is available without dashboard manager access.</p>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
@@ -616,9 +672,9 @@ export default function InfrastructureClient() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Continuous watch</h2>
         <p className="mt-2 text-sm text-red-100/80">Last check {report?.watch?.checkedAt ? new Date(report.watch.checkedAt).toLocaleString() : "—"} · Critical {report?.watch?.counts?.critical ?? 0} · Warning {report?.watch?.counts?.warning ?? 0} · Added {report?.watch?.added ?? 0} · Cleared {report?.watch?.resolved ?? 0}</p>
-        <p className="mt-1 text-xs text-pink-100/70">{report?.settings?.autopilotEnabled ? "Autopilot is on: it repairs eligible Possum-created channels and uses only unique, unused existing channel/category matches. Ambiguous changes, roles, permissions, protected flows, and deletion are left for owner review." : "Read-only monitoring. Findings never change engine configuration; reroute and repair still need your approval."} {report?.settings?.automaticProvisioningEnabled ? "Automatic creation is also on for missing resources in tracked engines." : "Missing resources are reported only; automatic creation is off."}</p>
+        <p className="mt-1 text-xs text-pink-100/70">{report?.settings?.autopilotEnabled ? "Autopilot is on: it uses only unique, unused existing channel/category matches. Channel repair is disabled; ambiguous changes need owner review." : "Read-only monitoring. Channel repair is disabled."} {report?.settings?.automaticProvisioningEnabled ? "Automatic non-panel creation is also on for tracked engines." : "Missing resources are reported only; automatic creation is off."}</p>
         <div className="mt-3 space-y-2">
-          {(report?.watch?.items || []).slice(0, 20).map((entry) => (
+          {(report?.watch?.items || []).filter((entry) => !isPanelField(entry)).slice(0, 20).map((entry) => (
             <div key={entry.id} className="rounded-lg border border-red-900/40 px-3 py-2">
               <p className="text-xs uppercase tracking-[0.14em] text-pink-200">{entry.severity} · {entry.kind} · {entry.allowedAction || "review"}</p>
               <p className="text-sm font-bold text-red-100">{entry.engine}.{entry.field}</p>
@@ -633,7 +689,7 @@ export default function InfrastructureClient() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Health</h2>
         <div className="mt-3 space-y-2">
-          {(report?.findings || report?.issues || []).slice(0, 40).map((finding) => (
+          {(report?.findings || report?.issues || []).filter((finding) => !isPanelField(finding)).slice(0, 40).map((finding) => (
             <div key={`${finding.problemKind}-${finding.engine}-${finding.field}-${finding.message}`} className="rounded-lg border border-red-900/40 px-3 py-2">
               <p className="text-xs uppercase tracking-[0.14em] text-pink-200">{finding.severity} · {finding.problemKind}</p>
               <p className="text-sm font-bold text-red-100">{finding.engine}.{finding.field}</p>
@@ -666,7 +722,7 @@ export default function InfrastructureClient() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Proposed mappings (tracked features)</h2>
         <div className="mt-3 space-y-2">
-          {(report?.proposals || []).filter((proposal) => proposal.status !== "populated").slice(0, 40).map((proposal) => (
+          {(report?.proposals || []).filter((proposal) => proposal.status !== "populated" && !isPanelField(proposal)).slice(0, 40).map((proposal) => (
             <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">
               <p className="text-sm font-bold text-red-100">{proposal.engineLabel || proposal.engine}.{proposal.field}</p>
               {proposal.intendedName ? <p className="text-xs text-pink-100/70">Intended destination: {proposal.intendedName}</p> : null}
@@ -717,16 +773,7 @@ export default function InfrastructureClient() {
         </div>
       </ConfirmDialog>
 
-      <ConfirmDialog
-        open={confirm === "repair"}
-        title="Recreate recorded resources"
-        detail={`Repair only recreates channels Possum recorded, and only while the repair toggle is on. Repair is currently ${report?.settings?.repairEnabled ? "on" : "off"}. Other channels stay untouched.`}
-        confirmLabel="Recreate recorded resources"
-        busy={busyAction === "repair"}
-        locked={locked && busyAction !== "repair"}
-        onConfirm={() => void post("repair", { action: "repair", confirmed: true })}
-        onCancel={() => setConfirm("")}
-      />
+
     </div>
   );
 }

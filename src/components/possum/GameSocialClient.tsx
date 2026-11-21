@@ -395,7 +395,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
         {runtimeCard("Playtime", summaryValue(playtimeSummary, "Total Hours"))}
         {runtimeCard("Open squads", summaryValue(squadSummary, "Open Squads"))}
       </div>
-      {canManageGaming ? <Link href="/dashboard/games/wilds" style={{ display: "inline-block", marginBottom: 10, color: "#ffb0b0", fontSize: 12, textDecoration: "underline" }}>Possum Wilds asset settings</Link> : null}
+      {canManageGaming ? <Link href="/dashboard/games/wilds" style={{ display: "inline-block", marginBottom: 10, color: "#ffb0b0", fontSize: 12, textDecoration: "underline" }}>TCG creature-card source settings</Link> : null}
       {message ? <div style={{ marginTop: 10, color: "#ffb3f0" }}>{message}</div> : null}
       {loadWarnings.length ? (
         <div role="alert" style={{ ...card, borderColor: "rgba(255,43,214,.55)", color: "#ffb3f0" }}>

@@ -2,22 +2,24 @@
 
 The dashboard is a Next.js application that connects to the separate Possum Bot API. Run it as its own PM2 process behind an HTTPS reverse proxy.
 
-## Update the Oracle Cloud VM
+## Update the production VPS
 
 The dashboard checkout is `~/negan-dashboard` and its PM2 process is `possum-dashboard`.
 
 ```bash
 cd ~/negan-dashboard
-git pull --ff-only origin fix/dashboard-safe-deploy-2026-11-06
+git pull --ff-only origin main
 npm run deploy:vm
 pm2 status
 ```
 
-Restart the dashboard only after the build succeeds. The VM has limited memory; if a build reports out-of-memory, do not restart into a failed build. The build script keeps the previous build available for rollback.
+Restart the dashboard only after the build succeeds. If the VPS reports out-of-memory, do not restart into a failed build. The build script keeps the previous build available for rollback.
 
-To update the bot too, follow the bot's [VM update instructions](../README.md#update-the-oracle-cloud-vm). The bot process is `possum-bot` in `~/Negan-Bot`.
+To update the bot too, follow the bot's [VPS update instructions](../README.md#update-the-production-vps). The bot process is `possum-bot` in `~/Negan-Bot`.
 
 Paid-feature testing is a separate step. Keep paid-plan enforcement off or unset while validating the actual features; do not enable `PAID_BOT_MODE` or `SAAS_PREMIUM_ENFORCEMENT` yet.
+
+For staff-only persona testing, release this dashboard's persona-test proxy together with the corresponding bot change. The bot requires the signed-in user's Discord OAuth token and a dedicated four-ID staff allowlist; an older dashboard proxy cannot pass the test. The token is sent only to the bot persona-test endpoint, so keep that connection private or TLS-protected. Coordinate the equivalent proxy change in both dashboard repositories before release.
 
 ## First-time setup
 
@@ -39,7 +41,7 @@ Also configure:
 - A unique `SESSION_SECRET` (for example, generate one with `openssl rand -hex 32`).
 - `BOT_API_URL` pointing to the private bot API.
 - The same strong `DASHBOARD_API_TOKEN` used by the bot.
-- `POSSUM_BOT_ROOT` set to the absolute path of the bot checkout (for this VM, `/home/<user>/Negan-Bot`).
+- `POSSUM_BOT_ROOT` set to the absolute path of the bot checkout on the VPS.
 - `DASHBOARD_PUBLIC_URL` and `NEXT_PUBLIC_DASHBOARD_URL` set to the dashboard's HTTPS origin.
 
 Build and start the dashboard:
@@ -61,6 +63,8 @@ The studio shows hosts each voice participant's current consent status and provi
 
 ## Safety and troubleshooting
 
+- Dashboard-local `/api/system/config-backup` exports only its allowlisted setup stores, not a full server backup. It requires a dashboard session, a live Discord guild-management check, and premium access. Restore is disabled until session isolation and coordination with all setup-store writers are established; a backup's guild ID is only a source-binding check, not proof of authenticity.
+- The dashboard audit and runtime-safety settings writers now use the same setup-store lock and atomic file replacement as the backup code. All deployed writers must be checked and updated before enabling restore. A crash can leave `data/setup/.setup-store.lock`; investigate and confirm no writer is active before removing it. The audit and runtime-safety endpoints do not themselves enforce guild authorization and need separate protection.
 - Keep `.env`, `prisma/dashboard.db`, and their backups private. The database contains dashboard sessions.
 - Keep the bot API private to the VM/reverse-proxy network; do not expose its port publicly.
 - If `npm run build` runs out of memory, leave the current PM2 process alone until a successful build is available.

@@ -26,6 +26,7 @@ type Card = {
   premiumRequired?: boolean;
   creatorOnly?: boolean;
   primaryOwnerOnly?: boolean;
+  pokemonOperatorOnly?: boolean;
   routeKey?: string;
   state?: ToggleState;
 };
@@ -566,9 +567,9 @@ const CARDS: Card[] = [
   { href: "/dashboard/rarespawn", title: "Rare Spawn", description: "Rare event spawn/claim settings.", toggle: rareSpawnController },
   { href: "/dashboard/range", title: "Range", description: "Range game interactions and limits.", toggle: engineController("range") },
   { href: "/dashboard/truthdare", title: "Truth Or Dare", description: "Truth/Dare prompts, channel locks, and bet controls.", toggle: engineController("truthDare") },
-  { href: "/dashboard/pokemon-catching", title: "Pokemon Catching", description: "Wild spawn lanes, catch rates, reward tuning, and catch logs.", toggle: pokemonCatchingController, primaryOwnerOnly: true },
-  { href: "/dashboard/pokemon-battle", title: "Pokemon Battle", description: "Battle lane, battle logging, and duel availability.", toggle: pokemonBattleController, primaryOwnerOnly: true },
-  { href: "/dashboard/pokemon-trade", title: "Pokemon Trade", description: "Trade gate and trade log routing.", toggle: pokemonTradeController, primaryOwnerOnly: true },
+  { href: "/dashboard/pokemon-catching", title: "Pokemon Catching", description: "Wild spawn lanes, catch rates, reward tuning, and catch logs.", toggle: pokemonCatchingController, pokemonOperatorOnly: true },
+  { href: "/dashboard/pokemon-battle", title: "Pokemon Battle", description: "Battle lane, battle logging, and duel availability.", toggle: pokemonBattleController, pokemonOperatorOnly: true },
+  { href: "/dashboard/pokemon-trade", title: "Pokemon Trade", description: "Trade gate and trade log routing.", toggle: pokemonTradeController, pokemonOperatorOnly: true },
   { href: "/dashboard/governance", title: "Governance", description: "Governance state and enforcement controls.", toggle: engineController("security.governance", ["active"]) },
   { href: "/dashboard/security", title: "Security", description: "Security stack, moderation, and policies.", toggle: engineController("security.governance", ["active"]) },
   { href: "/dashboard/blacklist", title: "Blacklist", description: "Blacklist add/remove/show control.", toggle: engineController("blacklist") },
@@ -584,7 +585,7 @@ const CARDS: Card[] = [
   { href: "/dashboard/alert-inbox", title: "Alert Inbox", description: "Open, acknowledged, and resolved health and automation events.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/config-history", title: "Configuration History", description: "See who changed a section and restore that version.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/scheduled-reports", title: "Scheduled Reports", description: "Daily, weekly, and monthly reports. A missing audit lookup stays missing.", goOnly: true, goLabel: "Go", premiumRequired: true },
-  { href: "/dashboard/system-health/backups", title: "Config Backup", description: "Export the full server configuration and restore it later.", goOnly: true, goLabel: "Go", premiumRequired: true },
+  { href: "/dashboard/system-health/backups", title: "Config Backup", description: "Save bot engine configuration and feature toggles; not a full server backup.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/bot-personalizer#second-token-bot", title: "Second Token Bot", description: "Yearly subscribers. A separate bot token, name, avatar, and presence. Lifetime subscribers have this bot too.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/bot-personalizer#third-token-bot", title: "Third Token Bot", description: "Lifetime subscribers only. A third bot token that never shares state with the other token bots.", goOnly: true, goLabel: "Go", premiumRequired: true },
   { href: "/dashboard/premium-features#advanced-security", title: "Advanced Security Suite", description: "Threat intel, drift, trust weighting, escalation, and containment premium layer.", goOnly: true, goLabel: "Go", premiumRequired: true },
@@ -608,7 +609,7 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
   const [states, setStates] = useState<Record<string, ToggleState>>({});
   const [loadingStates, setLoadingStates] = useState(false);
   const [subscription, setSubscription] = useState<{ active: boolean; plan: string; developerBypass?: boolean } | null>(null);
-  const { isMasterOwner, isPrimaryOwner, loading: sessionLoading } = useDashboardSessionState();
+  const { isMasterOwner, isPrimaryOwner, isPokemonOperator, loading: sessionLoading } = useDashboardSessionState();
   const featureVisibility = usePublicFeatureVisibility();
 
   useEffect(() => {
@@ -756,13 +757,14 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
       })).filter((card) => {
         if (card.creatorOnly && !isMasterOwner) return false;
         if (card.primaryOwnerOnly && !isPrimaryOwner) return false;
+        if (card.pokemonOperatorOnly && !isPokemonOperator) return false;
         if (switchboardOnly && !card.toggle) return false;
         if (isMasterOwner || switchboardOnly) return true;
         const route = card.routeKey.split("?")[0].split("#")[0];
         const premiumFeature = PREMIUM_FEATURES.find((feature) => feature.route.split("?")[0].split("#")[0] === route);
         return !premiumFeature || featureVisibility?.[premiumFeature.id] === true;
       }),
-    [featureVisibility, isMasterOwner, isPrimaryOwner, states, switchboardOnly]
+    [featureVisibility, isMasterOwner, isPrimaryOwner, isPokemonOperator, states, switchboardOnly]
   );
 
   const quickAccessCards = useMemo(
@@ -772,8 +774,8 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
 
   const premiumUnlocked = !premiumEnforced || Boolean(subscription?.active || subscription?.developerBypass);
   const navGroup = useMemo(
-    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner).find((s) => getSectionSlug(s.label) === (groupSlug === "gaming" || groupSlug === "social-alerts" ? "social" : groupSlug)) || null : null),
-    [featureVisibility, groupSlug, isMasterOwner, isPrimaryOwner]
+    () => (groupSlug ? getDashboardNavSections(isMasterOwner, featureVisibility, isPrimaryOwner, isPokemonOperator).find((s) => getSectionSlug(s.label) === (groupSlug === "gaming" || groupSlug === "social-alerts" ? "social" : groupSlug)) || null : null),
+    [featureVisibility, groupSlug, isMasterOwner, isPokemonOperator, isPrimaryOwner]
   );
   const baseHref = (href: string) => href.split("?")[0].split("#")[0];
   const groupedCards = useMemo(() => {

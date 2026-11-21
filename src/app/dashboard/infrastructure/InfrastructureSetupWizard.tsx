@@ -466,7 +466,6 @@ export default function InfrastructureSetupWizard() {
       ["text", "voice", "announcement", "stage", "forum", "media"].includes(resource.kind)
     ),
   ], [report?.directory]);
-  const flowChoicesDirty = Boolean(previewSnapshot && JSON.stringify(flowChoices) !== JSON.stringify(previewSnapshot.flowChoices));
   const previewDirty = Boolean(previewSnapshot && (
     selectionDirty ||
     selectedFeatures.join("\n") !== previewSnapshot.features.join("\n") ||
@@ -479,7 +478,7 @@ export default function InfrastructureSetupWizard() {
     customRoleNamesDirty ||
     customChannelNamesDirty ||
     vipSetupSelectionsDirty ||
-    flowChoicesDirty
+    JSON.stringify(flowChoices) !== JSON.stringify(previewSnapshot.flowChoices)
   ));
   const selectedProtected = features.filter((feature) => selected.includes(feature.id) && feature.protected);
   const activeFeatureGroup = GROUPS.find((group) => group.id === activeGroup) || GROUPS[0];
@@ -663,7 +662,7 @@ export default function InfrastructureSetupWizard() {
     setMessage("");
     setCreated([]);
     setCreationFailures([]);
-    setBatchProgress("Saving the approved feature and naming choices…");
+    setBatchProgress("Saving the selected setup systems, roles, and destination choices…");
     try {
       await callApi({
         action: "settings",
@@ -760,7 +759,7 @@ export default function InfrastructureSetupWizard() {
         securityPatch[flow] = { enabled };
       }
       if (Object.keys(featurePatch).length || Object.keys(securityPatch).length) {
-        setBatchProgress("Saving the explicit onboarding and security choices…");
+        setBatchProgress("Applying only the protected-flow switches you explicitly selected…");
         const response = await fetch("/api/bot/dashboard-config", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -918,10 +917,10 @@ export default function InfrastructureSetupWizard() {
         <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed">
-          Choose systems by category, review resources, and approve setup. Existing resources can be connected and selected roles created.
+          Choose features by category, review existing resources and proposed destinations, then approve setup. Existing resources can be connected and selected roles created.
         </p>
         <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup can create ordinary channels, categories and roles and connect existing resources. Uncertain creates require manual review; channel repair remains disabled. Panels are configured separately. The creation plan is not bound to this preview and can change before approval or between batches.
+          Setup reads this server&apos;s channels, categories and roles, proposes links, then creates only resources still missing after approval. Existing mappings are preserved; an exact-name collision stops that create for review. Only the protected-flow choices below can change onboarding, verification or pre-onboarding, and only after approval. Other runtime switches, including TTS, stay unchanged here. Panels are configured separately.
         </p>
       </section>
 
@@ -953,8 +952,8 @@ export default function InfrastructureSetupWizard() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <h2 className="text-lg font-black uppercase">First-run checklist</h2>
         <ol className="mt-3 grid gap-3 text-sm leading-relaxed md:grid-cols-2">
-          <li className="rounded-lg border border-pink-900/40 p-3"><strong>1. Choose systems and roles.</strong> Setup creates resources only for selected systems. Custom Discord roles can also be created on their own for later dashboard assignment.</li>
-          <li className="rounded-lg border border-pink-900/40 p-3"><strong>2. Decide protected member flows.</strong> Choose whether onboarding, verification, and pre-onboarding should be enabled or disabled, or leave each current setting unchanged.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>1. Choose what this server uses.</strong> Select base features for setup; the wizard inspects their existing resources and lets you customize destinations and optional roles/channels before approval. Runtime switches are not silently changed.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>2. Choose protected flows explicitly.</strong> Onboarding, verification and pre-onboarding stay as they are unless you select a change below and approve setup. Configure TTS, economy and other runtime switches on their own dashboard pages.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>3. Set up security and audit details.</strong> Review <a className="underline" href="/dashboard/security/pre-onboarding">pre-onboarding safeguards</a> and select the moderation logging systems below.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>4. Configure your custom bot securely.</strong> Use the <a className="underline" href="/dashboard/bot-personalizer#custom-bot-credentials">Bot Personalizer</a> for its token, client ID, and OAuth settings. Never paste tokens into chat.</li>
           <li className="rounded-lg border border-pink-900/40 p-3 md:col-span-2"><strong>5. Set message routing and verify permissions.</strong> In Bot Personalizer, choose who can send DMs, whether guild messages use the bot or webhook, then confirm the bot can manage the selected channels and roles.</li>
@@ -982,7 +981,7 @@ export default function InfrastructureSetupWizard() {
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <h2 className="text-lg font-black uppercase">Protected flow decisions</h2>
-        <p className="mt-1 text-sm text-pink-100/70">These choices apply only after you approve and complete setup. “Keep current” preserves existing behavior.</p>
+        <p className="mt-1 text-sm text-pink-100/70">These three switches stay unchanged by default. Only an explicit Enable or Disable choice is applied after you approve and finish setup. TTS and all other feature switches are not changed here.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           {([
             ["onboarding", "Onboarding"],
@@ -1017,7 +1016,7 @@ export default function InfrastructureSetupWizard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase">Choose what this server uses</h2>
-            <p className="mt-1 text-sm text-pink-100/75">Turn systems on for setup tracking. You can change this selection later.</p>
+            <p className="mt-1 text-sm text-pink-100/75">Select the base features to set up. The wizard uses this selection to inspect and reuse existing channels/roles, then show missing resources and optional names for your approval. This selector does not silently flip runtime switches.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
@@ -1077,7 +1076,7 @@ export default function InfrastructureSetupWizard() {
           <button type="button" disabled={busy || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? "Preparing…" : "Preview selected setup"}
           </button>
-          <span className="text-xs text-pink-100/60">Scanning is read-only. Feature selection saves tracking scope; resources, mappings, and any protected-flow choices change only after approval.</span>
+          <span className="text-xs text-pink-100/60">Scanning is read-only. Feature selection saves setup scope; resources and mappings change only after approval. Protected flows change only if explicitly selected above. Other runtime feature switches are left unchanged.</span>
         </div>
       </section>
 
@@ -1379,7 +1378,7 @@ export default function InfrastructureSetupWizard() {
                 {previewSnapshot.mappings.map((row) => <li key={`map-${row.id}`}>Connect {row.engine}.{row.field} to <strong>{row.resourceName}</strong></li>)}
               </ul>
             </details>
-            <p className="mt-3 text-xs text-amber-100/80">Protected flows and Heist resources remain suggestion-only. Any explicit onboarding, verification, or pre-onboarding choice above is applied only after this approved setup finishes.</p>
+            <p className="mt-3 text-xs text-amber-100/80">Heist resources remain suggestion-only. Protected-flow switches change only when explicitly selected above and approved; other runtime feature flags are left unchanged.</p>
             <label className="mt-3 flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
               <input
                 type="checkbox"

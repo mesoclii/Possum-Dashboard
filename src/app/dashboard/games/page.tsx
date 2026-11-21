@@ -1,5 +1,5 @@
 import GamesClient from "./GamesClient";
 
 export default function GamesPage() {
-  return <GamesClient mode="admin" />;
+  return <GamesClient mode="member" />;
 }

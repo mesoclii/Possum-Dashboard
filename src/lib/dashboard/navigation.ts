@@ -158,9 +158,9 @@ export function getDashboardNavSections(
       ],
     },
     {
-      label: "Premium Plans",
+      label: "Possum Pro",
       items: [
-        { href: "/dashboard/premium-features", label: "Premium Plans" },
+        { href: "/dashboard/premium-features", label: "Possum Pro" },
         { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
         { href: "/tcg", label: "Possum Underworld TCG" },

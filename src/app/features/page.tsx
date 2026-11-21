@@ -154,7 +154,7 @@ export default function FeaturesPage() {
             href="#pro-features"
             style={{ ...action, marginTop: 18, color: "#fff1c7", border: "1px solid rgba(255,200,120,0.55)", background: "rgba(120,0,0,0.35)" }}
           >
-            See premium features ↓
+            See Pro features ↓
           </a>
         </section>
 
@@ -182,7 +182,7 @@ export default function FeaturesPage() {
 
         <section style={{ ...card, marginBottom: 22 }}>
           <div style={{ color: "#ff9a9a", fontSize: 13, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14 }}>
-            Premium Plans
+            Possum Pro
           </div>
           <div style={{ marginBottom: 6 }}>
             <PlanTierPicker buyHref={primaryActionHref} buyLabel={primaryActionLabel} />

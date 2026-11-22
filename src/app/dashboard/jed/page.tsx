@@ -110,8 +110,9 @@ export default function JedPage() {
         the live guild-level grab rules layered on top of your existing bot logic.
       </div>
       <div style={{ color: "#ffbcbc", marginTop: 12 }}>
-        Guild vault assets are never published automatically. Review an asset before publishing it to the general-audience JED library.
-        {" "}<Link href={buildDashboardHref("/emotes")} style={{ color: "#ffd0d0" }}>Open Public Emoji, Sticker &amp; GIF Library</Link>
+        Successful grabs are saved to this guild&apos;s dashboard vault when auto-store is enabled. Import a managed server&apos;s full supported emoji and sticker set into your private account collection without publishing it publicly.
+        {" "}<Link href={buildDashboardHref("/emotes")} style={{ color: "#ffd0d0" }}>Open My Private Emoji &amp; Sticker Collection</Link>
+        {" · "}<Link href={buildDashboardHref("/emotes")} style={{ color: "#ffd0d0" }}>Browse Existing Public Library</Link>
         {" "}<Link href={buildDashboardHref("/dashboard/jed/adult-emotes")} style={{ color: "#ffd0d0" }}>Open Adult Emote Studio</Link>
         {" · "}<Link href={buildDashboardHref("/dashboard/jed/private-media")} style={{ color: "#ffd0d0" }}>Private media status</Link>
       </div>

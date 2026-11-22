@@ -184,7 +184,7 @@ export default function AgeAssuranceSettingsPage() {
         body: JSON.stringify({
           mode,
           activate: false,
-          apiBaseUrl: mode === "live" ? "https://kai-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1",
+          apiBaseUrl: mode === "live" ? "https://game-api.k-id.com/api/v1" : "https://game-api.test.k-id.com/api/v1",
           dashboardUrl: providerDashboardUrl,
           publicWebsiteUrl: providerWebsiteUrl,
           developmentOrigin: providerDevelopmentOrigin,
@@ -293,7 +293,7 @@ export default function AgeAssuranceSettingsPage() {
             const configured = Boolean(profile?.providerConfigured || (provider?.mode === mode && provider?.providerConfigured));
             const hasServerKey = Boolean(profile?.serverApiKeyConfigured || (provider?.mode === mode && provider?.serverApiKeyConfigured));
             const hasBrowserKey = Boolean(profile?.publishableKeyConfigured || (provider?.mode === mode && provider?.publishableKeyConfigured));
-            const apiUrl = live ? "https://kai-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1";
+            const apiUrl = live ? "https://game-api.k-id.com/api/v1" : "https://game-api.test.k-id.com/api/v1";
             const browserUrl = live ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1";
             return (
               <div key={mode} style={{ ...card, marginTop: 0, borderColor: provider?.mode === mode ? "#e94876" : "#6d1834" }}>

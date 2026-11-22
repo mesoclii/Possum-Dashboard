@@ -18,7 +18,7 @@ function load(file, mocks = {}) {
   return module.exports;
 }
 
-test("adult emote studio is private staging and does not expose a publication control", () => {
+test("adult emote studio requires its feature-level age check and does not expose publication controls", () => {
   const page = load("app/dashboard/jed/adult-emotes/page.tsx", {
     "@/components/possum/useGuildEngineEditor": {
       useGuildEngineEditor: () => ({
@@ -37,8 +37,8 @@ test("adult emote studio is private staging and does not expose a publication co
   });
   const html = renderToStaticMarkup(React.createElement(page.default));
   assert.match(html, /Adult Emote Studio/);
-  assert.match(html, /PRIVATE \/ NOT PUBLISHED/);
-  assert.match(html, /Stage privately/);
-  assert.match(html, /Private staging queue/);
-  assert.doesNotMatch(html, /Publish to gallery/);
+  assert.match(html, /Feature-level age check/);
+  assert.match(html, /does not age-gate the dashboard, Gaming Hub, ordinary bot features, or public JED galleries/);
+  assert.match(html, /Start k-ID AgeKey check/);
+  assert.doesNotMatch(html, /Publish to gallery|Upload|Stage privately/);
 });

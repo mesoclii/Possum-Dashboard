@@ -67,7 +67,11 @@ test("client requires consent, carries review digest and uses only same-origin p
 });
 
 test("page exposes review, upload and share controls disabled before readiness", () => {
-  const page = load("app/dashboard/jed/private-media/page.tsx", { "@/lib/jedPrivateClient": { createJedPrivateClient } });
+  const page = load("app/dashboard/jed/private-media/page.tsx", {
+    "@/lib/jedPrivateClient": { createJedPrivateClient },
+    "@/lib/liveRuntime": { resolveGuildContext: () => ({ guildId: "100000000000000001" }) },
+    "@/components/possum/DiscordMemberPicker": () => null,
+  });
   const html = renderToStaticMarkup(React.createElement(page.default));
   assert.match(html, /<fieldset disabled=""/);
   assert.match(html, /Upload for private review/);

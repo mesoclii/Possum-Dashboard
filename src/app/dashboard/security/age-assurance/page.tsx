@@ -168,7 +168,7 @@ export default function AgeAssuranceSettingsPage() {
     try {
       const response = await fetch("/api/age-assurance/provider", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: providerMode, apiBaseUrl: providerMode === "live" ? "https://game-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1", dashboardUrl: providerDashboardUrl, apiKey: providerApiKey, publishableKey: providerPublishableKey, browserBaseUrl: providerBrowserBaseUrl, supportEmail: providerSupportEmail }),
+        body: JSON.stringify({ mode: providerMode, apiBaseUrl: providerMode === "live" ? "https://kai-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1", dashboardUrl: providerDashboardUrl, apiKey: providerApiKey, publishableKey: providerPublishableKey, browserBaseUrl: providerBrowserBaseUrl, supportEmail: providerSupportEmail }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not save k-ID settings.");
@@ -188,8 +188,7 @@ export default function AgeAssuranceSettingsPage() {
       const response = await fetch("/api/age-assurance/provider-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "k-ID test failed.");
-      const test = result.result || {};
-      setProviderTestResult(`Connected to k-ID ${provider?.mode || providerMode} environment. Test jurisdiction response: ${test.shouldDisplay ? "gate applies" : "no gate requested"}; age assurance ${test.ageAssuranceRequired ? "required" : "not marked required"}.`);
+      setProviderTestResult(`Connected to k-ID ${provider?.mode || providerMode} API. Server key accepted. This does not test the browser key or its allowed origins.`);
     } catch (reason) { setProviderError(reason instanceof Error ? reason.message : "k-ID test failed."); }
     finally { setProviderAction(null); }
   }
@@ -256,7 +255,7 @@ export default function AgeAssuranceSettingsPage() {
           <button type="button" style={button} disabled={providerAction !== null || !provider?.providerConfigured} onClick={() => void testProvider()}>{providerAction === "test" ? "Checking…" : "Test k-ID connection"}</button>
           <button type="button" style={button} disabled={providerAction !== null || !guildId || !policy.adultFeatures || !provider?.providerConfigured} onClick={() => void startFullAgeKeyTest()}>{providerAction === "start" ? "Starting…" : "Start full AgeKey test"}</button>
         </div>
-        <p style={{ ...muted, fontSize: 13 }}>The connection test only checks the API. Start full AgeKey test opens the widget for this selected server; it requires Adult Emote Studio AgeKey to be enabled below. Thresholds and AgeKey methods still come from your k-ID product settings.</p>
+        <p style={{ ...muted, fontSize: 13 }}>The connection test checks only the server API and private key. For the browser widget, add <code>https://dashboard.possumbot.com</code> under the product&apos;s Developer Settings → Target origins in k-ID Compliance Studio. Start full AgeKey test opens the widget for this selected server; it requires Adult Emote Studio AgeKey to be enabled below.</p>
       </section>
 
       <section style={card}>

@@ -17,7 +17,18 @@ async function actor(request: NextRequest) {
 
 function profile(value: any) {
   if (!value || typeof value.nickname !== "string" || typeof value.game !== "string") return null;
-  return { nickname: value.nickname, game: value.game, contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "" };
+  const accounts = Array.isArray(value.accounts) ? value.accounts.flatMap((entry: any) => {
+    if (!entry || typeof entry.label !== "string" || entry.label.length < 1 || entry.label.length > 40 ||
+        typeof entry.url !== "string" || entry.url.length > 300) return [];
+    try {
+      const url = new URL(entry.url);
+      if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return [];
+      return [{ label: entry.label, url: url.href }];
+    } catch {
+      return [];
+    }
+  }).slice(0, 8) : [];
+  return { nickname: value.nickname, game: value.game, contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "", accounts };
 }
 
 async function readBody(request: NextRequest) {
@@ -81,7 +92,7 @@ export async function POST(request: NextRequest) {
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming/me`, {
       method: "POST",
       headers: { ...buildServerBotApiHeaders(userId), "Content-Type": "application/json" },
-      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle }),
+      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle, accounts: body.accounts }),
       cache: "no-store",
     });
     const data = await readServerBotApiJson(upstream);

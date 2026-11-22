@@ -6,7 +6,8 @@ import Link from "next/link";
 import GameSocialClient from "@/components/possum/GameSocialClient";
 import PublicSquads from "@/components/possum/PublicSquads";
 
-type Profile = { nickname: string; game: string; contactHandle: string };
+type AccountLink = { label: string; url: string };
+type Profile = { nickname: string; game: string; contactHandle: string; accounts: AccountLink[] };
 type Guild = { id: string; name: string };
 const panel: CSSProperties = { border: "1px solid #ff2e75", borderRadius: 16, padding: 20, background: "#21000e" };
 const input: CSSProperties = { width: "100%", padding: 10, border: "1px solid #ff2e75", borderRadius: 8, color: "#fff", background: "#16000b" };
@@ -29,6 +30,7 @@ export default function PublicGamingPage() {
   const [nickname, setNickname] = useState("");
   const [game, setGame] = useState("");
   const [contactHandle, setContactHandle] = useState("");
+  const [accountLinks, setAccountLinks] = useState<AccountLink[]>([]);
   const [filter, setFilter] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -82,6 +84,7 @@ export default function PublicGamingPage() {
         setNickname(data.profile?.nickname || "");
         setGame(data.profile?.game || "");
         setContactHandle(data.profile?.contactHandle || "");
+        setAccountLinks(Array.isArray(data.profile?.accounts) ? data.profile.accounts : []);
       } catch {
         setMessage("Your session or public sharing status could not be loaded. Please refresh and try again.");
       } finally {
@@ -112,12 +115,13 @@ export default function PublicGamingPage() {
       const response = await fetch("/api/public-gaming", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, nickname, game, contactHandle, consent }),
+        body: JSON.stringify({ action, nickname, game, contactHandle, accounts: accountLinks, consent }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Update failed.");
       setOwn(data.profile);
       setOwnLoaded(true);
+      setAccountLinks(action === "revoke" || !Array.isArray(data.profile?.accounts) ? [] : data.profile.accounts);
       setConsent(false);
       if (action === "revoke") setContactHandle("");
       setMessage(action === "revoke" ? "Public sharing revoked." : "Your public profile is published.");
@@ -140,7 +144,11 @@ export default function PublicGamingPage() {
     void update("publish");
   }
 
-  const visible = profiles.filter((entry) => `${entry.nickname} ${entry.game} ${entry.contactHandle}`.toLowerCase().includes(filter.trim().toLowerCase()));
+  function updateAccountLink(index: number, field: keyof AccountLink, value: string) {
+    setAccountLinks((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
+  }
+
+  const visible = profiles.filter((entry) => `${entry.nickname} ${entry.game} ${entry.contactHandle} ${entry.accounts.map((account) => `${account.label} ${account.url}`).join(" ")}`.toLowerCase().includes(filter.trim().toLowerCase()));
   return (
     <main style={{ minHeight: "100vh", padding: "32px 16px 70px", color: "#ffe0e8", background: "radial-gradient(ellipse at 85% 0%, #5b082e 0%, transparent 36%), radial-gradient(ellipse at 0% 40%, #3b071f 0%, transparent 40%), #10000b" }}>
       <div style={{ maxWidth: 1380, margin: "auto", display: "grid", gap: 20 }}>
@@ -156,6 +164,16 @@ export default function PublicGamingPage() {
           <button type="button" aria-pressed={tab === "squads"} style={{ ...button, background: tab === "squads" ? "#d40050" : "#290016" }} onClick={() => setTab("squads")}>Find a squad</button>
           <button type="button" aria-pressed={tab === "directory"} style={{ ...button, background: tab === "directory" ? "#d40050" : "#290016" }} onClick={() => setTab("directory")}>Public player directory</button>
         </nav>
+        <section style={panel} aria-labelledby="discord-community">
+          <h2 id="discord-community">Get started on Discord</h2>
+          <p>Browse public profiles and open squads without Discord. To link game providers, publish your own profile, or use a Discord community, sign in with Discord. Install Discord only if you want the app.</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            <a href="https://discord.com/register" target="_blank" rel="noopener noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Create a Discord account</a>
+            <a href="https://discord.com/app" target="_blank" rel="noopener noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Use Discord in your browser</a>
+            <a href="https://discord.com/download" target="_blank" rel="noopener noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Download Discord</a>
+            <a href="/api/auth/discord/invite" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Add Possum Bot to a server</a>
+          </div>
+        </section>
         {tab === "squads" && <div style={panel}><PublicSquads loggedIn={loggedIn} /></div>}
         {tab === "community" && <section style={panel} aria-labelledby="community-hub">
           <h2 id="community-hub" style={{ fontSize: 24, margin: "0 0 8px", color: "#fff" }}>Your gaming community</h2>
@@ -184,22 +202,31 @@ export default function PublicGamingPage() {
           <input id="public-filter" style={{ ...input, marginTop: 8 }} value={filter} onChange={(event) => setFilter(event.target.value)} />
           {loading ? <p>Loading profiles…</p> : unavailable ? <p>Public profiles are unavailable.</p> : visible.length ? (
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 12, marginTop: 16 }}>
-              {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong><div style={{ color: "#ff81ad", marginTop: 8 }}>{entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}</li>)}
+              {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong><div style={{ color: "#ff81ad", marginTop: 8 }}>{entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}{entry.accounts.length ? <div style={{ display: "grid", gap: 6, marginTop: 12 }}><strong style={{ color: "#ffd0df", fontSize: 13 }}>Public account links</strong>{entry.accounts.map((account, accountIndex) => <a key={`${account.label}-${accountIndex}`} href={account.url} target="_blank" rel="noopener noreferrer" style={{ color: "#ff9ebc", overflowWrap: "anywhere" }}>{account.label}</a>)}</div> : null}</li>)}
             </ul>
           ) : <p style={{ ...panel, marginTop: 16, color: "#f4b7ce" }}>{filter ? "No matching public profiles." : "No public profiles yet. Publish an introduction below to get started."}</p>}
           <small>Up to 200 published profiles are shown.</small>
         </section>
         <section style={panel} aria-labelledby="public-sharing">
           <h2 id="public-sharing">Your public introduction</h2>
-          <p>Publishing is optional and separate from Discord server privacy. Your nickname, game and optional contact handle are public to everyone online until you revoke them. A contact handle may identify you or allow anyone to contact you; enter only what you want to share publicly. Nothing is imported from Discord or your private profiles.</p>
-          {!loggedIn ? <a href="/api/auth/discord/login?returnTo=%2Fgaming" style={{ color: "#ff9ebc" }}>Sign in with Discord to publish or revoke your introduction</a> : (
+          <p>Publishing is optional and separate from Discord server privacy. Your nickname, game, contact handle and any account links you add are public to everyone online until you revoke them. Only add details you are comfortable sharing publicly. Account links are not verified by Possum.</p>
+          {!loggedIn ? <div style={{ display: "grid", gap: 8 }}><a href="/api/auth/discord/login?returnTo=%2Fgaming" style={{ color: "#ff9ebc" }}>Sign in with Discord to publish or revoke your introduction</a><p style={{ margin: 0 }}>Don&apos;t have Discord? <a href="https://discord.com/register" target="_blank" rel="noopener noreferrer" style={{ color: "#ff9ebc" }}>Create a free Discord account</a>, then return here to sign in.</p></div> : (
             <>
               <p>{!ownLoaded ? "Your sharing status is unavailable." : own ? "Your introduction is currently public." : "You have not published an introduction."}</p>
               <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
                 <label>Public nickname <input style={input} required maxLength={40} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label>
                 <label>Game <input style={input} required maxLength={80} value={game} onChange={(event) => setGame(event.target.value)} /></label>
                 <label>Public contact handle (optional; visible to everyone) <input style={input} maxLength={80} autoComplete="off" value={contactHandle} onChange={(event) => setContactHandle(event.target.value)} /></label>
-                <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I explicitly agree to publish this nickname, game and any contact handle entered above to everyone on the internet until I revoke it.</label>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div><strong>Link your other accounts</strong><p style={{ margin: "4px 0 0", color: "#efb4c9" }}>Add public profile URLs for any games or services you use. These are links only; Possum does not sign in to or verify them.</p></div>
+                  {accountLinks.map((account, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr)) auto", gap: 8, alignItems: "end" }}>
+                    <label>Platform or account name <input style={input} required maxLength={40} value={account.label} onChange={(event) => updateAccountLink(index, "label", event.target.value)} /></label>
+                    <label>Public profile URL <input style={input} required type="url" maxLength={300} placeholder="https://…" value={account.url} onChange={(event) => updateAccountLink(index, "url", event.target.value)} /></label>
+                    <button type="button" disabled={busy} style={button} onClick={() => setAccountLinks((current) => current.filter((_, entryIndex) => entryIndex !== index))}>Remove</button>
+                  </div>)}
+                  <button type="button" disabled={busy || accountLinks.length >= 8} style={{ ...button, justifySelf: "start" }} onClick={() => setAccountLinks((current) => [...current, { label: "", url: "" }])}>Add account link</button>
+                </div>
+                <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I explicitly agree to publish this nickname, game, contact handle and any account links entered above to everyone on the internet until I revoke it.</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   <button type="submit" disabled={busy || !consent || !ownLoaded} style={button}>{own ? "Update public introduction" : "Publish introduction"}</button>
                   <button type="button" disabled={busy} style={button} onClick={() => void update("revoke")}>Revoke public sharing</button>

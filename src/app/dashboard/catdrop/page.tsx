@@ -20,6 +20,7 @@ type CatDropCfg = {
   spawnChance: number;
   despawnMinutes: number;
   minCatchAgeMs: number;
+  logChannelId: string;
   channels: Array<string | CatChannelWeight>;
   tiers: Record<CatTierKey, CatTier>;
   specialCatchRoles: CatSpecialCatchRoles;
@@ -34,6 +35,7 @@ const DEFAULT_CONFIG: CatDropCfg = {
   spawnChance: 0.2,
   despawnMinutes: 15,
   minCatchAgeMs: 5000,
+  logChannelId: "",
   channels: [],
   tiers: {
     common: { chance: 0.7, catchRate: 0.75, coins: 15 },
@@ -168,6 +170,26 @@ export default function CatDropEnginePage() {
               <label><input type="checkbox" checked={cfg.enabled} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), enabled: e.target.checked }))} /> Enabled</label>
               <button onClick={() => runSpawn("spawnNow")} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800 }}>Spawn Cat Now</button>
               <button onClick={() => runSpawn("spawnGod")} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 800, borderColor: "#a00000", color: "#ffb6b6" }}>Spawn God Cat</button>
+            </div>
+          </section>
+
+          <section style={card}>
+            <label htmlFor="cat-drop-log-channel" style={{ display: "block", marginBottom: 6 }}>
+              Cat Spawn Log Channel
+            </label>
+            <select
+              id="cat-drop-log-channel"
+              style={input}
+              value={cfg.logChannelId || ""}
+              onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), logChannelId: e.target.value }))}
+            >
+              <option value="">Use moderator log channel</option>
+              {textChannels.map((channel) => (
+                <option key={channel.id} value={channel.id}>#{channel.name}</option>
+              ))}
+            </select>
+            <div style={{ color: "#ff9c9c", fontSize: 12, marginTop: 6 }}>
+              Successful scheduled and manual cat spawns are logged here. Leave blank to use the server&apos;s moderator log channel.
             </div>
           </section>
 

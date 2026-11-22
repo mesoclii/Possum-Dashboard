@@ -61,6 +61,10 @@ function storageKey(guildId: string) {
   return `possum.jed.adult-emote-staging.v1.${guildId}`;
 }
 
+function ageTokenStorageKey(guildId: string) {
+  return `possum.age-assurance.adult-emotes.v1.${guildId}`;
+}
+
 function emojiImage(emoji: GuildEmoji) {
   const id = String(emoji.id || "").trim();
   if (!/^\d{16,20}$/.test(id)) return "";
@@ -72,7 +76,7 @@ function makeId() {
 }
 
 export default function AdultEmotesPage() {
-  const { guildId, guildName, config, emojis, loading, message, runAction, reload } =
+  const { guildId, guildName, config, emojis, loading, message, reload } =
     useGuildEngineEditor<JedConfig>("jed", DEFAULT_CONFIG);
   const [staged, setStaged] = useState<StagedEmote[]>([]);
   const [name, setName] = useState("");
@@ -81,6 +85,11 @@ export default function AdultEmotesPage() {
   const [category, setCategory] = useState("adult");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [ageToken, setAgeToken] = useState("");
+  const [ageAllowed, setAgeAllowed] = useState(false);
+  const [ageBusy, setAgeBusy] = useState(false);
+  const [ageMessage, setAgeMessage] = useState("");
+  const [verificationUrl, setVerificationUrl] = useState("");
 
   useEffect(() => {
     if (!guildId || typeof window === "undefined") return;
@@ -96,6 +105,112 @@ export default function AdultEmotesPage() {
     if (!guildId || typeof window === "undefined") return;
     window.sessionStorage.setItem(storageKey(guildId), JSON.stringify(staged));
   }, [guildId, staged]);
+
+  useEffect(() => {
+    if (!guildId || typeof window === "undefined") return;
+    const savedToken = window.sessionStorage.getItem(ageTokenStorageKey(guildId)) || "";
+    setAgeToken(savedToken);
+    setAgeAllowed(false);
+    setAgeMessage("");
+    if (!savedToken) {
+      setVerificationUrl("");
+      return;
+    }
+    const verification = new URL("/age-assurance/verify", window.location.origin);
+    verification.searchParams.set("token", savedToken);
+    setVerificationUrl(verification.toString());
+
+    const controller = new AbortController();
+    async function checkAccess() {
+      try {
+        const response = await fetch("/api/age-assurance/access", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          cache: "no-store",
+          signal: controller.signal,
+          body: JSON.stringify({ token: savedToken, guildId }),
+        });
+        const result = await response.json();
+        if (response.status === 404) {
+          window.sessionStorage.removeItem(ageTokenStorageKey(guildId));
+          setAgeToken("");
+          setVerificationUrl("");
+        }
+        if (!response.ok || result?.success !== true) {
+          throw new Error(result?.error || "Could not confirm Adult Emote Studio access.");
+        }
+        setAgeAllowed(result.allowed === true);
+        setAgeMessage(result.allowed === true
+          ? "k-ID confirmed the adult-emote permission."
+          : "Complete the k-ID check, return to this page, and select Check AgeKey access.");
+      } catch (reason) {
+        if (!controller.signal.aborted) {
+          setAgeMessage(reason instanceof Error ? reason.message : "Could not confirm Adult Emote Studio access.");
+        }
+      }
+    }
+    void checkAccess();
+    return () => controller.abort();
+  }, [guildId]);
+
+  async function startAgeCheck() {
+    if (!guildId) return;
+    setAgeBusy(true);
+    setAgeMessage("");
+    try {
+      const response = await fetch("/api/age-assurance/request", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ guildId, surface: "adultFeatures" }),
+      });
+      const result = await response.json();
+      if (!response.ok || result?.success !== true || typeof result.token !== "string" ||
+          typeof result.verificationUrl !== "string") {
+        throw new Error(result?.error || "Could not start the k-ID check.");
+      }
+      window.sessionStorage.setItem(ageTokenStorageKey(guildId), result.token);
+      setAgeToken(result.token);
+      setAgeAllowed(false);
+      setVerificationUrl(result.verificationUrl);
+      setAgeMessage("Open the k-ID page in a new tab. Return here after finishing and check access.");
+    } catch (reason) {
+      setAgeMessage(reason instanceof Error ? reason.message : "Could not start the k-ID check.");
+    } finally {
+      setAgeBusy(false);
+    }
+  }
+
+  async function checkAgeAccess() {
+    if (!guildId || !ageToken) return;
+    setAgeBusy(true);
+    setAgeMessage("");
+    try {
+      const response = await fetch("/api/age-assurance/access", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ token: ageToken, guildId }),
+      });
+      const result = await response.json();
+      if (response.status === 404) {
+        window.sessionStorage.removeItem(ageTokenStorageKey(guildId));
+        setAgeToken("");
+        setVerificationUrl("");
+      }
+      if (!response.ok || result?.success !== true) {
+        throw new Error(result?.error || "Could not confirm Adult Emote Studio access.");
+      }
+      setAgeAllowed(result.allowed === true);
+      setAgeMessage(result.allowed === true
+        ? "k-ID confirmed the adult-emote permission."
+        : "k-ID has not confirmed the adult-emote permission. Finish or retry the check first.");
+    } catch (reason) {
+      setAgeMessage(reason instanceof Error ? reason.message : "Could not confirm Adult Emote Studio access.");
+    } finally {
+      setAgeBusy(false);
+    }
+  }
 
   const filteredEmojis = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -131,6 +246,32 @@ export default function AdultEmotesPage() {
 
   if (!guildId) {
     return <section style={shell}><div style={{ ...panel, color: "#ff9b9b" }}>Choose a server first, then open Adult Emote Studio again.</div></section>;
+  }
+
+  if (!ageAllowed) {
+    return (
+      <section style={shell}>
+        <div style={panel}>
+          <div style={{ color: "#ff718e", fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" }}>Feature-level age check</div>
+          <h1 style={{ margin: "6px 0", color: "#ff6b86" }}>Adult Emote Studio</h1>
+          <p style={muted}>This check applies only to adult-emote tools. It does not age-gate the dashboard, Gaming Hub, ordinary bot features, or public JED galleries.</p>
+          {ageMessage ? <p role="status" style={{ color: "#ffc1ce" }}>{ageMessage}</p> : null}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {!ageToken ? (
+              <button type="button" style={button} disabled={ageBusy} onClick={() => void startAgeCheck()}>
+                {ageBusy ? "Starting…" : "Start k-ID AgeKey check"}
+              </button>
+            ) : (
+              <button type="button" style={button} disabled={ageBusy} onClick={() => void checkAgeAccess()}>
+                {ageBusy ? "Checking…" : "Check AgeKey access"}
+              </button>
+            )}
+            {verificationUrl ? <a href={verificationUrl} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open k-ID check</a> : null}
+          </div>
+          <p style={{ ...muted, fontSize: 13, marginBottom: 0 }}>A server administrator must enable this feature in Dashboard &gt; Security &gt; Age Assurance first. Pending, failed, or unknown results never grant access.</p>
+        </div>
+      </section>
+    );
   }
 
   return (

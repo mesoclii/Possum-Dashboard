@@ -95,6 +95,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
         { href: "/dashboard/security/onboarding", label: "Onboarding" },
         { href: "/dashboard/security/verification", label: "Verification" },
+        { href: "/dashboard/security/age-assurance", label: "Age Assurance" },
         { href: "/dashboard/security/account-integrity", label: "Account Integrity" },
         { href: "/dashboard/security/link-intel", label: "Link Intel" },
         { href: "/dashboard/security/threat-intel", label: "Threat Intel" },

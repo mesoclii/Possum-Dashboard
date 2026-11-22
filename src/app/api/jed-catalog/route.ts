@@ -22,12 +22,14 @@ async function limited(request: NextRequest, scope: string) {
 export async function GET(request: NextRequest) {
   if (await limited(request, "jed_catalog_read")) return reply({ success: false, error: "Too many catalog requests. Retry shortly." }, 429);
   const guildId = String(request.nextUrl.searchParams.get("guildId") || "").trim();
+  const collection = request.nextUrl.searchParams.get("collection") === "1";
   const q = String(request.nextUrl.searchParams.get("q") || "").slice(0, 80);
   const type = String(request.nextUrl.searchParams.get("type") || "").slice(0, 16);
-  const actor = guildId ? await userId(request) : "";
-  if (guildId && !actor) return reply({ success: false, error: "Sign in with Discord to inspect a server." }, 401);
+  const actor = guildId || collection ? await userId(request) : "";
+  if ((guildId || collection) && !actor) return reply({ success: false, error: "Sign in with Discord to inspect server assets or your private collection." }, 401);
   const params = new URLSearchParams();
   if (guildId) params.set("guildId", guildId);
+  if (collection) params.set("collection", "1");
   if (q) params.set("q", q);
   if (type) params.set("type", type);
   try {

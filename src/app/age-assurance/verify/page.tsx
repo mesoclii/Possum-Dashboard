@@ -21,6 +21,7 @@ type AssuranceState = {
   challengeUrl: string;
   completed: boolean;
 };
+type ClientConfig = { publishableKey: string; baseUrl: string; supportEmail: string; dashboardUrl: string; mode: string };
 
 const LABELS: Record<Surface, string> = {
   onboarding: "server admission",
@@ -71,13 +72,27 @@ export default function AgeAssuranceVerificationPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [clientConfig, setClientConfig] = useState<ClientConfig | null>(null);
+  const [clientConfigLoading, setClientConfigLoading] = useState(true);
   const claimInFlight = useRef(false);
 
   const surfaceLabel = state ? LABELS[state.surface] : "requested feature";
-  const publishableKey = String(process.env.NEXT_PUBLIC_KID_PUBLISHABLE_KEY || "").trim();
-  const baseUrl = String(process.env.NEXT_PUBLIC_KID_BASE_URL || "").trim();
-  const supportEmail = String(process.env.NEXT_PUBLIC_KID_SUPPORT_EMAIL || "").trim();
-  const publicDashboardUrl = String(process.env.NEXT_PUBLIC_DASHBOARD_URL || "").trim().replace(/\/+$/, "");
+  const publishableKey = String(clientConfig?.publishableKey || "").trim();
+  const baseUrl = String(clientConfig?.baseUrl || "").trim();
+  const supportEmail = String(clientConfig?.supportEmail || "").trim();
+  const publicDashboardUrl = String(clientConfig?.dashboardUrl || "").trim().replace(/\/+$/, "");
+
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/age-assurance/client-config", { cache: "no-store" }).then(async (response) => {
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not load k-ID browser setup.");
+      if (active) setClientConfig(result.config as ClientConfig);
+    }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : "Could not load k-ID browser setup.");
+    }).finally(() => { if (active) setClientConfigLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const refreshStatus = useCallback(async (stateToken: string) => {
     const result = await postAction("status", { token: stateToken });
@@ -233,10 +248,9 @@ export default function AgeAssuranceVerificationPage() {
       ) : null}
 
       {sdkReady && token && !state?.sessionId ? (
-        !publishableKey || !baseUrl || !supportEmail || !publicDashboardUrl ? (
+        clientConfigLoading ? <p role="status">Loading k-ID test setup…</p> : !publishableKey || !baseUrl || !supportEmail || !publicDashboardUrl ? (
           <p role="alert">
-            The k-ID browser configuration is incomplete. Do not paste a secret key here; the
-            publishable key, test base URL, public dashboard URL, and support email must be configured.
+            The k-ID browser setup is incomplete. Open <a href="/dashboard/security/age-assurance">Dashboard → Security → Age Assurance</a> and save the publishable key, browser URL, dashboard URL, and support email.
           </p>
         ) : (
           <KidCoreProvider

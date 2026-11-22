@@ -9,6 +9,19 @@ type Policy = {
   podcasts: boolean;
 };
 
+type ProviderStatus = {
+  mode: "test" | "live";
+  serverApiKeyConfigured: boolean;
+  storageReady: boolean;
+  apiBaseUrlConfigured: boolean;
+  dashboardUrlConfigured: boolean;
+  apiBaseUrl: string;
+  providerConfigured: boolean;
+  publishableKeyConfigured: boolean;
+  browserBaseUrlConfigured: boolean;
+  supportEmailConfigured: boolean;
+};
+
 const DEFAULT_POLICY: Policy = {
   onboarding: false,
   adultFeatures: false,
@@ -42,6 +55,17 @@ export default function AgeAssuranceSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [provider, setProvider] = useState<ProviderStatus | null>(null);
+  const [providerMode, setProviderMode] = useState<"test" | "live">("test");
+  const [providerDashboardUrl, setProviderDashboardUrl] = useState("");
+  const [providerApiKey, setProviderApiKey] = useState("");
+  const [providerPublishableKey, setProviderPublishableKey] = useState("");
+  const [providerBrowserBaseUrl, setProviderBrowserBaseUrl] = useState("https://kai-api.test.k-id.com/fapi/v1");
+  const [providerSupportEmail, setProviderSupportEmail] = useState("");
+  const [providerBusy, setProviderBusy] = useState(false);
+  const [providerMessage, setProviderMessage] = useState("");
+  const [providerError, setProviderError] = useState("");
+  const [providerTestResult, setProviderTestResult] = useState("");
 
   useEffect(() => {
     const context = resolveGuildContext();
@@ -86,6 +110,23 @@ export default function AgeAssuranceSettingsPage() {
     return () => controller.abort();
   }, [guildId]);
 
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/age-assurance/provider", { cache: "no-store" }).then(async (response) => {
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not load k-ID provider settings.");
+      if (!active) return;
+      const next = result.provider as ProviderStatus;
+      setProvider(next);
+      setProviderMode(next.mode === "live" ? "live" : "test");
+      setProviderDashboardUrl(window.location.origin);
+      setProviderBrowserBaseUrl(next.mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1");
+    }).catch((reason) => {
+      if (active) setProviderError(reason instanceof Error ? reason.message : "Could not load k-ID provider settings.");
+    });
+    return () => { active = false; };
+  }, []);
+
   async function save(next: Policy) {
     setSaving(true);
     setError("");
@@ -119,23 +160,75 @@ export default function AgeAssuranceSettingsPage() {
     void save(next);
   }
 
+  async function saveProvider() {
+    setProviderBusy(true); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
+    try {
+      const response = await fetch("/api/age-assurance/provider", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: providerMode, apiBaseUrl: providerMode === "live" ? "https://game-api.k-id.com/api/v1" : "https://game-api.test.k-id.com/api/v1", dashboardUrl: providerDashboardUrl, apiKey: providerApiKey, publishableKey: providerPublishableKey, browserBaseUrl: providerBrowserBaseUrl, supportEmail: providerSupportEmail }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not save k-ID settings.");
+      setProvider(result.provider as ProviderStatus); setProviderApiKey("");
+      setProviderMessage("k-ID settings saved in encrypted server storage. The API key is not shown again.");
+    } catch (reason) { setProviderError(reason instanceof Error ? reason.message : "Could not save k-ID settings."); }
+    finally { setProviderBusy(false); }
+  }
+
+  async function testProvider() {
+    setProviderBusy(true); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
+    try {
+      const response = await fetch("/api/age-assurance/provider-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success !== true) throw new Error(result?.error || "k-ID test failed.");
+      const test = result.result || {};
+      setProviderTestResult(`Connected to k-ID ${provider?.mode || providerMode} environment. Test jurisdiction response: ${test.shouldDisplay ? "gate applies" : "no gate requested"}; age assurance ${test.ageAssuranceRequired ? "required" : "not marked required"}.`);
+    } catch (reason) { setProviderError(reason instanceof Error ? reason.message : "k-ID test failed."); }
+    finally { setProviderBusy(false); }
+  }
+
   return (
     <main style={shell}>
       <h1 style={{ margin: 0 }}>Age Assurance</h1>
       <p style={muted}>
         Per-server controls for k-ID feature permissions. These settings do not age-gate the
         dashboard, Gaming Hub, ordinary bot use, purchases, or public podcast playback.
-        The installed SDK supports built-in permission IDs only; the mapped categories are not
-        exact adult-age guarantees. Verify the test product policy before enabling Adult Emote Studio.
+        Connect and test the k-ID product here, then enable each feature for the selected server. Configure the age thresholds and AgeKey methods in k-ID Compliance Studio.
       </p>
       <div style={card}>
         <strong>Selected server</strong>
-        <div style={{ marginTop: 6 }}>{guildName || "Server"}{guildId ? ` · ${guildId}` : ""}</div>
+        <div style={{ marginTop: 6 }}>{guildName || "Server"}</div>
       </div>
       {error ? <p role="alert" style={{ color: "#ff9b9b" }}>{error}</p> : null}
       {message ? <p role="status" style={{ color: "#9ce3b1" }}>{message}</p> : null}
       {!guildId ? <div role="alert" style={card}>Select a server before changing its age assurance settings.</div> : null}
       {loading ? <p>Loading server settings…</p> : null}
+
+      <section style={card}>
+        <h2 style={{ marginTop: 0 }}>k-ID provider setup</h2>
+        <p style={muted}>Connect your k-ID product here. Use its Test API key while building; the key is saved encrypted on the bot server and is never sent back to this page. Configure age rules and permission thresholds in k-ID Compliance Studio.</p>
+        <div style={{ ...card, marginTop: 10 }}>
+          <strong>Connection status</strong>
+          <p style={muted}>Environment: {provider?.mode || "checking"} · server key: {provider?.serverApiKeyConfigured ? "saved" : "missing"} · browser key: {provider?.publishableKeyConfigured ? "saved" : "missing"} · encrypted storage: {provider?.storageReady ? "ready" : "not ready"} · dashboard URL: {provider?.dashboardUrlConfigured ? "ready" : "missing"} · support email: {provider?.supportEmailConfigured ? "ready" : "missing"}</p>
+          <p style={muted}>API endpoint: {provider?.apiBaseUrl || "not configured"}</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, marginTop: 12 }}>
+          <label style={muted}>k-ID environment<br /><select value={providerMode} disabled={providerBusy} onChange={(event) => { const mode = event.target.value as "test" | "live"; setProviderMode(mode); setProviderBrowserBaseUrl(mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1"); }} style={{ ...card, color: "#fff", padding: 10, width: "100%" }}><option value="test">Test (development)</option><option value="live">Live (production)</option></select></label>
+          <label style={muted}>Public dashboard URL<br /><input value={providerDashboardUrl} onChange={(event) => setProviderDashboardUrl(event.target.value)} placeholder="https://dashboard.example.com" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>k-ID browser SDK URL<br /><input value={providerBrowserBaseUrl} onChange={(event) => setProviderBrowserBaseUrl(event.target.value)} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>Support email for k-ID<br /><input type="email" value={providerSupportEmail} onChange={(event) => setProviderSupportEmail(event.target.value)} placeholder="support@example.com" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>k-ID server API key {provider?.serverApiKeyConfigured ? "(leave blank to keep current key)" : ""}<br /><input type="password" autoComplete="new-password" value={providerApiKey} onChange={(event) => setProviderApiKey(event.target.value)} placeholder={provider?.serverApiKeyConfigured ? "Saved securely" : "Paste the product's Test API key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>k-ID publishable key {provider?.publishableKeyConfigured ? "(leave blank to keep current key)" : ""}<br /><input type="password" autoComplete="new-password" value={providerPublishableKey} onChange={(event) => setProviderPublishableKey(event.target.value)} placeholder={provider?.publishableKeyConfigured ? "Saved securely" : "Paste the product's publishable key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+        </div>
+        {providerError ? <p role="alert" style={{ color: "#ff9b9b" }}>{providerError}</p> : null}
+        {providerMessage ? <p role="status" style={{ color: "#9ce3b1" }}>{providerMessage}</p> : null}
+        {providerTestResult ? <p role="status" style={{ color: "#9ce3b1" }}>{providerTestResult}</p> : null}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button type="button" style={button} disabled={providerBusy || !providerDashboardUrl.trim()} onClick={() => void saveProvider()}>{providerBusy ? "Saving…" : "Save k-ID setup"}</button>
+          <button type="button" style={button} disabled={providerBusy || !provider?.providerConfigured} onClick={() => void testProvider()}>{providerBusy ? "Checking…" : "Test k-ID connection"}</button>
+        </div>
+        <p style={{ ...muted, fontSize: 13 }}>Use the matching test key and test environment while building. A successful connection confirms the API and product key; thresholds and AgeKey behavior still come from your k-ID product settings.</p>
+      </section>
 
       <section style={card}>
         <h2 style={{ marginTop: 0 }}>Optional server admission</h2>
@@ -167,9 +260,7 @@ export default function AgeAssuranceSettingsPage() {
       <section style={{ ...card, borderColor: "#634a31" }}>
         <h2 style={{ marginTop: 0 }}>Adult Emote Studio</h2>
         <p style={muted}>
-          When enabled, entry to the private Adult Emote Studio requires the built-in
-          <code> mods </code> permission. This currently gates the staging page only;
-          Discord import/export and publishing actions are not implemented here.
+          This enables the Adult Emote Studio AgeKey flow for this server. It does not block the owner dashboard from managing the library or configuring the integration.
         </p>
         <button type="button" style={button} disabled={!guildId || loading || saving} onClick={() => toggle("adultFeatures")}>
           {policy.adultFeatures ? "Disable Adult Emote Studio AgeKey" : "Enable Adult Emote Studio AgeKey"}

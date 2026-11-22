@@ -248,32 +248,6 @@ export default function AdultEmotesPage() {
     return <section style={shell}><div style={{ ...panel, color: "#ff9b9b" }}>Choose a server first, then open Adult Emote Studio again.</div></section>;
   }
 
-  if (!ageAllowed) {
-    return (
-      <section style={shell}>
-        <div style={panel}>
-          <div style={{ color: "#ff718e", fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" }}>Feature-level age check</div>
-          <h1 style={{ margin: "6px 0", color: "#ff6b86" }}>Adult Emote Studio</h1>
-          <p style={muted}>This check applies only to adult-emote tools. It does not age-gate the dashboard, Gaming Hub, ordinary bot features, or public JED galleries.</p>
-          {ageMessage ? <p role="status" style={{ color: "#ffc1ce" }}>{ageMessage}</p> : null}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {!ageToken ? (
-              <button type="button" style={button} disabled={ageBusy} onClick={() => void startAgeCheck()}>
-                {ageBusy ? "Starting…" : "Start k-ID AgeKey check"}
-              </button>
-            ) : (
-              <button type="button" style={button} disabled={ageBusy} onClick={() => void checkAgeAccess()}>
-                {ageBusy ? "Checking…" : "Check AgeKey access"}
-              </button>
-            )}
-            {verificationUrl ? <a href={verificationUrl} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open k-ID check</a> : null}
-          </div>
-          <p style={{ ...muted, fontSize: 13, marginBottom: 0 }}>A server administrator must enable this feature in Dashboard &gt; Security &gt; Age Assurance first. Pending, failed, or unknown results never grant access.</p>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section style={shell}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -281,8 +255,7 @@ export default function AdultEmotesPage() {
           <div style={{ color: "#ff718e", fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" }}>Private build room</div>
           <h1 style={{ margin: "6px 0", color: "#ff6b86", letterSpacing: "0.08em", textTransform: "uppercase" }}>Adult Emote Studio</h1>
           <p style={{ ...muted, maxWidth: 900, margin: 0 }}>
-            A private staging page for adult-only emotes that keeps the working JED Discord engine separate. This page does not publish, expose a public gallery,
-            upload files, or change JED settings. Use it to organize reviewed sources before running the existing JED flow in the correct Discord channel.
+            Manage and test the adult-only JED workflow for this server. The server inventory remains visible while you build. Use the asset library to import, name, classify, upload, and organize assets; the AgeKey check below does not block setup.
           </p>
         </div>
         <div style={{ border: "1px solid #a52a47", borderRadius: 999, color: "#ffb6c4", fontWeight: 900, padding: "9px 13px", whiteSpace: "nowrap" }}>
@@ -292,16 +265,29 @@ export default function AdultEmotesPage() {
 
       {message || status ? <div role="status" style={{ ...panel, marginTop: 16, color: "#ffc1ce" }}>{status || message}</div> : null}
 
+      <section style={{ ...panel, marginTop: 16 }}>
+        <h2 style={{ marginTop: 0, color: "#ffd0d0" }}>AgeKey test</h2>
+        <p style={muted}>Library setup remains available while you build. Configure the k-ID product and server feature under Security → Age Assurance, then run this check when you want to test the member access flow. This check does not gate the dashboard tools.</p>
+        {ageMessage ? <p role="status" style={{ color: "#ffc1ce" }}>{ageMessage}</p> : null}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          {!ageToken ? <button type="button" style={button} disabled={ageBusy} onClick={() => void startAgeCheck()}>{ageBusy ? "Starting…" : "Start k-ID AgeKey check"}</button> : <button type="button" style={button} disabled={ageBusy} onClick={() => void checkAgeAccess()}>{ageBusy ? "Checking…" : "Check AgeKey access"}</button>}
+          {verificationUrl ? <a href={verificationUrl} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open k-ID check</a> : null}
+          <Link href={buildDashboardHref("/dashboard/security/age-assurance")} style={{ ...button, textDecoration: "none", display: "inline-block" }}>Set up k-ID</Link>
+          <Link href={buildDashboardHref("/emotes")} style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open SFW / 18+ asset library</Link>
+        </div>
+        <p style={{ ...muted, fontSize: 13, marginBottom: 0 }}>Current server feature: {ageAllowed ? "AgeKey access confirmed" : "not verified yet"}. The selected server&apos;s settings and the k-ID product policy control member checks.</p>
+      </section>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 12, marginTop: 16 }}>
         <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>JED runtime</div><div style={{ fontSize: 24, fontWeight: 900, marginTop: 8 }}>{loading ? "Checking…" : config.enabled === false ? "Disabled" : "Online"}</div><div style={muted}>The live bot engine remains the source of truth.</div></div>
         <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>Guild</div><div style={{ fontSize: 20, fontWeight: 900, marginTop: 8 }}>{guildName || "Selected server"}</div><div style={muted}>{emojis.length} existing Discord emotes available to inspect.</div></div>
-        <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>Release lock</div><div style={{ fontSize: 20, fontWeight: 900, marginTop: 8, color: "#ffcc86" }}>Public publishing off</div><div style={muted}>Age verification, rights review, moderation, and takedown policy are still required before release.</div></div>
+        <div style={panel}><div style={{ color: "#ff9ab0", fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>AgeKey check</div><div style={{ fontSize: 20, fontWeight: 900, marginTop: 8, color: ageAllowed ? "#9ce3b1" : "#ffcc86" }}>{ageAllowed ? "Connected" : "Not checked"}</div><div style={muted}>This tests member access; it does not hide the library or existing emotes.</div></div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(300px,0.8fr)", gap: 16, marginTop: 16 }}>
         <section style={panel}>
           <h2 style={{ marginTop: 0, color: "#ffd0d0" }}>Stage an adult-only emote</h2>
-          <p style={muted}>This creates a browser-session staging record only. It does not send a file to the bot or Discord.</p>
+          <p style={muted}>This optional queue is saved in this browser session. To save and categorize actual media, open the linked JED asset library below.</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
             <label style={muted}>Emote name<input style={input} value={name} onChange={(event) => setName(event.target.value)} placeholder="afterdark_wave" maxLength={32} /></label>
             <label style={muted}>Category<input style={input} value={category} onChange={(event) => setCategory(event.target.value)} placeholder="adult" maxLength={40} /></label>
@@ -319,21 +305,18 @@ export default function AdultEmotesPage() {
         </section>
 
         <section style={panel}>
-          <h2 style={{ marginTop: 0, color: "#ffd0d0" }}>Release checklist</h2>
-          <ul style={{ ...muted, paddingLeft: 20, marginBottom: 0 }}>
-            <li>Independent 18+ verification is selected and tested.</li>
-            <li>Uploader confirms redistribution rights.</li>
-            <li>Human moderator reviews every asset.</li>
-            <li>Private adult channel and role boundaries are verified.</li>
-            <li>Report, takedown, retention, and audit procedures are documented.</li>
-          </ul>
-          <p style={{ color: "#ffcc86", fontSize: 13, lineHeight: 1.6, marginBottom: 0 }}>Until every item is complete, the studio remains staging-only.</p>
+          <h2 style={{ marginTop: 0, color: "#ffd0d0" }}>JED setup links</h2>
+          <p style={muted}>The library, K-ID connection, and this server&apos;s JED controls are available while the project is in testing.</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Link href={buildDashboardHref("/emotes")} style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open SFW / 18+ library</Link>
+            <Link href={buildDashboardHref("/dashboard/security/age-assurance")} style={{ ...button, textDecoration: "none", display: "inline-block" }}>Configure K-ID</Link>
+          </div>
         </section>
       </div>
 
       <section style={{ ...panel, marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <div><h2 style={{ margin: 0, color: "#ffd0d0" }}>Private staging queue</h2><p style={{ ...muted, margin: "5px 0 0" }}>Saved in this browser session for this guild. Use the live JED command after your private review.</p></div>
+          <div><h2 style={{ margin: 0, color: "#ffd0d0" }}>Browser staging queue</h2><p style={{ ...muted, margin: "5px 0 0" }}>Temporary notes for this browser session. The saved asset collections are in the JED library.</p></div>
           <button type="button" style={button} onClick={() => void reload()}>Refresh JED status</button>
         </div>
         {staged.length ? <div style={{ display: "grid", gap: 10, marginTop: 14 }}>{staged.map((item) => <div key={item.id} style={{ ...panel, padding: 13, background: "rgba(255,0,50,0.08)" }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}><div><strong style={{ color: "#ffd0d0" }}>{item.name}</strong><span style={{ ...muted, marginLeft: 9 }}>{item.target} · {item.category}</span><div style={{ ...muted, fontSize: 12, overflowWrap: "anywhere", marginTop: 4 }}>{item.source}</div></div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" style={button} onClick={() => void copyJedCommand(item)}>Copy JED command</button><button type="button" style={{ ...button, background: "#21070d" }} onClick={() => setStaged((current) => current.filter((entry) => entry.id !== item.id))}>Remove</button></div></div></div>)}</div> : <div style={{ ...muted, marginTop: 14 }}>No private staging entries yet.</div>}

@@ -11,9 +11,34 @@ const SNOWFLAKE = /^\d{16,20}$/;
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Cache-Control", "no-store");
   const action = String(Array.isArray(req.query.action) ? req.query.action[0] : req.query.action || "").trim();
+  if (req.method === "GET" && action === "client-config") {
+    let botConfig: Record<string, unknown> = {};
+    if (DASHBOARD_TOKEN) {
+      try {
+        const upstream = await fetchBotApi(`${BOT_API}/api/age-assurance/client-config`, {
+          headers: { "x-dashboard-token": DASHBOARD_TOKEN },
+        });
+        const payload = await readJsonSafe(upstream);
+        if (upstream.ok && payload?.success === true && payload.config && typeof payload.config === "object") {
+          botConfig = payload.config as Record<string, unknown>;
+        }
+      } catch {
+        // Dashboard .env values remain usable if the bot provider endpoint is unavailable.
+      }
+    }
+    const mode = String(process.env.KID_MODE || botConfig.mode || "test").trim().toLowerCase();
+    const config = {
+      publishableKey: String(process.env.NEXT_PUBLIC_KID_PUBLISHABLE_KEY || botConfig.publishableKey || "").trim(),
+      baseUrl: String(process.env.NEXT_PUBLIC_KID_BASE_URL || botConfig.baseUrl || "").trim(),
+      supportEmail: String(process.env.NEXT_PUBLIC_KID_SUPPORT_EMAIL || botConfig.supportEmail || "").trim(),
+      dashboardUrl: String(process.env.NEXT_PUBLIC_DASHBOARD_URL || process.env.DASHBOARD_PUBLIC_URL || botConfig.dashboardUrl || "").trim(),
+      mode,
+    };
+    return res.status(200).json({ success: true, config });
+  }
   if (!DASHBOARD_TOKEN) return res.status(503).json({ success: false, error: "Age assurance API is not configured." });
   if (req.method === "GET") {
-    if (!["client-config", "provider"].includes(action)) {
+    if (action !== "provider") {
       res.setHeader("Allow", "GET, POST");
       return res.status(405).json({ success: false, error: "Method not allowed." });
     }
@@ -28,7 +53,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? await buildBotApiHeaders(req)
         : { "x-dashboard-token": DASHBOARD_TOKEN };
       const upstream = await fetchBotApi(`${BOT_API}/api/age-assurance/${action}`, { headers });
-      return res.status(upstream.status).json(await readJsonSafe(upstream));
+      const payload = await readJsonSafe(upstream);
+      if (action === "provider" && payload?.provider && typeof payload.provider === "object") {
+        payload.provider = {
+          ...payload.provider,
+          publishableKeyConfigured: Boolean(process.env.NEXT_PUBLIC_KID_PUBLISHABLE_KEY || payload.provider.publishableKeyConfigured),
+          browserBaseUrlConfigured: Boolean(process.env.NEXT_PUBLIC_KID_BASE_URL || payload.provider.browserBaseUrlConfigured),
+          dashboardUrlConfigured: Boolean(process.env.NEXT_PUBLIC_DASHBOARD_URL || process.env.DASHBOARD_PUBLIC_URL || payload.provider.dashboardUrlConfigured),
+          supportEmailConfigured: Boolean(process.env.NEXT_PUBLIC_KID_SUPPORT_EMAIL || payload.provider.supportEmailConfigured),
+        };
+      }
+      return res.status(upstream.status).json(payload);
     } catch {
       return res.status(502).json({ success: false, error: "Possum Bot could not load k-ID setup." });
     }

@@ -237,7 +237,7 @@ export default function CreatorMasterClient() {
                 </div>
                 <h2 style={{ margin: "6px 0 4px", color: "#ffdede" }}>{item.guild.name}</h2>
                 <div style={{ color: "#ffb9b9", fontSize: 13 }}>
-                  {item.guild.id} {item.guild.memberCount ? `- ${item.guild.memberCount} members` : ""}
+                  {item.guild.name || "Selected server"} {item.guild.memberCount ? `- ${item.guild.memberCount} members` : ""}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

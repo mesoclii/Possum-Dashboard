@@ -314,7 +314,7 @@ export default function TicketsClient() {
 
         const loaded = normalizeConfig(ticketJson?.config);
 
-        setGuildName(String(guildJson?.guild?.name || guildId));
+        setGuildName(String(guildJson?.guild?.name || "Selected server"));
         setRoles(roleList);
         setChannels(Array.isArray(guildJson?.channels) ? guildJson.channels : []);
         setEmojis(Array.isArray(guildJson?.emojis) ? guildJson.emojis : []);

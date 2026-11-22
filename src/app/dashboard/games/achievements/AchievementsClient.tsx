@@ -551,7 +551,7 @@ export default function AchievementsClient() {
                   <div>
                     <div style={{ color: "#fff", fontWeight: 900, fontSize: 18 }}>{selected.name}</div>
                     <div style={{ color: "#fca5a5", fontSize: 12, marginTop: 4 }}>
-                      {baselineMap.has(selected.id) ? "Shared baseline row" : "Custom guild row"} · ID: {selected.id}
+                      {baselineMap.has(selected.id) ? "Shared baseline row" : "Custom server row"}
                     </div>
                   </div>
                   <button

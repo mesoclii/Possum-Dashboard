@@ -32,6 +32,7 @@ export default function FunModesClient() {
   const [guildName, setGuildName] = useState("");
   const [range, setRange] = useState<EnginePayload>({});
   const [truthDare, setTruthDare] = useState<EnginePayload>({});
+  const [channels, setChannels] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -65,6 +66,16 @@ export default function FunModesClient() {
 
   useEffect(() => {
     void loadAll(guildId);
+  }, [guildId]);
+
+  useEffect(() => {
+    if (!guildId) return;
+    let active = true;
+    void fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => { if (active) setChannels(Array.isArray(payload?.channels) ? payload.channels.filter((channel: any) => channel?.id && channel?.name) : []); })
+      .catch(() => { if (active) setChannels([]); });
+    return () => { active = false; };
   }, [guildId]);
 
   async function saveEngine(engine: "range" | "truthDare", patch: Record<string, unknown>, okLabel: string) {
@@ -151,7 +162,11 @@ export default function FunModesClient() {
             </div>
             <div style={{ marginTop: 10 }}>
               <label>Prompt channel</label>
-              <input style={input} value={String(truthDare.config?.channelId || "")} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), channelId: event.target.value } }))} placeholder="Channel ID" />
+              <select style={input} value={String(truthDare.config?.channelId || "")} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), channelId: event.target.value } }))}>
+                <option value="">Use the default channel</option>
+                {truthDare.config?.channelId && !channels.some((channel) => channel.id === truthDare.config.channelId) ? <option value={truthDare.config.channelId}>Configured channel (unavailable)</option> : null}
+                {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+              </select>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
               <div>

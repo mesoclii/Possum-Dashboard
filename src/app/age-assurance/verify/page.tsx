@@ -9,6 +9,7 @@ import {
   KidAgeGateProhibited,
   KidCoreProvider,
   KidSessionProvider,
+  useKidAgeGate,
 } from "@k-id/core-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -51,6 +52,19 @@ const actionStyle = {
   fontWeight: 700,
 } as const;
 
+function KidAgeGateErrorDetails({ onRetry }: { onRetry: () => void }) {
+  const { error: sdkError } = useKidAgeGate();
+  return (
+    <>
+      <p role="alert">
+        k-ID could not load this check{sdkError ? ` (${sdkError.code}): ${sdkError.message}` : "."}
+        {" "}No access decision was made.
+      </p>
+      <button type="button" onClick={onRetry} style={actionStyle}>Retry k-ID setup</button>
+    </>
+  );
+}
+
 async function postAction(action: string, payload: Record<string, string>) {
   const response = await fetch(`/api/age-assurance/${action}`, {
     method: "POST",
@@ -74,6 +88,7 @@ export default function AgeAssuranceVerificationPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [sdkAttempt, setSdkAttempt] = useState(0);
   const [clientConfig, setClientConfig] = useState<ClientConfig | null>(null);
   const [clientConfigLoading, setClientConfigLoading] = useState(true);
   const claimInFlight = useRef(false);
@@ -226,6 +241,10 @@ export default function AgeAssuranceVerificationPage() {
   const retry = () => {
     if (token) void beginUpgrade(token);
   };
+  const retrySdk = () => {
+    setError("");
+    setSdkAttempt((attempt) => attempt + 1);
+  };
 
   const statusText = accessStatus === "enabled"
     ? `k-ID confirmed access to ${surfaceLabel}. Return to the feature you requested.`
@@ -279,6 +298,7 @@ export default function AgeAssuranceVerificationPage() {
           </p>
         ) : (
           <KidCoreProvider
+            key={sdkAttempt}
             publishableKey={publishableKey}
             baseUrl={baseUrl}
             declare={{
@@ -314,7 +334,7 @@ export default function AgeAssuranceVerificationPage() {
                   <p>k-ID did not create an eligible session. This result alone will not kick you.</p>
                 </KidAgeGateProhibited>
                 <KidAgeGateError>
-                  <p>{state?.surface === "onboarding" ? "k-ID is temporarily unavailable. No access decision was made; retry or use the existing manual option." : "k-ID is temporarily unavailable. No access decision was made; retry later."}</p>
+                  <KidAgeGateErrorDetails onRetry={retrySdk} />
                 </KidAgeGateError>
               </KidAgeGate>
             </KidSessionProvider>

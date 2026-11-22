@@ -8,6 +8,20 @@ const STATE_TOKEN = /^[A-Za-z0-9_-]{40,64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{16,20}$/;
 
+function validBrowserBaseUrl(value: unknown, mode: string): string {
+  const expectedHost = mode === "live" ? "kai-api.k-id.com" : "kai-api.test.k-id.com";
+  try {
+    const url = new URL(String(value || "").trim());
+    if (url.protocol !== "https:" || url.hostname.toLowerCase() !== expectedHost ||
+        url.pathname.replace(/\/+$/, "") !== "/fapi/v1" || url.username || url.password || url.search || url.hash) {
+      return "";
+    }
+    return `${url.origin}/fapi/v1`;
+  } catch {
+    return "";
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader("Cache-Control", "no-store");
   const action = String(Array.isArray(req.query.action) ? req.query.action[0] : req.query.action || "").trim();
@@ -26,12 +40,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Dashboard .env values remain usable if the bot provider endpoint is unavailable.
       }
     }
-    const mode = String(process.env.KID_MODE || botConfig.mode || "test").trim().toLowerCase();
+    const mode = String(botConfig.mode || process.env.KID_MODE || "test").trim().toLowerCase() === "live" ? "live" : "test";
+    const browserBaseUrl =
+      validBrowserBaseUrl(botConfig.baseUrl, mode) ||
+      validBrowserBaseUrl(process.env.NEXT_PUBLIC_KID_BASE_URL, mode) ||
+      (mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1");
     const config = {
-      publishableKey: String(process.env.NEXT_PUBLIC_KID_PUBLISHABLE_KEY || botConfig.publishableKey || "").trim(),
-      baseUrl: String(process.env.NEXT_PUBLIC_KID_BASE_URL || botConfig.baseUrl || "").trim(),
-      supportEmail: String(process.env.NEXT_PUBLIC_KID_SUPPORT_EMAIL || botConfig.supportEmail || "").trim(),
-      dashboardUrl: String(process.env.NEXT_PUBLIC_DASHBOARD_URL || process.env.DASHBOARD_PUBLIC_URL || botConfig.dashboardUrl || "").trim(),
+      publishableKey: String(botConfig.publishableKey || process.env.NEXT_PUBLIC_KID_PUBLISHABLE_KEY || "").trim(),
+      baseUrl: browserBaseUrl,
+      supportEmail: String(botConfig.supportEmail || process.env.NEXT_PUBLIC_KID_SUPPORT_EMAIL || "").trim(),
+      dashboardUrl: String(botConfig.dashboardUrl || process.env.NEXT_PUBLIC_DASHBOARD_URL || process.env.DASHBOARD_PUBLIC_URL || "").trim(),
       mode,
     };
     return res.status(200).json({ success: true, config });
@@ -89,10 +107,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         method: "POST",
         headers: await buildBotApiHeaders(req, { json: true }),
         body: JSON.stringify(req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {}),
-      });
+      }, action === "provider-test" ? 20_000 : 15_000);
       return res.status(upstream.status).json(await readJsonSafe(upstream));
-    } catch {
-      return res.status(502).json({ success: false, error: "Possum Bot could not save or test k-ID setup." });
+    } catch (error) {
+      const timedOut = /timed out/i.test(String((error as Error)?.message || ""));
+      return res.status(timedOut ? 504 : 502).json({
+        success: false,
+        error: timedOut
+          ? `Possum Bot did not answer the ${action === "provider-test" ? "k-ID test" : "save"} request within the time limit. Check the bot connection and retry.`
+          : "Possum Bot could not save or test k-ID setup.",
+      });
     }
   }
   try {

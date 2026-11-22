@@ -60,7 +60,9 @@ async function postAction(action: string, payload: Record<string, string>) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.success !== true) {
-    throw new Error(String(data?.error || "Age assurance request failed."));
+    const failure = new Error(String(data?.error || "Age assurance request failed.")) as Error & { status?: number };
+    failure.status = response.status;
+    throw failure;
   }
   return data;
 }
@@ -197,16 +199,27 @@ export default function AgeAssuranceVerificationPage() {
   useEffect(() => {
     if (!token || !state?.challengeId || accessStatus !== "pending") return;
     let active = true;
-    const timer = window.setInterval(() => {
-      void refreshStatus(token).then((status) => {
-        if (active && status !== "pending") window.clearInterval(timer);
-      }).catch((statusError) => {
-        if (active) setError(statusError instanceof Error ? statusError.message : "Could not refresh k-ID status.");
-      });
-    }, 4000);
+    let timer: number | undefined;
+    let delayMs = 6000;
+    async function poll() {
+      try {
+        const status = await refreshStatus(token);
+        delayMs = 6000;
+        setError("");
+        if (!active || status !== "pending") return;
+      } catch (statusError) {
+        if (!active) return;
+        const httpStatus = Number((statusError as Error & { status?: number })?.status || 0);
+        setError(statusError instanceof Error ? statusError.message : "Could not refresh k-ID status.");
+        if (httpStatus === 429) delayMs = Math.min(Math.max(delayMs * 2, 10000), 60000);
+      }
+      if (active) schedule();
+    }
+    function schedule() { timer = window.setTimeout(() => { void poll(); }, delayMs); }
+    schedule();
     return () => {
       active = false;
-      window.clearInterval(timer);
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [accessStatus, refreshStatus, state?.challengeId, token]);
 

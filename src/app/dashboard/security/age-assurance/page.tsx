@@ -315,9 +315,9 @@ export default function AgeAssuranceSettingsPage() {
         {providerTestResult ? <p role="status" style={{ color: "#9ce3b1" }}>{providerTestResult}</p> : null}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button type="button" style={button} disabled={providerAction !== null || !provider?.providerConfigured} onClick={() => void testProvider()}>{providerAction === "test" ? "Checking..." : "Test active k-ID connection"}</button>
-          <button type="button" style={button} disabled={providerAction !== null || !guildId || !policy.adultFeatures || !provider?.providerConfigured} onClick={() => void startFullAgeKeyTest()}>{providerAction === "start" ? "Starting..." : "Start full AgeKey test"}</button>
+          <button type="button" style={button} disabled={providerAction !== null || !guildId || !policy.adultFeatures || !provider?.providerConfigured} onClick={() => void startFullAgeKeyTest()}>{providerAction === "start" ? "Opening k-ID..." : provider?.mode === "live" ? "Start Live AgeKey check" : "Start Test AgeKey check"}</button>
         </div>
-        <p style={{ ...muted, fontSize: 13 }}>In Kai → Where it runs, add each origin as its own entry: the public website and dashboard under Live if the widget runs there; add localhost only under Test. Start full AgeKey test opens the widget for this selected server and requires Adult Emote Studio AgeKey to be enabled below.</p>
+        <p style={{ ...muted, fontSize: 13 }}>This opens a real player check using the active Test or Live keys. Live creates a real Live k-ID session; the connection button above only checks the API. In Kai → Where it runs, add each origin as its own entry: the public website and dashboard under Live if the widget runs there; add localhost only under Test. This check requires Adult Emote Studio AgeKey to be enabled below.</p>
       </section>
 
       <section style={card}>

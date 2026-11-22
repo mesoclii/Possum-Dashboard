@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
 import { decodeDirectoryCursor, disconnectSocial, isSocialOAuthProvider, memberGuilds, sameOrigin, setSocialVisibility, SOCIAL_PROVIDERS, socialProviderStatus, visibleDirectory } from "@/lib/personalSocial";
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     }
     const [guilds, { accounts, visibility }] = await Promise.all([
       memberGuilds(session.accessToken).catch(() => null),
-      prisma.$transaction(async (tx) => ({
+      prisma.$transaction(async (tx: Prisma.TransactionClient) => ({
         accounts: await tx.$queryRaw<{ provider: string; providerId: string; revision: string | null; label: string; url: string }[]>`SELECT a."provider", a."providerId", r."revision", a."label", a."url" FROM "PersonalSocialAccount" a LEFT JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider" WHERE a."userId" = ${session.user.id}`,
         visibility: await tx.$queryRaw<{ provider: string; guildId: string }[]>`SELECT "provider", "guildId" FROM "PersonalSocialVisibility" WHERE "userId" = ${session.user.id}`,
       })),

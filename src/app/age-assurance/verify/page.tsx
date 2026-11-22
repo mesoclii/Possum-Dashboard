@@ -309,6 +309,7 @@ export default function AgeAssuranceVerificationPage() {
               ],
               privacyPolicyUrl: `${publicDashboardUrl}/privacy`,
               termsOfServiceUrl: `${publicDashboardUrl}/terms`,
+              iconUrl: `${publicDashboardUrl}/kid-app-icon.png`,
               supportEmail,
             }}
           >

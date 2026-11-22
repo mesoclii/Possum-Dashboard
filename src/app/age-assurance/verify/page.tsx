@@ -182,8 +182,20 @@ export default function AgeAssuranceVerificationPage() {
     }
   }, [token]);
 
+  const handleSession = useCallback(async (_sessionId: string) => {
+    if (!token) return;
+    try {
+      // The backend resolves the session from its claimed challenge/token. Never accept this
+      // browser callback's session ID as an access decision.
+      const status = await refreshStatus(token);
+      if (status === "needs-session") setAccessStatus("pending");
+    } catch (sessionError) {
+      setError(sessionError instanceof Error ? sessionError.message : "Could not confirm the k-ID session.");
+    }
+  }, [refreshStatus, token]);
+
   useEffect(() => {
-    if (!token || !state?.challengeUrl || accessStatus !== "pending") return;
+    if (!token || !state?.challengeId || accessStatus !== "pending") return;
     let active = true;
     const timer = window.setInterval(() => {
       void refreshStatus(token).then((status) => {
@@ -196,7 +208,7 @@ export default function AgeAssuranceVerificationPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [accessStatus, refreshStatus, state?.challengeUrl, token]);
+  }, [accessStatus, refreshStatus, state?.challengeId, token]);
 
   const retry = () => {
     if (token) void beginUpgrade(token);
@@ -270,7 +282,9 @@ export default function AgeAssuranceVerificationPage() {
             <KidSessionProvider
               jurisdiction="auto"
               challengeId={state?.challengeId || undefined}
+              sessionId={state?.sessionId || undefined}
               onChallenge={(challengeId) => void handleChallenge(challengeId)}
+              onSession={(sessionId) => void handleSession(sessionId)}
               onClaim={(claimToken) => void handleClaim(claimToken)}
             >
               <KidAgeGate>

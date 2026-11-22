@@ -29,6 +29,7 @@ export default function EmoteLibraryPage() {
   const [personalItems, setPersonalItems] = useState<PersonalItem[]>([]);
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [sourceGuildId, setSourceGuildId] = useState("");
   const [targetGuildId, setTargetGuildId] = useState("");
@@ -49,6 +50,7 @@ export default function EmoteLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [importStatus, setImportStatus] = useState("");
 
   const guildName = (id: string) => guilds.find((entry) => entry.id === id)?.name || id;
 
@@ -116,8 +118,14 @@ export default function EmoteLibraryPage() {
   }, [loadCatalog, loadPersonalItems]);
 
   useEffect(() => {
-    if (!sourceGuildId) { setAssets([]); return; }
-    void loadGuildAssets(sourceGuildId).catch((error) => setMessage(error instanceof Error ? error.message : "Could not read server assets."));
+    if (!sourceGuildId) { setAssets([]); setAssetsLoading(false); setImportStatus(""); return; }
+    let active = true;
+    setAssetsLoading(true);
+    setImportStatus("");
+    void loadGuildAssets(sourceGuildId)
+      .catch((error) => active && setImportStatus(error instanceof Error ? error.message : "Could not read server assets."))
+      .finally(() => active && setAssetsLoading(false));
+    return () => { active = false; };
   }, [sourceGuildId, loadGuildAssets]);
 
   const visibleItems = useMemo(() => items.filter((item) => `${item.name} ${item.assetType}`.toLowerCase().includes(search.trim().toLowerCase())), [items, search]);
@@ -200,9 +208,11 @@ export default function EmoteLibraryPage() {
   }
 
   async function importAllAssets() {
-    if (!sourceGuildId) { setMessage("Choose the Alexandria/source server first."); return; }
-    if (!personalRightsConfirmed) { setMessage("Confirm you are authorized to keep these assets in your private collection."); return; }
-    setBusy("import-all"); setMessage("");
+    if (!sourceGuildId) { setImportStatus("Choose the source server first."); return; }
+    if (!personalRightsConfirmed) { setImportStatus("Check the permission box above to enable this private import."); return; }
+    if (assetsLoading) { setImportStatus("Wait for the selected server's assets to finish loading."); return; }
+    if (!assets.length) { setImportStatus("No supported custom emojis or PNG/APNG/GIF stickers were found in this server."); return; }
+    setBusy("import-all"); setMessage(""); setImportStatus(`Importing ${assets.length} assets from ${guildName(sourceGuildId)}…`);
     try {
       const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "import-all", guildId: sourceGuildId, rightsConfirmed: true }) });
@@ -211,9 +221,12 @@ export default function EmoteLibraryPage() {
       setPersonalItems(Array.isArray(body.items) ? body.items : []);
       setNameDrafts(Object.fromEntries((Array.isArray(body.items) ? body.items as PersonalItem[] : []).map((item) => [item.id, item.name])));
       setPersonalRightsConfirmed(false);
-      setMessage(`Imported ${body.added} new assets from ${guildName(sourceGuildId)}; ${Math.max(0, body.total - body.added)} were already in your collection.`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not import server assets."); }
-    finally { setBusy(""); }
+      const resultMessage = `Imported ${body.added} new assets from ${guildName(sourceGuildId)}; ${Math.max(0, body.total - body.added)} were already in your collection.`;
+      setImportStatus(resultMessage); setMessage(resultMessage);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Could not import server assets.";
+      setImportStatus(errorMessage); setMessage(errorMessage);
+    } finally { setBusy(""); }
   }
 
   async function exportPersonalItem(item: PersonalItem) {
@@ -405,9 +418,10 @@ export default function EmoteLibraryPage() {
             <option value="">Choose a source server</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
           </select></label>
           <p style={muted}><label><input type="checkbox" checked={personalRightsConfirmed} onChange={(event) => setPersonalRightsConfirmed(event.target.checked)} /> I made these assets or have permission to save and use them in the servers I manage.</label></p>
-          <button type="button" style={button} disabled={!sourceGuildId || !personalRightsConfirmed || Boolean(busy)} onClick={() => void importAllAssets()}>
-            {busy === "import-all" ? "Importing server assets…" : `Import all ${assets.length} listed assets`}
+          <button type="button" style={button} disabled={Boolean(busy) || assetsLoading} onClick={() => void importAllAssets()}>
+            {assetsLoading ? "Loading server assets…" : busy === "import-all" ? "Importing server assets…" : `Import all ${assets.length} listed assets`}
           </button>
+          {importStatus ? <p role="status" aria-live="polite" style={{ ...muted, marginTop: 8 }}>{importStatus}</p> : null}
           <h3>Saved assets ({personalItems.length})</h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
             {personalItems.map((item) => <article key={item.id} style={{ ...panel, padding: 12 }}>

@@ -187,6 +187,27 @@ export default function AgeAssuranceSettingsPage() {
     finally { setProviderBusy(false); }
   }
 
+  async function startFullAgeKeyTest() {
+    if (!guildId || !policy.adultFeatures) return;
+    setProviderBusy(true); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
+    try {
+      const response = await fetch("/api/age-assurance/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ guildId, surface: "adultFeatures" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success !== true || typeof result.verificationUrl !== "string") {
+        throw new Error(result?.error || "Could not start the full AgeKey test.");
+      }
+      window.location.assign(result.verificationUrl);
+    } catch (reason) {
+      setProviderError(reason instanceof Error ? reason.message : "Could not start the full AgeKey test.");
+      setProviderBusy(false);
+    }
+  }
+
   return (
     <main style={shell}>
       <h1 style={{ margin: 0 }}>Age Assurance</h1>
@@ -226,8 +247,9 @@ export default function AgeAssuranceSettingsPage() {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button type="button" style={button} disabled={providerBusy || !providerDashboardUrl.trim()} onClick={() => void saveProvider()}>{providerBusy ? "Saving…" : "Save k-ID setup"}</button>
           <button type="button" style={button} disabled={providerBusy || !provider?.providerConfigured} onClick={() => void testProvider()}>{providerBusy ? "Checking…" : "Test k-ID connection"}</button>
+          <button type="button" style={button} disabled={providerBusy || !guildId || !policy.adultFeatures || !provider?.providerConfigured} onClick={() => void startFullAgeKeyTest()}>{providerBusy ? "Starting…" : "Start full AgeKey test"}</button>
         </div>
-        <p style={{ ...muted, fontSize: 13 }}>Use the matching test key and test environment while building. A successful connection confirms the API and product key; thresholds and AgeKey behavior still come from your k-ID product settings.</p>
+        <p style={{ ...muted, fontSize: 13 }}>The connection test only checks the API. Start full AgeKey test opens the widget for this selected server; it requires Adult Emote Studio AgeKey to be enabled below. Thresholds and AgeKey methods still come from your k-ID product settings.</p>
       </section>
 
       <section style={card}>

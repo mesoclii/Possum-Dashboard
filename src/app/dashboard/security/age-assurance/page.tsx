@@ -168,7 +168,7 @@ export default function AgeAssuranceSettingsPage() {
     try {
       const response = await fetch("/api/age-assurance/provider", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: providerMode, apiBaseUrl: providerMode === "live" ? "https://game-api.k-id.com/api/v1" : "https://game-api.test.k-id.com/api/v1", dashboardUrl: providerDashboardUrl, apiKey: providerApiKey, publishableKey: providerPublishableKey, browserBaseUrl: providerBrowserBaseUrl, supportEmail: providerSupportEmail }),
+        body: JSON.stringify({ mode: providerMode, apiBaseUrl: providerMode === "live" ? "https://game-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1", dashboardUrl: providerDashboardUrl, apiKey: providerApiKey, publishableKey: providerPublishableKey, browserBaseUrl: providerBrowserBaseUrl, supportEmail: providerSupportEmail }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not save k-ID settings.");

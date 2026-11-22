@@ -164,7 +164,7 @@ export default function FunModesClient() {
               <label>Prompt channel</label>
               <select style={input} value={String(truthDare.config?.channelId || "")} onChange={(event) => setTruthDare((prev) => ({ ...prev, config: { ...(prev.config || {}), channelId: event.target.value } }))}>
                 <option value="">Use the default channel</option>
-                {truthDare.config?.channelId && !channels.some((channel) => channel.id === truthDare.config.channelId) ? <option value={truthDare.config.channelId}>Configured channel (unavailable)</option> : null}
+                {truthDare.config?.channelId && !channels.some((channel) => channel.id === truthDare.config?.channelId) ? <option value={String(truthDare.config?.channelId || "")}>Configured channel (unavailable)</option> : null}
                 {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
               </select>
             </div>

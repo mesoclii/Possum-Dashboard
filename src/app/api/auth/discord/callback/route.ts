@@ -9,6 +9,7 @@ import {
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import {
   createDashboardSessionValue,
+  dashboardSessionCookieDomain,
   DASHBOARD_OAUTH_STATE_COOKIE,
   DASHBOARD_RETURN_TO_COOKIE,
   DASHBOARD_SESSION_COOKIE,
@@ -81,11 +82,22 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(redirectUrl);
   response.headers.set("Cache-Control", "no-store, private");
+  const cookieDomain = dashboardSessionCookieDomain();
+  // Remove the previous dashboard-host-only cookie so browsers do not send two
+  // cookies with the same name after switching to the shared subdomain cookie.
+  response.cookies.set(DASHBOARD_SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: shouldUseSecureCookies(),
+    path: "/",
+    maxAge: 0,
+  });
   response.cookies.set(DASHBOARD_SESSION_COOKIE, sessionValue, {
     httpOnly: true,
     sameSite: "lax",
     secure: shouldUseSecureCookies(),
     path: "/",
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
     maxAge: Math.max(60, Number(token.expires_in || 604800)),
   });
   response.cookies.delete(stateCookieName);

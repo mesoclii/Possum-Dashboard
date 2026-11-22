@@ -3,7 +3,7 @@ import { BOT_API, buildBotApiHeaders, fetchBotApi, readJsonSafe } from "@/lib/bo
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 
 const DASHBOARD_TOKEN = String(process.env.DASHBOARD_API_TOKEN || "").trim();
-const ALLOWED_ACTIONS = new Set(["request", "access", "state", "challenge", "claim", "upgrade", "status", "provider", "provider-test"]);
+const ALLOWED_ACTIONS = new Set(["request", "access", "state", "challenge", "claim", "upgrade", "status", "provider", "provider-activate", "provider-test"]);
 const STATE_TOKEN = /^[A-Za-z0-9_-]{40,64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{16,20}$/;
@@ -94,7 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(404).json({ success: false, error: "Unknown age assurance action." });
   }
 
-  if (action === "provider" || action === "provider-test") {
+  if (action === "provider" || action === "provider-activate" || action === "provider-test") {
     try {
       await enforceDashboardRateLimit(req, "age_assurance_provider_write");
     } catch (error) {
@@ -102,7 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(503).json({ success: false, error: "Age assurance rate limiting is unavailable." });
     }
     try {
-      const endpoint = action === "provider-test" ? "provider/test" : "provider";
+      const endpoint = action === "provider-test" ? "provider/test" : action === "provider-activate" ? "provider/activate" : "provider";
       const upstream = await fetchBotApi(`${BOT_API}/api/age-assurance/${endpoint}`, {
         method: "POST",
         headers: await buildBotApiHeaders(req, { json: true }),

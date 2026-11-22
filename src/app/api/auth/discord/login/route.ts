@@ -4,9 +4,11 @@ import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import {
   createOauthState,
+  DASHBOARD_SESSION_COOKIE,
   dashboardOAuthStateCookieName,
   dashboardReturnToCookieName,
   isDashboardSessionConfigured,
+  readDashboardSessionValue,
   sanitizeDashboardReturnTo,
   shouldUseSecureCookies,
 } from "@/lib/session";
@@ -47,6 +49,12 @@ export async function GET(request: NextRequest) {
   }
   const returnTo = sanitizeDashboardReturnTo(inferredReturnTo);
   const canonical = new URL(String(process.env.DISCORD_REDIRECT_URI).trim());
+  const existingSession = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
+  if (existingSession) {
+    const response = NextResponse.redirect(new URL(returnTo, canonical.origin));
+    response.headers.set("Cache-Control", "no-store, private");
+    return response;
+  }
   const host = String(request.headers.get("host") || request.nextUrl.host).toLowerCase();
   if (host !== canonical.host.toLowerCase()) {
     const url = new URL("/api/auth/discord/login", canonical.origin);

@@ -304,6 +304,13 @@ export default function AgeAssuranceVerificationPage() {
             declare={{
               permissions: [
                 { name: "multiplayer" },
+                { name: "join-groups" },
+                { name: "public-profile" },
+                { name: "custom-username" },
+                { name: "online-status" },
+                { name: "text-chat-public" },
+                { name: "text-chat-private" },
+                { name: "photo-video-sharing" },
                 { name: "mods" },
                 { name: "voice-chat" },
               ],

@@ -39,7 +39,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   Change Guild
                 </Link>
                 <Link
-                  href="/"
+                  href="https://possumbot.com/"
+                  target="_self"
                   prefetch={false}
                   className="rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase tracking-[0.08em] possum-red possum-btn"
                 >

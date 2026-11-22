@@ -20,9 +20,20 @@ type ProviderStatus = {
   publishableKeyConfigured: boolean;
   browserBaseUrlConfigured: boolean;
   browserBaseUrl: string;
+  publicWebsiteUrl: string;
+  dashboardUrl: string;
+  developmentOrigin: string;
   supportEmailConfigured: boolean;
   supportEmail: string;
+  profiles?: Record<"test" | "live", {
+    serverApiKeyConfigured: boolean;
+    publishableKeyConfigured: boolean;
+    providerConfigured: boolean;
+  }>;
 };
+
+type ProviderMode = "test" | "live";
+type KeyDraft = { apiKey: string; publishableKey: string };
 
 const DEFAULT_POLICY: Policy = {
   onboarding: false,
@@ -58,13 +69,15 @@ export default function AgeAssuranceSettingsPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [provider, setProvider] = useState<ProviderStatus | null>(null);
-  const [providerMode, setProviderMode] = useState<"test" | "live">("test");
+  const [providerWebsiteUrl, setProviderWebsiteUrl] = useState("https://possumbot.com");
   const [providerDashboardUrl, setProviderDashboardUrl] = useState("");
-  const [providerApiKey, setProviderApiKey] = useState("");
-  const [providerPublishableKey, setProviderPublishableKey] = useState("");
-  const [providerBrowserBaseUrl, setProviderBrowserBaseUrl] = useState("https://kai-api.test.k-id.com/fapi/v1");
+  const [providerDevelopmentOrigin, setProviderDevelopmentOrigin] = useState("http://localhost:3000");
   const [providerSupportEmail, setProviderSupportEmail] = useState("");
-  const [providerAction, setProviderAction] = useState<"save" | "test" | "start" | null>(null);
+  const [keyDrafts, setKeyDrafts] = useState<Record<ProviderMode, KeyDraft>>({
+    test: { apiKey: "", publishableKey: "" },
+    live: { apiKey: "", publishableKey: "" },
+  });
+  const [providerAction, setProviderAction] = useState<"save-test" | "save-live" | "activate" | "test" | "start" | null>(null);
   const [providerMessage, setProviderMessage] = useState("");
   const [providerError, setProviderError] = useState("");
   const [providerTestResult, setProviderTestResult] = useState("");
@@ -120,9 +133,9 @@ export default function AgeAssuranceSettingsPage() {
       if (!active) return;
       const next = result.provider as ProviderStatus;
       setProvider(next);
-      setProviderMode(next.mode === "live" ? "live" : "test");
-      setProviderDashboardUrl(window.location.origin);
-      setProviderBrowserBaseUrl(next.browserBaseUrl || (next.mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1"));
+      setProviderWebsiteUrl(next.publicWebsiteUrl || "https://possumbot.com");
+      setProviderDashboardUrl(next.dashboardUrl || window.location.origin);
+      setProviderDevelopmentOrigin(next.developmentOrigin || "http://localhost:3000");
       setProviderSupportEmail(next.supportEmail || "");
     }).catch((reason) => {
       if (active) setProviderError(reason instanceof Error ? reason.message : "Could not load k-ID provider settings.");
@@ -163,22 +176,50 @@ export default function AgeAssuranceSettingsPage() {
     void save(next);
   }
 
-  async function saveProvider() {
-    setProviderAction("save"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
+  async function saveProvider(mode: ProviderMode) {
+    setProviderAction(mode === "live" ? "save-live" : "save-test"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
     try {
       const response = await fetch("/api/age-assurance/provider", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: providerMode, apiBaseUrl: providerMode === "live" ? "https://kai-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1", dashboardUrl: providerDashboardUrl, apiKey: providerApiKey, publishableKey: providerPublishableKey, browserBaseUrl: providerBrowserBaseUrl, supportEmail: providerSupportEmail }),
+        body: JSON.stringify({
+          mode,
+          activate: false,
+          apiBaseUrl: mode === "live" ? "https://kai-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1",
+          dashboardUrl: providerDashboardUrl,
+          publicWebsiteUrl: providerWebsiteUrl,
+          developmentOrigin: providerDevelopmentOrigin,
+          apiKey: keyDrafts[mode].apiKey,
+          publishableKey: keyDrafts[mode].publishableKey,
+          browserBaseUrl: mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1",
+          supportEmail: providerSupportEmail,
+        }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not save k-ID settings.");
       const savedProvider = result.provider as ProviderStatus;
       setProvider(savedProvider);
-      setProviderBrowserBaseUrl(savedProvider.browserBaseUrl || providerBrowserBaseUrl);
-      setProviderSupportEmail(savedProvider.supportEmail || providerSupportEmail);
-      setProviderApiKey("");
-      setProviderMessage("k-ID settings saved in encrypted server storage. The API key is not shown again.");
+      setKeyDrafts((current) => ({ ...current, [mode]: { apiKey: "", publishableKey: "" } }));
+      setProviderMessage(`${mode === "live" ? "Live" : "Test"} keys saved separately in encrypted server storage. The test keys were preserved.`);
     } catch (reason) { setProviderError(reason instanceof Error ? reason.message : "Could not save k-ID settings."); }
+    finally { setProviderAction(null); }
+  }
+
+  async function activateProvider(mode: ProviderMode) {
+    setProviderAction("activate"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
+    try {
+      const response = await fetch("/api/age-assurance/provider-activate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success !== true) throw new Error(result?.error || `Could not activate ${mode} k-ID settings.`);
+      setProvider(result.provider as ProviderStatus);
+      const activeProvider = result.provider as ProviderStatus;
+      setProviderWebsiteUrl(activeProvider.publicWebsiteUrl || "https://possumbot.com");
+      setProviderDashboardUrl(activeProvider.dashboardUrl || window.location.origin);
+      setProviderDevelopmentOrigin(activeProvider.developmentOrigin || "http://localhost:3000");
+      setProviderMessage(`${mode === "live" ? "Live" : "Test"} is now the active environment. The other environment's keys remain saved.`);
+    } catch (reason) { setProviderError(reason instanceof Error ? reason.message : "Could not switch k-ID environment."); }
     finally { setProviderAction(null); }
   }
 
@@ -188,7 +229,7 @@ export default function AgeAssuranceSettingsPage() {
       const response = await fetch("/api/age-assurance/provider-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "k-ID test failed.");
-      setProviderTestResult(`Connected to k-ID ${provider?.mode || providerMode} API. Server key accepted. This does not test the browser key or its allowed origins.`);
+      setProviderTestResult(`Connected to k-ID ${provider?.mode || "active"} API. Server key accepted. This does not test the browser key or its allowed origins.`);
     } catch (reason) { setProviderError(reason instanceof Error ? reason.message : "k-ID test failed."); }
     finally { setProviderAction(null); }
   }
@@ -233,29 +274,50 @@ export default function AgeAssuranceSettingsPage() {
 
       <section style={card}>
         <h2 style={{ marginTop: 0 }}>k-ID provider setup</h2>
-        <p style={muted}>Connect your k-ID product here. Use its Test API key while building; the key is saved encrypted on the bot server and is never sent back to this page. Configure age rules and permission thresholds in k-ID Compliance Studio.</p>
+        <p style={muted}>Test and Live keys have separate encrypted slots. Saving one will not overwrite the other. Only the active environment is used for checks. These three origin fields are the addresses to add in Kai → Where it runs.</p>
         <div style={{ ...card, marginTop: 10 }}>
-          <strong>Connection status</strong>
-          <p style={muted}>Environment: {provider?.mode || "checking"} · server key: {provider?.serverApiKeyConfigured ? "saved" : "missing"} · browser key: {provider?.publishableKeyConfigured ? "saved" : "missing"} · encrypted storage: {provider?.storageReady ? "ready" : "not ready"} · dashboard URL: {provider?.dashboardUrlConfigured ? "ready" : "missing"} · support email: {provider?.supportEmailConfigured ? "ready" : "missing"}</p>
-          <p style={muted}>API endpoint: {provider?.apiBaseUrl || "not configured"}</p>
+          <strong>Active connection</strong>
+          <p style={muted}>Environment: {provider?.mode || "checking"} | server key: {provider?.serverApiKeyConfigured ? "saved" : "missing"} | browser key: {provider?.publishableKeyConfigured ? "saved" : "missing"} | encrypted storage: {provider?.storageReady ? "ready" : "not ready"} | dashboard URL: {provider?.dashboardUrlConfigured ? "ready" : "missing"} | support email: {provider?.supportEmailConfigured ? "ready" : "missing"}</p>
+          <p style={muted}>Active server API: {provider?.apiBaseUrl || "not configured"}</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12, marginTop: 12 }}>
-          <label style={muted}>k-ID environment<br /><select value={providerMode} disabled={providerAction !== null} onChange={(event) => { const mode = event.target.value as "test" | "live"; setProviderMode(mode); setProviderBrowserBaseUrl(mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1"); }} style={{ ...card, color: "#fff", padding: 10, width: "100%" }}><option value="test">Test (development)</option><option value="live">Live (production)</option></select></label>
-          <label style={muted}>Public dashboard URL<br /><input value={providerDashboardUrl} onChange={(event) => setProviderDashboardUrl(event.target.value)} placeholder="https://dashboard.example.com" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
-          <label style={muted}>k-ID browser SDK URL<br /><input value={providerBrowserBaseUrl} onChange={(event) => setProviderBrowserBaseUrl(event.target.value)} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>Public website origin<br /><input value={providerWebsiteUrl} onChange={(event) => setProviderWebsiteUrl(event.target.value)} placeholder="https://possumbot.com" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>Dashboard origin<br /><input value={providerDashboardUrl} onChange={(event) => setProviderDashboardUrl(event.target.value)} placeholder="https://dashboard.possumbot.com" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+          <label style={muted}>Local development origin (Test only)<br /><input value={providerDevelopmentOrigin} onChange={(event) => setProviderDevelopmentOrigin(event.target.value)} placeholder="http://localhost:3000" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
           <label style={muted}>Support email for k-ID<br /><input type="email" value={providerSupportEmail} onChange={(event) => setProviderSupportEmail(event.target.value)} placeholder="support@example.com" style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
-          <label style={muted}>k-ID server API key {provider?.serverApiKeyConfigured ? "(leave blank to keep current key)" : ""}<br /><input type="password" autoComplete="new-password" value={providerApiKey} onChange={(event) => setProviderApiKey(event.target.value)} placeholder={provider?.serverApiKeyConfigured ? "Saved securely" : "Paste the product's Test API key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
-          <label style={muted}>k-ID publishable key {provider?.publishableKeyConfigured ? "(leave blank to keep current key)" : ""}<br /><input type="password" autoComplete="new-password" value={providerPublishableKey} onChange={(event) => setProviderPublishableKey(event.target.value)} placeholder={provider?.publishableKeyConfigured ? "Saved securely" : "Paste the product's publishable key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12, marginTop: 12 }}>
+          {(["test", "live"] as const).map((mode) => {
+            const live = mode === "live";
+            const profile = provider?.profiles?.[mode];
+            const configured = Boolean(profile?.providerConfigured || (provider?.mode === mode && provider?.providerConfigured));
+            const hasServerKey = Boolean(profile?.serverApiKeyConfigured || (provider?.mode === mode && provider?.serverApiKeyConfigured));
+            const hasBrowserKey = Boolean(profile?.publishableKeyConfigured || (provider?.mode === mode && provider?.publishableKeyConfigured));
+            const apiUrl = live ? "https://kai-api.k-id.com/api/v1" : "https://kai-api.test.k-id.com/api/v1";
+            const browserUrl = live ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1";
+            return (
+              <div key={mode} style={{ ...card, marginTop: 0, borderColor: provider?.mode === mode ? "#e94876" : "#6d1834" }}>
+                <h3 style={{ marginTop: 0 }}>{live ? "Live (production)" : "Test (development)"}{provider?.mode === mode ? " | Active" : ""}</h3>
+                <p style={muted}>Server API: <code>{apiUrl}</code><br />Browser SDK: <code>{browserUrl}</code></p>
+                <p style={muted}>Server key: {hasServerKey ? "saved securely" : "not saved"} | Publishable key: {hasBrowserKey ? "saved securely" : "not saved"}</p>
+                <label style={muted}>k-ID server secret key<br /><input type="password" autoComplete="new-password" value={keyDrafts[mode].apiKey} onChange={(event) => setKeyDrafts((current) => ({ ...current, [mode]: { ...current[mode], apiKey: event.target.value } }))} placeholder={hasServerKey ? "Saved securely - leave blank to keep" : "Paste the " + (live ? "live" : "test") + " server key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+                <label style={muted}>k-ID publishable key<br /><input type="password" autoComplete="new-password" value={keyDrafts[mode].publishableKey} onChange={(event) => setKeyDrafts((current) => ({ ...current, [mode]: { ...current[mode], publishableKey: event.target.value } }))} placeholder={hasBrowserKey ? "Saved securely - leave blank to keep" : "Paste the " + (live ? "live" : "test") + " publishable key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                  <button type="button" style={button} disabled={providerAction !== null || !providerDashboardUrl.trim()} onClick={() => void saveProvider(mode)}>{providerAction === (live ? "save-live" : "save-test") ? "Saving..." : "Save " + (live ? "Live" : "Test") + " keys"}</button>
+                  <button type="button" style={button} disabled={providerAction !== null || !configured || provider?.mode === mode} onClick={() => void activateProvider(mode)}>{providerAction === "activate" ? "Switching..." : "Use " + (live ? "Live" : "Test")}</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
         {providerError ? <p role="alert" style={{ color: "#ff9b9b" }}>{providerError}</p> : null}
         {providerMessage ? <p role="status" style={{ color: "#9ce3b1" }}>{providerMessage}</p> : null}
         {providerTestResult ? <p role="status" style={{ color: "#9ce3b1" }}>{providerTestResult}</p> : null}
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button type="button" style={button} disabled={providerAction !== null || !providerDashboardUrl.trim()} onClick={() => void saveProvider()}>{providerAction === "save" ? "Saving…" : "Save k-ID setup"}</button>
-          <button type="button" style={button} disabled={providerAction !== null || !provider?.providerConfigured} onClick={() => void testProvider()}>{providerAction === "test" ? "Checking…" : "Test k-ID connection"}</button>
-          <button type="button" style={button} disabled={providerAction !== null || !guildId || !policy.adultFeatures || !provider?.providerConfigured} onClick={() => void startFullAgeKeyTest()}>{providerAction === "start" ? "Starting…" : "Start full AgeKey test"}</button>
+          <button type="button" style={button} disabled={providerAction !== null || !provider?.providerConfigured} onClick={() => void testProvider()}>{providerAction === "test" ? "Checking..." : "Test active k-ID connection"}</button>
+          <button type="button" style={button} disabled={providerAction !== null || !guildId || !policy.adultFeatures || !provider?.providerConfigured} onClick={() => void startFullAgeKeyTest()}>{providerAction === "start" ? "Starting..." : "Start full AgeKey test"}</button>
         </div>
-        <p style={{ ...muted, fontSize: 13 }}>The connection test checks only the server API and private key. For the browser widget, add <code>https://dashboard.possumbot.com</code> under the product&apos;s Developer Settings → Target origins in k-ID Compliance Studio. Start full AgeKey test opens the widget for this selected server; it requires Adult Emote Studio AgeKey to be enabled below.</p>
+        <p style={{ ...muted, fontSize: 13 }}>In Kai → Where it runs, add each origin as its own entry: the public website and dashboard under Live if the widget runs there; add localhost only under Test. Start full AgeKey test opens the widget for this selected server and requires Adult Emote Studio AgeKey to be enabled below.</p>
       </section>
 
       <section style={card}>

@@ -540,7 +540,7 @@ const CARDS: Card[] = [
   { href: "/dashboard/reviews", title: "Reviews", description: "Review panel deploy, star voting, and written feedback cards.", toggle: engineController("reviews", ["enabled"]) },
   { href: "/dashboard/community-studio", title: "Community Studio", description: "Bulletin drops, pulse polls, reminder loops, and lookup shelf answers.", toggle: engineController("communityStudio", ["active"]) },
   { href: "/dashboard/channel-flow", title: "Channel Flow", description: "Live counter channels and room-flow temporary voice spaces.", toggle: engineController("channelFlow", ["active"]) },
-  { href: "/dashboard/bump-reminder", title: "Bump Reminder", description: "Ping a role when Disboard or Discadia can be bumped again.", goOnly: true, goLabel: "Go" },
+  { href: "/dashboard/bump-reminder", title: "Bump Reminder", description: "Ping the bump role for Disboard, Discadia, or manually recorded Discords.com reminders.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/search-anything", title: "Search Anything", description: "Guild-level search routes for web, video, wiki, meme, anime, and creator lookups.", toggle: engineController("searchAnything", ["enabled"]) },
   { href: "/dashboard/social-alerts", title: "Social Alerts", description: "Provider cards for RSS, podcast, YouTube, Twitch, TikTok, X, Bluesky, Reddit, Instagram, and Kick.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/signal-relay", title: "Signal Relay", description: "Provider-aware creator and community dispatches with bridge routes, direct feeds, and live checks.", toggle: engineController("signalRelay", ["active"]) },

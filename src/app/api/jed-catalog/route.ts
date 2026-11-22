@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
+import { getDashboardPublicOrigin } from "@/lib/dashboardUrl";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
 
@@ -107,7 +108,9 @@ async function readBody(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (await limited(request, "jed_catalog_write")) return reply({ success: false, error: "Too many catalog updates. Retry shortly." }, 429);
   const origin = request.headers.get("origin") || "";
-  if (!origin || new URL(origin).origin !== request.nextUrl.origin || request.headers.get("sec-fetch-site") === "cross-site") {
+  let requestOrigin = "";
+  try { requestOrigin = new URL(origin).origin; } catch {}
+  if (!requestOrigin || requestOrigin !== getDashboardPublicOrigin(request) || request.headers.get("sec-fetch-site") === "cross-site") {
     return reply({ success: false, error: "Same-origin request required." }, 403);
   }
   const actor = await userId(request);

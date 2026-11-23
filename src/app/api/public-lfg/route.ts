@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
-import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
+import { attachPublicGamingGuestCookie, publicGamingActor } from "@/lib/publicGamingGuest";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store, private" };
@@ -16,12 +16,6 @@ function unavailableError(value: unknown, fallback: string) {
     "Public LFG is busy; retry.",
   ];
   return typeof value === "string" && known.includes(value) ? value : fallback;
-}
-
-async function actor(request: NextRequest) {
-  const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
-  const id = String(session?.user?.id || "").trim();
-  return /^\d{16,20}$/.test(id) ? id : "";
 }
 
 function listing(value: any, own = false) {
@@ -60,19 +54,20 @@ export async function GET(request: NextRequest) {
     const cursors = request.nextUrl.searchParams.getAll("cursor");
     const cursor = cursors[0];
     if (cursors.length > 1 || (cursors.length && (own || !cursorPattern.test(cursor)))) return reply({ success: false, error: "Invalid listing cursor." }, 400);
-    const user = own ? await actor(request) : "";
-    if (own && !user) return reply({ success: false, error: "Sign in to manage your listings." }, 401);
+    const actor = own ? await publicGamingActor(request, true) : null;
+    if (own && !actor) return reply({ success: false, error: "A public Gaming Hub account could not be created." }, 503);
     const query = own ? "?me=1" : cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-lfg${query}`, {
-      headers: buildServerBotApiHeaders(user), cache: "no-store",
+      headers: buildServerBotApiHeaders(actor?.id || ""), cache: "no-store",
     });
     const data = await readServerBotApiJson(upstream);
     if (!upstream.ok || data?.success !== true) {
       if (upstream.status === 400) return reply({ success: false, error: "Invalid listing cursor." }, 400);
       return reply({ success: false, error: unavailableError(data?.error, "Public LFG is unavailable.") }, 503);
     }
-    return reply({ success: true, listings: Array.isArray(data.listings) ? data.listings.map((item: any) => listing(item, own)).filter(Boolean) : [],
+    const response = reply({ success: true, listings: Array.isArray(data.listings) ? data.listings.map((item: any) => listing(item, own)).filter(Boolean) : [],
       nextCursor: !own && typeof data.nextCursor === "string" && cursorPattern.test(data.nextCursor) ? data.nextCursor : null });
+    return own ? attachPublicGamingGuestCookie(response, actor, request) : response;
   } catch { return reply({ success: false, error: "Public LFG is unavailable or rate limited." }, 503); }
 }
 
@@ -86,14 +81,14 @@ export async function POST(request: NextRequest) {
     if (!host || !parsed || !["http:", "https:"].includes(parsed.protocol) || parsed.host !== host || request.headers.get("sec-fetch-site") === "cross-site") {
       return reply({ success: false, error: "Same-origin request required." }, 403);
     }
-    const user = await actor(request);
-    if (!user) return reply({ success: false, error: "Sign in to manage your listings." }, 401);
+    const actor = await publicGamingActor(request, true);
+    if (!actor) return reply({ success: false, error: "A public Gaming Hub account is unavailable." }, 503);
     if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) return reply({ success: false, error: "JSON required." }, 415);
     let body;
     try { body = await readBody(request); } catch { return reply({ success: false, error: "Request is too large." }, 413); }
     if (!body || !["post", "join", "leave", "close"].includes(body.action)) return reply({ success: false, error: "Invalid action." }, 400);
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-lfg`, {
-      method: "POST", headers: { ...buildServerBotApiHeaders(user), "Content-Type": "application/json" },
+      method: "POST", headers: { ...buildServerBotApiHeaders(actor.id), "Content-Type": "application/json" },
       body: JSON.stringify({ action: body.action, id: body.id, consent: body.consent, nickname: body.nickname, contact: body.contact,
         game: body.game, mode: body.mode, platform: body.platform, note: body.note, capacity: body.capacity }),
       cache: "no-store",
@@ -103,6 +98,6 @@ export async function POST(request: NextRequest) {
       const status = [400, 403, 404, 409].includes(upstream.status) ? upstream.status : 503;
       return reply({ success: false, error: status === 503 ? unavailableError(data?.error, "Public LFG could not be updated.") : String(data?.error || "Invalid request.") }, status);
     }
-    return reply({ success: true, listing: listing(data.listing) });
+    return attachPublicGamingGuestCookie(reply({ success: true, listing: listing(data.listing) }), actor, request);
   } catch { return reply({ success: false, error: "Public LFG could not be updated or rate limited." }, 503); }
 }

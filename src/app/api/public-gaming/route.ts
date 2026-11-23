@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
-import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
+import { attachPublicGamingGuestCookie, publicGamingActor } from "@/lib/publicGamingGuest";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store, private" };
 
 function reply(data: unknown, status = 200) {
   return NextResponse.json(data, { status, headers });
-}
-
-async function actor(request: NextRequest) {
-  const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
-  return String(session?.user?.id || "").trim();
 }
 
 function profile(value: any) {
@@ -28,7 +23,14 @@ function profile(value: any) {
       return [];
     }
   }).slice(0, 8) : [];
-  return { nickname: value.nickname, game: value.game, contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "", accounts };
+  const gameStats = Array.isArray(value.gameStats) ? value.gameStats.flatMap((entry: any) => {
+    if (!entry || typeof entry.game !== "string" || entry.game.length > 80 ||
+        typeof entry.platform !== "string" || entry.platform.length > 40 ||
+        typeof entry.progress !== "string" || entry.progress.length > 120 ||
+        typeof entry.hours !== "number" || !Number.isFinite(entry.hours) || entry.hours < 0 || entry.hours > 100000) return [];
+    return [{ game: entry.game, platform: entry.platform, hours: entry.hours, progress: entry.progress }];
+  }).slice(0, 20) : [];
+  return { nickname: value.nickname, game: value.game, contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "", accounts, gameStats };
 }
 
 async function readBody(request: NextRequest) {
@@ -54,15 +56,15 @@ export async function GET(request: NextRequest) {
   try {
     await enforceDashboardRateLimit(request, "public_gaming_read");
     const own = request.nextUrl.searchParams.get("me") === "1";
-    const userId = own ? await actor(request) : "";
-    if (own && !userId) return reply({ success: false, error: "Sign in to manage your public profile." }, 401);
+    const actor = own ? await publicGamingActor(request, true) : null;
+    if (own && !actor) return reply({ success: false, error: "A public Gaming Hub account could not be created." }, 503);
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming${own ? "/me" : ""}`, {
-      headers: buildServerBotApiHeaders(userId),
+      headers: buildServerBotApiHeaders(actor?.id || ""),
       cache: "no-store",
     });
     const data = await readServerBotApiJson(upstream);
     if (!upstream.ok || data?.success !== true) return reply({ success: false, error: "Public Gaming Hub is unavailable." }, 503);
-    if (own) return reply({ success: true, profile: profile(data.profile) });
+    if (own) return attachPublicGamingGuestCookie(reply({ success: true, profile: profile(data.profile) }), actor, request);
     return reply({ success: true, profiles: Array.isArray(data.profiles) ? data.profiles.map(profile).filter(Boolean) : [] });
   } catch {
     return reply({ success: false, error: "Public Gaming Hub is unavailable or rate limited." }, 503);
@@ -79,8 +81,8 @@ export async function POST(request: NextRequest) {
     if (!host || !originHost || originHost !== host || request.headers.get("sec-fetch-site") === "cross-site") {
       return reply({ success: false, error: "Same-origin request required." }, 403);
     }
-    const userId = await actor(request);
-    if (!userId) return reply({ success: false, error: "Sign in to manage your public profile." }, 401);
+    const actor = await publicGamingActor(request, true);
+    if (!actor) return reply({ success: false, error: "A public Gaming Hub account is unavailable." }, 503);
     if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) {
       return reply({ success: false, error: "JSON required." }, 415);
     }
@@ -91,15 +93,15 @@ export async function POST(request: NextRequest) {
     }
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming/me`, {
       method: "POST",
-      headers: { ...buildServerBotApiHeaders(userId), "Content-Type": "application/json" },
-      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle, accounts: body.accounts }),
+      headers: { ...buildServerBotApiHeaders(actor.id), "Content-Type": "application/json" },
+      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle, accounts: body.accounts, gameStats: body.gameStats }),
       cache: "no-store",
     });
     const data = await readServerBotApiJson(upstream);
     if (!upstream.ok || data?.success !== true) {
       return reply({ success: false, error: upstream.status === 400 ? String(data?.error || "Invalid profile.") : "Public profile could not be updated." }, upstream.status === 400 ? 400 : 503);
     }
-    return reply({ success: true, profile: profile(data.profile) });
+    return attachPublicGamingGuestCookie(reply({ success: true, profile: profile(data.profile) }), actor, request);
   } catch {
     return reply({ success: false, error: "Public profile could not be updated or rate limited." }, 503);
   }

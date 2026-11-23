@@ -31,6 +31,7 @@ type TicketTypeConfig = {
 
 type TicketsConfig = {
   active: boolean;
+  inactivityClose: { enabled: boolean; hours: number };
   panelChannelId: string;
   panelLayout: "separate" | "combined";
   panelTitle: string;
@@ -105,6 +106,7 @@ function emptyType(key: TicketTypeKey): TicketTypeConfig {
 function defaultConfig(): TicketsConfig {
   return {
     active: true,
+    inactivityClose: { enabled: true, hours: 48 },
     panelChannelId: "",
     panelLayout: "separate",
     panelTitle: "Support Tickets",
@@ -164,6 +166,10 @@ function normalizeConfig(inputValue: any): TicketsConfig {
 
   return {
     active: input.active !== false,
+    inactivityClose: {
+      enabled: input.inactivityClose?.enabled !== false,
+      hours: Math.max(24, Math.min(72, Number(input.inactivityClose?.hours) || 48)),
+    },
     panelChannelId: String(input.panelChannelId || ""),
     panelLayout: String(input.panelLayout || base.panelLayout).toLowerCase() === "combined" ? "combined" : "separate",
     panelTitle: String(input.panelTitle || base.panelTitle),
@@ -472,6 +478,34 @@ export default function TicketsClient() {
                   style={{ marginRight: 8 }}
                 />
                 Shared transcript archive mode
+              </label>
+            </div>
+          </div>
+
+          <div style={card}>
+            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Auto-close tickets after the opener goes quiet</h3>
+            <p style={{ color: "#ffb0b0", fontSize: 13 }}>
+              Only a message from the ticket opener resets this timer. The bot closes the channel, keeps its history, and DMs the opener with a button to the ticket panel. Existing open tickets get a 48-hour grace period after this setting is deployed.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "end" }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={cfg.inactivityClose.enabled}
+                  onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, enabled: event.target.checked } }))}
+                  style={{ marginRight: 8 }}
+                />
+                Enable automatic close and DM
+              </label>
+              <label>
+                Opener inactivity
+                <select
+                  style={input}
+                  value={cfg.inactivityClose.hours}
+                  onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, hours: Number(event.target.value) } }))}
+                >
+                  {[24, 36, 48, 60, 72].map((hours) => <option key={hours} value={hours}>{hours} hours</option>)}
+                </select>
               </label>
             </div>
           </div>

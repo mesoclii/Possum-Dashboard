@@ -7,7 +7,9 @@ import GameSocialClient from "@/components/possum/GameSocialClient";
 import PublicSquads from "@/components/possum/PublicSquads";
 
 type AccountLink = { label: string; url: string };
-type Profile = { nickname: string; game: string; contactHandle: string; accounts: AccountLink[] };
+type GameStat = { game: string; platform: string; hours: string; progress: string };
+type PublicGameStat = { game: string; platform: string; hours: number; progress: string };
+type Profile = { nickname: string; game: string; contactHandle: string; accounts: AccountLink[]; gameStats: PublicGameStat[] };
 type Guild = { id: string; name: string };
 const panel: CSSProperties = { border: "1px solid #ff2e75", borderRadius: 16, padding: 20, background: "#21000e" };
 const input: CSSProperties = { width: "100%", padding: 10, border: "1px solid #ff2e75", borderRadius: 8, color: "#fff", background: "#16000b" };
@@ -19,6 +21,7 @@ export default function PublicGamingPage() {
   const [unavailable, setUnavailable] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [sessionLoaded, setSessionLoaded] = useState(false);
+  const [guestReady, setGuestReady] = useState(false);
   const [userId, setUserId] = useState("");
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [guildId, setGuildId] = useState("");
@@ -31,6 +34,7 @@ export default function PublicGamingPage() {
   const [game, setGame] = useState("");
   const [contactHandle, setContactHandle] = useState("");
   const [accountLinks, setAccountLinks] = useState<AccountLink[]>([]);
+  const [gameStats, setGameStats] = useState<GameStat[]>([{ game: "", platform: "", hours: "", progress: "" }]);
   const [filter, setFilter] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,17 +54,19 @@ export default function PublicGamingPage() {
       setMessage("Public profiles are unavailable. Please try again later.");
     }).finally(() => setLoading(false));
     void (async () => {
+      let discordUserId = "";
       try {
         const sessionResponse = await fetch("/api/auth/session?brief=1", { cache: "no-store" });
-        if (!sessionResponse.ok) throw new Error("Session unavailable");
-        const session = await sessionResponse.json();
-        if (!session.loggedIn) return;
-        const sessionUserId = String(session.user?.id || "");
-        if (!sessionUserId) throw new Error("Session unavailable");
-        setLoggedIn(true);
-        setUserId(sessionUserId);
+        const session = sessionResponse.ok ? await sessionResponse.json() : null;
+        if (session?.loggedIn) {
+          discordUserId = String(session.user?.id || "");
+          setLoggedIn(Boolean(discordUserId));
+          setUserId(discordUserId);
+        }
+      } catch {}
+
+      if (discordUserId) {
         setGuildLoading(true);
-        setSessionLoaded(true);
         try {
           const guildResponse = await fetch("/api/guilds/installed", { cache: "no-store" });
           const guildData = await guildResponse.json();
@@ -76,17 +82,24 @@ export default function PublicGamingPage() {
         } finally {
           setGuildLoading(false);
         }
+      }
+
+      try {
         const response = await fetch("/api/public-gaming?me=1", { cache: "no-store" });
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error();
+        if (!response.ok || !data.success) throw new Error(data.error || "Your public Gaming Hub profile is unavailable.");
         setOwn(data.profile);
         setOwnLoaded(true);
+        setGuestReady(true);
         setNickname(data.profile?.nickname || "");
         setGame(data.profile?.game || "");
         setContactHandle(data.profile?.contactHandle || "");
         setAccountLinks(Array.isArray(data.profile?.accounts) ? data.profile.accounts : []);
-      } catch {
-        setMessage("Your session or public sharing status could not be loaded. Please refresh and try again.");
+        setGameStats(Array.isArray(data.profile?.gameStats) && data.profile.gameStats.length
+          ? data.profile.gameStats.map((entry: PublicGameStat) => ({ ...entry, hours: String(entry.hours) }))
+          : [{ game: "", platform: "", hours: "", progress: "" }]);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Your public Gaming Hub profile is unavailable.");
       } finally {
         setSessionLoaded(true);
       }
@@ -112,16 +125,25 @@ export default function PublicGamingPage() {
     setBusy(true);
     setMessage("");
     try {
+      const publicGameStats = gameStats.filter((entry) => entry.game.trim()).map((entry) => ({
+        game: entry.game,
+        platform: entry.platform,
+        hours: Number(entry.hours || 0),
+        progress: entry.progress,
+      }));
       const response = await fetch("/api/public-gaming", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, nickname, game, contactHandle, accounts: accountLinks, consent }),
+        body: JSON.stringify({ action, nickname, game, contactHandle, accounts: accountLinks, gameStats: publicGameStats, consent }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Update failed.");
       setOwn(data.profile);
       setOwnLoaded(true);
       setAccountLinks(action === "revoke" || !Array.isArray(data.profile?.accounts) ? [] : data.profile.accounts);
+      setGameStats(action === "revoke" || !Array.isArray(data.profile?.gameStats) || !data.profile.gameStats.length
+        ? [{ game: "", platform: "", hours: "", progress: "" }]
+        : data.profile.gameStats.map((entry: PublicGameStat) => ({ ...entry, hours: String(entry.hours) })));
       setConsent(false);
       if (action === "revoke") setContactHandle("");
       setMessage(action === "revoke" ? "Public sharing revoked." : "Your public profile is published.");
@@ -148,7 +170,11 @@ export default function PublicGamingPage() {
     setAccountLinks((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
   }
 
-  const visible = profiles.filter((entry) => `${entry.nickname} ${entry.game} ${entry.contactHandle} ${entry.accounts.map((account) => `${account.label} ${account.url}`).join(" ")}`.toLowerCase().includes(filter.trim().toLowerCase()));
+  function updateGameStat(index: number, field: keyof GameStat, value: string) {
+    setGameStats((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, [field]: value } : entry));
+  }
+
+  const visible = profiles.filter((entry) => `${entry.nickname} ${entry.game} ${entry.contactHandle} ${entry.accounts.map((account) => `${account.label} ${account.url}`).join(" ")} ${(entry.gameStats || []).map((stat) => `${stat.game} ${stat.platform} ${stat.hours} ${stat.progress}`).join(" ")}`.toLowerCase().includes(filter.trim().toLowerCase()));
   return (
     <main style={{ minHeight: "100vh", padding: "32px 16px 70px", color: "#ffe0e8", background: "radial-gradient(ellipse at 85% 0%, #5b082e 0%, transparent 36%), radial-gradient(ellipse at 0% 40%, #3b071f 0%, transparent 40%), #10000b" }}>
       <div style={{ maxWidth: 1380, margin: "auto", display: "grid", gap: 20 }}>
@@ -165,21 +191,25 @@ export default function PublicGamingPage() {
           <button type="button" aria-pressed={tab === "directory"} style={{ ...button, background: tab === "directory" ? "#d40050" : "#290016" }} onClick={() => setTab("directory")}>Public player directory</button>
         </nav>
         <section style={panel} aria-labelledby="discord-community">
-          <h2 id="discord-community">Get started on Discord</h2>
-          <p>Browse public profiles and open squads without Discord. To link game providers, publish your own profile, or use a Discord community, sign in with Discord. Install Discord only if you want the app.</p>
+          <h2 id="discord-community">Play your way</h2>
+          <p>Create a public gaming profile, add your gamer tags and account links, share your game hours and progress, and find a squad without signing in to Discord. Discord is optional for people who also want activity from their server community.</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            <a href="https://discord.com/register" target="_blank" rel="noopener noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Create a Discord account</a>
             <a href="https://discord.com/app" target="_blank" rel="noopener noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Use Discord in your browser</a>
             <a href="https://discord.com/download" target="_blank" rel="noopener noreferrer" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Download Discord</a>
             <a href="/api/auth/discord/invite" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Add Possum Bot to a server</a>
           </div>
         </section>
-        {tab === "squads" && <div style={panel}><PublicSquads loggedIn={loggedIn} /></div>}
+        {tab === "squads" && !loggedIn && !guestReady ? <section style={panel} role="status">Preparing your private Gaming Hub profile…</section> : null}
+        {tab === "squads" && (loggedIn || guestReady) && <div style={panel}><PublicSquads loggedIn /></div>}
         {tab === "community" && <section style={panel} aria-labelledby="community-hub">
           <h2 id="community-hub" style={{ fontSize: 24, margin: "0 0 8px", color: "#fff" }}>Your gaming community</h2>
-          <p style={{ color: "#efb4c9" }}>Profiles, linked accounts, stats, live players and squad finder use the same tools as your Discord server.</p>
+          <p style={{ color: "#efb4c9" }}>Public profiles, manually added gamer tags, self-reported playtime and progress, and public squads work without Discord. Sign in only if you also want private activity from a Discord community you belong to.</p>
           {!sessionLoaded ? <p role="status">Checking your session…</p> : !loggedIn ? (
-            <a href="/api/auth/discord/login?returnTo=%2Fgaming" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Sign in with Discord</a>
+            <div style={{ display: "grid", gap: 10 }}>
+              <p>Public profiles, account links, reported game progress, and squads work without Discord. Discord sign-in is optional and only adds activity from a server where you are a member.</p>
+              <button type="button" style={{ ...button, justifySelf: "start" }} onClick={() => setTab("directory")}>Set up your public gamer profile</button>
+              <a href="/api/auth/discord/login?returnTo=%2Fgaming" style={{ color: "#ff9ebc" }}>Optionally connect Discord for server activity</a>
+            </div>
           ) : guildLoading ? <p role="status">Finding your communities…</p> : guildError ? (
             <p role="alert">{guildError} Refresh the page to retry.</p>
           ) : !guilds.length ? (
@@ -205,18 +235,38 @@ export default function PublicGamingPage() {
               {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong><div style={{ color: "#ff81ad", marginTop: 8 }}>{entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}{entry.accounts.length ? <div style={{ display: "grid", gap: 6, marginTop: 12 }}><strong style={{ color: "#ffd0df", fontSize: 13 }}>Public account links</strong>{entry.accounts.map((account, accountIndex) => <a key={`${account.label}-${accountIndex}`} href={account.url} target="_blank" rel="noopener noreferrer" style={{ color: "#ff9ebc", overflowWrap: "anywhere" }}>{account.label}</a>)}</div> : null}</li>)}
             </ul>
           ) : <p style={{ ...panel, marginTop: 16, color: "#f4b7ce" }}>{filter ? "No matching public profiles." : "No public profiles yet. Publish an introduction below to get started."}</p>}
+          {visible.some((entry) => entry.gameStats?.length) && <div style={{ marginTop: 18 }}>
+            <h3 style={{ color: "#fff" }}>Games, hours and progress</h3>
+            <ul style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 10, listStyle: "none", padding: 0 }}>
+              {visible.flatMap((entry, profileIndex) => (entry.gameStats || []).map((stat, statIndex) => <li key={profileIndex + "-" + statIndex} style={{ border: "1px solid #8a2450", borderRadius: 12, padding: 14, background: "#19000e" }}>
+                <strong>{entry.nickname}</strong><div style={{ color: "#ff81ad", marginTop: 6 }}>{stat.game}{stat.platform ? " · " + stat.platform : ""}</div>
+                <div>{stat.hours} hours · self-reported</div>{stat.progress ? <div>{stat.progress}</div> : null}
+              </li>))}
+            </ul>
+          </div>}
           <small>Up to 200 published profiles are shown.</small>
         </section>
         <section style={panel} aria-labelledby="public-sharing">
-          <h2 id="public-sharing">Your public introduction</h2>
-          <p>Publishing is optional and separate from Discord server privacy. Your nickname, game, contact handle and any account links you add are public to everyone online until you revoke them. Only add details you are comfortable sharing publicly. Account links are not verified by Possum.</p>
-          {!loggedIn ? <div style={{ display: "grid", gap: 8 }}><a href="/api/auth/discord/login?returnTo=%2Fgaming" style={{ color: "#ff9ebc" }}>Sign in with Discord to publish or revoke your introduction</a><p style={{ margin: 0 }}>Don&apos;t have Discord? <a href="https://discord.com/register" target="_blank" rel="noopener noreferrer" style={{ color: "#ff9ebc" }}>Create a free Discord account</a>, then return here to sign in.</p></div> : (
+          <h2 id="public-sharing">Your public gaming profile</h2>
+          <p>Publishing is optional and separate from Discord. Your nickname, featured game, contact handle, account links and game progress are visible to everyone online until you revoke them. Account links and progress are self-reported, not provider-verified. This browser keeps the private key to manage your profile; clearing its site data removes your access to it.</p>
+          {!ownLoaded ? <p role="status">Preparing your private profile on this browser…</p> : (
             <>
               <p>{!ownLoaded ? "Your sharing status is unavailable." : own ? "Your introduction is currently public." : "You have not published an introduction."}</p>
               <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
                 <label>Public nickname <input style={input} required maxLength={40} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label>
                 <label>Game <input style={input} required maxLength={80} value={game} onChange={(event) => setGame(event.target.value)} /></label>
                 <label>Public contact handle (optional; visible to everyone) <input style={input} maxLength={80} autoComplete="off" value={contactHandle} onChange={(event) => setContactHandle(event.target.value)} /></label>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div><strong>Games, hours and progress</strong><p style={{ margin: "4px 0 0", color: "#efb4c9" }}>Add the games you want other players to see. Hours and progress are your own entries.</p></div>
+                  {gameStats.map((stat, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr)) auto", gap: 8, alignItems: "end" }}>
+                    <label>Game <input style={input} required={Boolean(stat.game || stat.hours || stat.platform || stat.progress)} maxLength={80} value={stat.game} onChange={(event) => updateGameStat(index, "game", event.target.value)} /></label>
+                    <label>Platform <input style={input} maxLength={40} value={stat.platform} onChange={(event) => updateGameStat(index, "platform", event.target.value)} /></label>
+                    <label>Hours played <input style={input} type="number" min={0} max={100000} step="0.1" required={Boolean(stat.game)} value={stat.hours} onChange={(event) => updateGameStat(index, "hours", event.target.value)} /></label>
+                    <label>Progress or stats <input style={input} maxLength={120} value={stat.progress} onChange={(event) => updateGameStat(index, "progress", event.target.value)} /></label>
+                    <button type="button" disabled={busy || gameStats.length <= 1} style={button} onClick={() => setGameStats((current) => current.filter((_, entryIndex) => entryIndex !== index))}>Remove</button>
+                  </div>)}
+                  <button type="button" disabled={busy || gameStats.length >= 20} style={{ ...button, justifySelf: "start" }} onClick={() => setGameStats((current) => [...current, { game: "", platform: "", hours: "", progress: "" }])}>Add a game</button>
+                </div>
                 <div style={{ display: "grid", gap: 10 }}>
                   <div><strong>Link your other accounts</strong><p style={{ margin: "4px 0 0", color: "#efb4c9" }}>Add public profile URLs for any games or services you use. These are links only; Possum does not sign in to or verify them.</p></div>
                   {accountLinks.map((account, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr)) auto", gap: 8, alignItems: "end" }}>
@@ -226,7 +276,7 @@ export default function PublicGamingPage() {
                   </div>)}
                   <button type="button" disabled={busy || accountLinks.length >= 8} style={{ ...button, justifySelf: "start" }} onClick={() => setAccountLinks((current) => [...current, { label: "", url: "" }])}>Add account link</button>
                 </div>
-                <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I explicitly agree to publish this nickname, game, contact handle and any account links entered above to everyone on the internet until I revoke it.</label>
+                <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I explicitly agree to publish the profile, account links and game details entered above to everyone online until I revoke sharing.</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                   <button type="submit" disabled={busy || !consent || !ownLoaded} style={button}>{own ? "Update public introduction" : "Publish introduction"}</button>
                   <button type="button" disabled={busy} style={button} onClick={() => void update("revoke")}>Revoke public sharing</button>

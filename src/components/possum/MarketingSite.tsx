@@ -15,8 +15,9 @@ const navigation = [
 
 export function MarketingHeader() {
   return (
-    <header className="site-header">
-      <div className="site-header-inner">
+    <>
+      <header className="site-header">
+        <div className="site-header-inner">
         <Link href="/" className="site-brand" aria-label="Possum Bot home">
           <span className="site-brand-mark" aria-hidden="true">P</span>
           <span className="site-brand-copy">
@@ -30,11 +31,20 @@ export function MarketingHeader() {
           ))}
         </nav>
         <div className="site-header-actions">
-          <Link href="/guilds" className="site-login-link">Dashboard <span aria-hidden="true">↗</span></Link>
+          <Link href="https://dashboard.possumbot.com/guilds" className="site-login-link">Dashboard <span aria-hidden="true">↗</span></Link>
           <a href={buildPublicInviteUrl()} className="site-button site-button-small">Add to Discord <span aria-hidden="true">↗</span></a>
         </div>
-      </div>
-    </header>
+        </div>
+      </header>
+      <section className="site-project-banner" aria-label="Project design credits">
+        <div className="site-project-credit">
+          <span>Designed by</span>
+          <strong data-no-translate>
+            <span>aStonedPossum</span><i aria-hidden="true"> • </i><span>aCityRaccoon</span><i aria-hidden="true"> • </i><span>FluffyBnny</span>
+          </strong>
+        </div>
+      </section>
+    </>
   );
 }
 
@@ -65,30 +75,6 @@ export function MarketingFooter() {
           <span>Latest checked-out commits</span>
         </div>
         <ProjectUpdateTimes />
-        <div
-          className="site-footer-credit"
-          aria-label="Website design credit"
-          style={{
-            gridColumn: "1 / -1",
-            width: "100%",
-            padding: "30px 12px 18px",
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px",
-            borderTop: "1px solid rgba(255,54,54,.22)",
-            marginTop: "8px",
-          }}
-        >
-          <span style={{ color: "#ff3636", fontSize: "clamp(13px, 2vw, 17px)", fontWeight: 900, letterSpacing: ".28em", textTransform: "uppercase" }}>
-            Designed by
-          </span>
-          <strong style={{ color: "#ff3636", fontSize: "clamp(23px, 4.5vw, 42px)", lineHeight: 1.15, fontWeight: 950, letterSpacing: ".015em", textShadow: "0 0 22px rgba(255,54,54,.38)" }}>
-            aStonedPossum • aCityRaccoon • FluffyBnny
-          </strong>
-        </div>
       </div>
     </footer>
   );
@@ -161,7 +147,7 @@ export function MarketingHome() {
             </p>
             <div className="hero-actions">
               <a href={buildPublicInviteUrl()} className="site-button">Add Possum to Discord <span aria-hidden="true">↗</span></a>
-              <Link href="/guilds" className="site-button site-button-quiet">Open dashboard <span aria-hidden="true">→</span></Link>
+              <Link href="https://dashboard.possumbot.com/guilds" className="site-button site-button-quiet">Open dashboard <span aria-hidden="true">→</span></Link>
             </div>
             <div className="hero-proof">
               <span><i /> Server-aware configuration</span>
@@ -321,7 +307,7 @@ export function MarketingInfoPage({
         {note ? <p className="info-note">{note}</p> : null}
         <section className="info-cta">
           <div><div className="eyebrow">TAKE THE NEXT STEP</div><h2>Make Possum yours.</h2><p>Invite the bot, choose a server and configure the modules you want to use.</p></div>
-          <div className="hero-actions"><a href={buildPublicInviteUrl()} className="site-button">Add to Discord ↗</a><Link href="/guilds" className="site-button site-button-quiet">Open dashboard →</Link></div>
+          <div className="hero-actions"><a href={buildPublicInviteUrl()} className="site-button">Add to Discord ↗</a><Link href="https://dashboard.possumbot.com/guilds" className="site-button site-button-quiet">Open dashboard →</Link></div>
         </section>
       </main>
       <MarketingFooter />

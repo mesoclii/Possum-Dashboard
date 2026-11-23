@@ -26,12 +26,12 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForDashboard(timeoutMs = 30000) {
+async function waitForPublicSite(timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   let lastStatus = "not checked";
   while (Date.now() < deadline) {
     try {
-      const response = await fetch("http://127.0.0.1:3000/api/status", {
+      const response = await fetch("http://127.0.0.1:3002/api/status", {
         signal: AbortSignal.timeout(3000),
         cache: "no-store"
       });
@@ -42,7 +42,7 @@ async function waitForDashboard(timeoutMs = 30000) {
     }
     await wait(1500);
   }
-  process.stderr.write(`[possum-deploy] Dashboard did not become healthy: ${lastStatus}\n`);
+  process.stderr.write(`[possum-deploy] Public site did not become healthy: ${lastStatus}\n`);
   return false;
 }
 
@@ -63,24 +63,24 @@ async function main() {
     throw new Error("Next.js is not installed. Run npm ci before deploying.");
   }
 
-  run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], "Building dashboard");
+  run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], "Building public site");
   const buildId = path.join(buildDir, "BUILD_ID");
   if (!fs.existsSync(buildId) || !fs.readFileSync(buildId, "utf8").trim()) {
     throw new Error("Build command returned success but .next/BUILD_ID is missing. PM2 was not touched.");
   }
 
   try {
-    run("pm2", ["restart", "possum-dashboard", "--update-env"], "Restarting the existing PM2 dashboard process");
-    if (await waitForDashboard()) {
-      process.stdout.write("[possum-deploy] Dashboard build and health check succeeded.\n");
+    run("pm2", ["startOrReload", path.join(root, "ecosystem.config.cjs"), "--update-env"], "Starting or reloading the public-site PM2 process");
+    if (await waitForPublicSite()) {
+      process.stdout.write("[possum-deploy] Public-site build and health check succeeded.\n");
       return;
     }
-    throw new Error("New dashboard build failed its post-restart health check.");
+    throw new Error("New public-site build failed its post-restart health check.");
   } catch (deployError) {
     if (!restorePreviousBuild()) throw deployError;
     try {
-      run("pm2", ["restart", "possum-dashboard", "--update-env"], "Restarting previous dashboard process");
-      if (await waitForDashboard()) {
+      run("pm2", ["startOrReload", path.join(root, "ecosystem.config.cjs"), "--update-env"], "Starting or reloading the previous public-site PM2 build");
+      if (await waitForPublicSite()) {
         throw new Error(`Deployment rejected: ${deployError.message} Previous build restored and responding.`);
       }
       throw new Error("Previous build was restored but did not pass the health check.");

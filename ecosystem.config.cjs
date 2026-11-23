@@ -1,10 +1,10 @@
 module.exports = {
   apps: [
     {
-      name: "possum-dashboard",
+      name: "possum-public-site",
       cwd: __dirname,
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3000 -H 127.0.0.1",
+      args: "start -p 3002 -H 127.0.0.1",
       watch: false,
       instances: 1,
       exec_mode: "fork",
@@ -17,7 +17,7 @@ module.exports = {
       listen_timeout: 10000,
       env: {
         NODE_ENV: "production",
-        PORT: "3000",
+        PORT: "3002",
         HOSTNAME: "127.0.0.1",
         NEXT_TELEMETRY_DISABLED: "1",
       },

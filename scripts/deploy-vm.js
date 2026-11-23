@@ -63,7 +63,7 @@ async function main() {
     throw new Error("Next.js is not installed. Run npm ci before deploying.");
   }
 
-  run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build"], "Building public site");
+  run(process.platform === "win32" ? "npm.cmd" : "npm", ["run", "build:vm"], "Building public site");
   const buildId = path.join(buildDir, "BUILD_ID");
   if (!fs.existsSync(buildId) || !fs.readFileSync(buildId, "utf8").trim()) {
     throw new Error("Build command returned success but .next/BUILD_ID is missing. PM2 was not touched.");

@@ -3,7 +3,7 @@ import { BOT_API, buildBotApiHeaders, fetchBotApi, readJsonSafe } from "@/lib/bo
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 
 const DASHBOARD_TOKEN = String(process.env.DASHBOARD_API_TOKEN || "").trim();
-const ALLOWED_ACTIONS = new Set(["request", "access", "state", "challenge", "claim", "upgrade", "status", "provider", "provider-activate", "provider-test"]);
+const ALLOWED_ACTIONS = new Set(["request", "access", "state", "challenge", "claim", "upgrade", "status", "settings", "settings-challenge", "delete-session", "provider", "provider-activate", "provider-test"]);
 const STATE_TOKEN = /^[A-Za-z0-9_-]{40,64}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SNOWFLAKE = /^\d{16,20}$/;
@@ -56,6 +56,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (!DASHBOARD_TOKEN) return res.status(503).json({ success: false, error: "Age assurance API is not configured." });
   if (req.method === "GET") {
+    if (action === "settings") {
+      try {
+        await enforceDashboardRateLimit(req, "age_assurance_settings_read");
+        const upstream = await fetchBotApi(BOT_API + "/api/age-assurance/settings", { headers: await buildBotApiHeaders(req) });
+        return res.status(upstream.status).json(await readJsonSafe(upstream));
+      } catch (error) {
+        if (isRateLimitError(error)) return res.status(429).json({ success: false, error: "Too many k-ID settings requests. Retry shortly." });
+        return res.status(401).json({ success: false, error: "Sign in to load your k-ID settings." });
+      }
+    }
     if (action !== "provider") {
       res.setHeader("Allow", "GET, POST");
       return res.status(405).json({ success: false, error: "Method not allowed." });
@@ -92,6 +102,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   if (!ALLOWED_ACTIONS.has(action)) {
     return res.status(404).json({ success: false, error: "Unknown age assurance action." });
+  }
+
+  if (action === "settings-challenge" || action === "delete-session") {
+    try {
+      await enforceDashboardRateLimit(req, "age_assurance_settings_write");
+    } catch (error) {
+      if (isRateLimitError(error)) return res.status(429).json({ success: false, error: "Too many k-ID settings updates. Retry shortly." });
+      return res.status(503).json({ success: false, error: "k-ID settings rate limiting is unavailable." });
+    }
+    const body = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const endpoint = action === "settings-challenge" ? "settings/challenge" : "delete-session";
+    if (action === "settings-challenge" && !UUID.test(String(body.challengeId || ""))) return res.status(400).json({ success: false, error: "Invalid k-ID challenge ID." });
+    try {
+      const upstream = await fetchBotApi(BOT_API + "/api/age-assurance/" + endpoint, {
+        method: "POST", headers: await buildBotApiHeaders(req, { json: true }),
+        body: JSON.stringify(action === "settings-challenge" ? { challengeId: body.challengeId } : {}),
+      });
+      return res.status(upstream.status).json(await readJsonSafe(upstream));
+    } catch { return res.status(502).json({ success: false, error: "Possum Bot could not update your k-ID settings." }); }
   }
 
   if (action === "provider" || action === "provider-activate" || action === "provider-test") {

@@ -32,6 +32,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
               <div className="flex items-center gap-2">
                 <Link
+                  href="/age-assurance/settings"
+                  prefetch={false}
+                  className="rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase tracking-[0.08em] possum-red possum-btn"
+                >
+                  AgeKey Permissions
+                </Link>
+                <Link
                   href="/guilds"
                   prefetch={false}
                   className="rounded-lg bg-black/40 px-3 py-2 text-sm font-black uppercase tracking-[0.08em] possum-red possum-btn"

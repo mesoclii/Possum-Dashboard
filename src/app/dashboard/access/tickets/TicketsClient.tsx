@@ -26,6 +26,10 @@ type TicketTypeConfig = {
   logChannelId: string;
   introTitle: string;
   introMessage: string;
+  openingAcknowledgementEnabled: boolean;
+  memberReplyAcknowledgementEnabled: boolean;
+  memberReplyAcknowledgement: string;
+  memberReplyCooldownMinutes: number;
 };
 
 type TicketsConfig = {
@@ -98,6 +102,10 @@ function emptyType(key: TicketTypeKey): TicketTypeConfig {
         : key === "vip"
           ? "VIP desk opened. Share your request and staff will review."
           : "Thanks for opening a support ticket. Please hold while staff reviews this.",
+    openingAcknowledgementEnabled: true,
+    memberReplyAcknowledgementEnabled: false,
+    memberReplyAcknowledgement: "Automated acknowledgement: we received your update, {member}. The team will review it soon.",
+    memberReplyCooldownMinutes: 10,
   };
 }
 
@@ -722,6 +730,51 @@ export default function TicketsClient() {
                   onChange={(event) => setType(key, { introMessage: event.target.value })}
                 />
                 <GuildEmojiPicker emojis={emojis} onInsert={(token) => setType(key, { introMessage: `${typeCfg.introMessage}${token}` })} />
+
+                <div style={{ ...card, marginTop: 12 }}>
+                  <h4 style={{ margin: "0 0 10px", color: "#ff7777" }}>Automatic Ticket Replies</h4>
+                  <label style={{ display: "block", marginBottom: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={typeCfg.openingAcknowledgementEnabled}
+                      onChange={(event) => setType(key, { openingAcknowledgementEnabled: event.target.checked })}
+                      style={{ marginRight: 8 }}
+                    />
+                    Send the opening acknowledgement when this ticket is created
+                  </label>
+                  <label style={{ display: "block", marginBottom: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={typeCfg.memberReplyAcknowledgementEnabled}
+                      onChange={(event) => setType(key, { memberReplyAcknowledgementEnabled: event.target.checked })}
+                      style={{ marginRight: 8 }}
+                    />
+                    Automatically acknowledge the ticket opener’s messages
+                  </label>
+                  <div style={{ color: "#ffb0b0", fontSize: 12, marginBottom: 8 }}>
+                    This only replies to the member who opened the ticket. Staff messages do not trigger it. Use {"{member}"}, {"{username}"}, {"{server}"}, or {"{ticket}"} in the message. The cooldown prevents repeated replies during a burst of messages.
+                  </div>
+                  <textarea
+                    style={{ ...input, minHeight: 80 }}
+                    value={typeCfg.memberReplyAcknowledgement}
+                    onChange={(event) => setType(key, { memberReplyAcknowledgement: event.target.value })}
+                    placeholder="Automated acknowledgement for member updates"
+                  />
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 280px) 1fr", gap: 10, alignItems: "center", marginTop: 8 }}>
+                    <label>
+                      Reply cooldown (minutes)
+                      <input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        style={{ ...input, marginTop: 4 }}
+                        value={typeCfg.memberReplyCooldownMinutes}
+                        onChange={(event) => setType(key, { memberReplyCooldownMinutes: Math.max(1, Math.min(1440, Number(event.target.value) || 10)) })}
+                      />
+                    </label>
+                    <span style={{ color: "#ffb0b0", fontSize: 12 }}>At most one automatic reply per ticket during this interval.</span>
+                  </div>
+                </div>
               </div>
             );
           })}

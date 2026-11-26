@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
       return reply(await visibleDirectory(guildId, session.accessToken, cursor, provider || undefined));
     }
     const [guilds, { accounts, visibility }] = await Promise.all([
-      memberGuilds(session.accessToken).catch(() => null),
       session ? memberGuilds(session.accessToken).catch(() => null) : Promise.resolve(null),
       prisma.$transaction(async (tx: Prisma.TransactionClient) => ({
         accounts: await tx.$queryRaw<{ provider: string; providerId: string; revision: string | null; label: string; url: string }[]>`SELECT a."provider", a."providerId", r."revision", a."label", a."url" FROM "PersonalSocialAccount" a LEFT JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider" WHERE a."userId" = ${userId}`,

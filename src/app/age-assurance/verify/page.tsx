@@ -95,6 +95,30 @@ const actionStyle = {
   fontWeight: 700,
 } as const;
 
+const REQUEST_TOKEN_STORAGE_KEY = "possum.age-assurance.request.v1";
+const REQUEST_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
+const REQUEST_TOKEN_PATTERN = /^[A-Za-z0-9_-]{40,64}$/;
+
+function readStoredRequestToken() {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(REQUEST_TOKEN_STORAGE_KEY) || "null");
+    const token = String(stored?.token || "");
+    const savedAt = Number(stored?.savedAt || 0);
+    const now = Date.now();
+    if (
+      REQUEST_TOKEN_PATTERN.test(token) &&
+      Number.isFinite(savedAt) &&
+      savedAt > 0 &&
+      savedAt <= now &&
+      now - savedAt < REQUEST_TOKEN_TTL_MS
+    ) {
+      return token;
+    }
+    sessionStorage.removeItem(REQUEST_TOKEN_STORAGE_KEY);
+  } catch {}
+  return "";
+}
+
 async function postAction(action: string, payload: Record<string, string>): Promise<ActionResponse> {
   const response = await fetch(`/api/age-assurance/${action}`, {
     method: "POST",
@@ -123,6 +147,7 @@ export default function AgeAssuranceVerificationPage() {
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const claimInFlight = useRef(false);
+  const requestToken = useRef("");
   const { config: clientConfig, loading: clientConfigLoading, error: clientConfigError } = useKidBrowserConfig();
 
   const surfaceLabel = state ? LABELS[state.surface] : "requested feature";
@@ -151,10 +176,24 @@ export default function AgeAssuranceVerificationPage() {
 
   useEffect(() => {
     const pageUrl = new URL(window.location.href);
-    const incomingToken = String(pageUrl.searchParams.get("token") || "").trim();
+    const hasQueryToken = pageUrl.searchParams.has("token");
+    const queryToken = String(pageUrl.searchParams.get("token") || "").trim();
+    let incomingToken = queryToken;
+    if (REQUEST_TOKEN_PATTERN.test(queryToken)) {
+      requestToken.current = queryToken;
+      try {
+        sessionStorage.setItem(REQUEST_TOKEN_STORAGE_KEY, JSON.stringify({ token: queryToken, savedAt: Date.now() }));
+      } catch {}
+    } else if (hasQueryToken) {
+      requestToken.current = "";
+      try { sessionStorage.removeItem(REQUEST_TOKEN_STORAGE_KEY); } catch {}
+    } else {
+      incomingToken = requestToken.current || readStoredRequestToken();
+      requestToken.current = incomingToken;
+    }
     pageUrl.searchParams.delete("token");
     window.history.replaceState({}, "", `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`);
-    if (!/^[A-Za-z0-9_-]{40,64}$/.test(incomingToken)) {
+    if (!REQUEST_TOKEN_PATTERN.test(incomingToken)) {
       setError("This age assurance link is missing or invalid. Return to Discord and request a new one.");
       return;
     }
@@ -186,6 +225,14 @@ export default function AgeAssuranceVerificationPage() {
       active = false;
     };
   }, [beginUpgrade, refreshStatus]);
+
+  useEffect(() => {
+    if (!token || !["enabled", "prohibited", "guardian-required"].includes(accessStatus)) return;
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(REQUEST_TOKEN_STORAGE_KEY) || "null");
+      if (stored?.token === token) sessionStorage.removeItem(REQUEST_TOKEN_STORAGE_KEY);
+    } catch {}
+  }, [accessStatus, token]);
 
   const handleClaim = useCallback(async (claimToken: string) => {
     if (!token || claimInFlight.current) return;

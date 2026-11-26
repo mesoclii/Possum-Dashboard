@@ -28,7 +28,18 @@ const hostMemoryMb = detectHostMemoryMb();
 const autoVmMode = args.has("--auto") && hostMemoryMb > 0 && hostMemoryMb <= 1536;
 const vmMode = args.has("--vm") || autoVmMode;
 const ciMode = String(process.env.CI || "").trim().toLowerCase() === "true";
-const memoryAttempts = vmMode ? [640] : ciMode ? [4096] : [448];
+
+// Heap cap has to follow the machine, not a hardcoded 448 MB default. A cap below
+// what Next's worker needs makes every plain `npm run build` die with
+// "Ineffective mark-compacts near heap limit" on any host with more than 1.5 GB.
+function heapCapForHost() {
+  if (!hostMemoryMb) return 2048;
+  // Leave headroom for the OS, Next's worker pool and the running node processes.
+  const budget = Math.floor(hostMemoryMb * 0.6);
+  return Math.min(6144, Math.max(2048, budget));
+}
+
+const memoryAttempts = vmMode ? [640] : ciMode ? [4096] : [heapCapForHost()];
 
 let activeChild = null;
 let receivedSignal = "";

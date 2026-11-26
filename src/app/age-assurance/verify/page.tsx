@@ -8,8 +8,11 @@ import {
   KidAgeGatePending,
   KidAgeGateProhibited,
   KidCoreProvider,
+  KidSettingsProvider,
   KidSessionProvider,
+  useKidPermissionSettings,
   useKidAgeGate,
+  type PermissionName,
 } from "@k-id/core-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -31,6 +34,15 @@ const LABELS: Record<Surface, string> = {
   tcgBattles: "Possum TCG battles",
   tcgTrades: "Possum TCG card trading",
   jedPublishing: "public JED asset publishing",
+};
+
+const PERMISSIONS: Record<Surface, PermissionName> = {
+  onboarding: "join-groups",
+  adultFeatures: "mature-language",
+  podcasts: "voice-chat",
+  tcgBattles: "multiplayer",
+  tcgTrades: "send-gifts",
+  jedPublishing: "mods",
 };
 
 const panelStyle = {
@@ -65,6 +77,93 @@ function KidAgeGateErrorDetails({ onRetry }: { onRetry: () => void }) {
       </p>
       <button type="button" onClick={onRetry} style={actionStyle}>Retry k-ID setup</button>
     </>
+  );
+}
+
+function FeaturePermissionRequest({
+  permissionName,
+  onPermissionUpdated,
+}: {
+  permissionName: PermissionName;
+  onPermissionUpdated: () => Promise<void>;
+}) {
+  const { permissions, isLoaded, error, upgrade, refresh, challenge } = useKidPermissionSettings();
+  const [email, setEmail] = useState(() => {
+    try { return typeof window === "undefined" ? "" : window.localStorage.getItem("possum:kid:age-email") || ""; }
+    catch { return ""; }
+  });
+  const [busy, setBusy] = useState(false);
+  const [requestError, setRequestError] = useState("");
+  const [confirmedRefresh, setConfirmedRefresh] = useState(false);
+  const permission = permissions.find((item) => item.name === permissionName);
+  const threshold = Number(permission?.verifiedAgeThreshold);
+
+  useEffect(() => {
+    if (!permission?.enabled || confirmedRefresh) return;
+    setConfirmedRefresh(true);
+    void onPermissionUpdated();
+  }, [permission?.enabled, confirmedRefresh, onPermissionUpdated]);
+
+  async function requestPermission() {
+    if (!email.trim()) {
+      setRequestError("Enter your email so k-ID can send the age-check link.");
+      return;
+    }
+    setBusy(true);
+    setRequestError("");
+    setConfirmedRefresh(false);
+    try {
+      const result = await upgrade([permissionName], email.trim());
+      if (!result.ok) {
+        setRequestError(result.error?.message || "k-ID could not start the feature permission check.");
+        return;
+      }
+      await refresh();
+      await onPermissionUpdated();
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "k-ID could not start the feature permission check.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!isLoaded) return <p role="status">Loading the claimed k-ID session…</p>;
+  if (error) return <p role="alert">Kai could not load this session. No feature access was granted.</p>;
+  if (!permission) return <p role="alert">Kai did not return the required “{permissionName}” permission. Check that it is declared in the Kai product.</p>;
+  if (permission.enabled) return <p role="status">Kai enabled the permission. Confirming it with the Possum Bot server…</p>;
+  if (permission.managedBy === "PROHIBITED") return <p role="alert">Kai says this feature is prohibited for this account.</p>;
+  if (permission.managedBy === "GUARDIAN") return <p role="alert">A guardian-managed permission cannot unlock this adult-only feature.</p>;
+  if (permission.managedBy !== "PLAYER" || !Number.isFinite(threshold) || threshold <= 0) {
+    return <p role="alert">This Kai permission has no verified-age threshold configured. No access was granted; configure the feature in Kai before retrying.</p>;
+  }
+
+  return (
+    <section style={{ marginTop: 18, padding: 16, border: "1px solid #6f1b2b", borderRadius: 12 }}>
+      <h2 style={{ marginTop: 0, color: "#ff7794", fontSize: 18 }}>Verify access to this feature</h2>
+      {challenge.status === "pending" ? (
+        <p role="status">Kai sent the verification link. Complete it, then this page will confirm the permission with the server.</p>
+      ) : (
+        <>
+          <label htmlFor="kid-age-email">Email for your Kai verification link</label>
+          <input
+            id="kid-age-email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => {
+              const value = event.target.value;
+              setEmail(value);
+              try { window.localStorage.setItem("possum:kid:age-email", value); } catch {}
+            }}
+            style={{ display: "block", width: "100%", boxSizing: "border-box", margin: "8px 0 12px", padding: 11, borderRadius: 8 }}
+          />
+          <button type="button" onClick={() => void requestPermission()} disabled={busy} style={actionStyle}>
+            {busy ? "Starting Kai check…" : "Send age-check link"}
+          </button>
+        </>
+      )}
+      {requestError ? <p role="alert" style={{ color: "#ff9b9b" }}>{requestError}</p> : null}
+    </section>
   );
 }
 
@@ -135,14 +234,14 @@ export default function AgeAssuranceVerificationPage() {
     return String(result.status || "unknown");
   }, []);
 
-  const beginUpgrade = useCallback(async (stateToken: string) => {
+  const refreshFeaturePermission = useCallback(async (stateToken: string) => {
     setBusy(true);
     setError("");
     try {
       const result = await postAction("upgrade", { token: stateToken });
       setState(result.state || null);
       setAccessStatus(String(result.status || "unknown"));
-      setSdkReady(false);
+      setSdkReady(true);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not start age assurance.");
     } finally {
@@ -174,22 +273,19 @@ export default function AgeAssuranceVerificationPage() {
         setSdkReady(true);
         return;
       }
+      setSdkReady(true);
       if (current.challengeUrl) {
         setAccessStatus("pending");
         return;
       }
-      if (current.completed) {
-        await refreshStatus(incomingToken);
-        return;
-      }
-      await beginUpgrade(incomingToken);
+      await refreshStatus(incomingToken);
     }).catch((loadError) => {
       if (active) setError(loadError instanceof Error ? loadError.message : "Could not load age assurance.");
     });
     return () => {
       active = false;
     };
-  }, [beginUpgrade, refreshStatus]);
+  }, [refreshStatus]);
 
   const handleClaim = useCallback(async (claimToken: string) => {
     if (!token || claimInFlight.current || claimedTokens.current.has(claimToken)) return;
@@ -206,14 +302,14 @@ export default function AgeAssuranceVerificationPage() {
       setAccessStatus(result.challenge || result.state?.challengeUrl
         ? "pending"
         : String(result.status || "pending"));
-      setSdkReady(!result.state?.sessionId);
+      setSdkReady(true);
     } catch (claimError) {
       claimedTokens.current.delete(claimToken);
       const savedState = (claimError as Error & { data?: { state?: AssuranceState } })?.data?.state;
       if (savedState) {
         setState(savedState);
         setAccessStatus(savedState.challengeUrl ? "pending" : "unknown");
-        setSdkReady(!savedState.sessionId);
+        setSdkReady(true);
       }
       setError(claimError instanceof Error ? claimError.message : "k-ID could not confirm this session.");
     } finally {
@@ -227,6 +323,7 @@ export default function AgeAssuranceVerificationPage() {
     try {
       const result = await postAction("challenge", { token, challengeId });
       setState(result.state || null);
+      setAccessStatus("pending");
     } catch (challengeError) {
       setError(challengeError instanceof Error ? challengeError.message : "Could not save the pending k-ID challenge.");
     }
@@ -245,16 +342,39 @@ export default function AgeAssuranceVerificationPage() {
   }, [refreshStatus, token]);
 
   const retry = () => {
-    if (token) void beginUpgrade(token);
+    if (token) void refreshFeaturePermission(token);
   };
+  const pollInFlight = useRef(false);
   const checkPendingResult = useCallback(async () => {
-    if (!token || busy) return;
+    if (!token || busy || pollInFlight.current) return;
+    pollInFlight.current = true;
     setBusy(true);
     setError("");
     try { await refreshStatus(token); }
     catch (statusError) { setError(statusError instanceof Error ? statusError.message : "Could not check the k-ID result."); }
-    finally { setBusy(false); }
+    finally { pollInFlight.current = false; setBusy(false); }
   }, [token, busy, refreshStatus]);
+  const confirmPermissionServerSide = useCallback(async () => {
+    if (token) await refreshStatus(token);
+  }, [refreshStatus, token]);
+
+  useEffect(() => {
+    if (!token || !state?.challengeId || accessStatus !== "pending") return;
+    const poll = async () => {
+      if (pollInFlight.current) return;
+      pollInFlight.current = true;
+      try {
+        const status = await refreshStatus(token);
+        if (status === "pending") setError("");
+      } catch (statusError) {
+        setError(statusError instanceof Error ? statusError.message : "Could not check the Kai challenge.");
+      } finally {
+        pollInFlight.current = false;
+      }
+    };
+    const timer = window.setInterval(() => void poll(), 5000);
+    return () => window.clearInterval(timer);
+  }, [token, state?.challengeId, accessStatus, refreshStatus]);
 
   useEffect(() => {
     if (!state?.challengeId || !state.challengeUrl || accessStatus !== "pending") return;
@@ -290,9 +410,7 @@ export default function AgeAssuranceVerificationPage() {
               ? "The k-ID challenge did not complete. You can retry or use the existing manual verification option."
               : "The k-ID challenge did not complete. You can retry or return to the feature later."
           : accessStatus === "verification-required"
-              ? state?.surface === "onboarding"
-                ? "The feature still needs an eligible k-ID permission. Retry the check or use the existing manual verification option."
-                : "The feature still needs an eligible k-ID permission. Retry the check or return to the feature later."
+              ? "Kai created the session. Request the selected feature permission below to continue."
             : accessStatus === "pending"
               ? "Complete the k-ID check below. This does not change your access to other Possum Bot features."
               : accessStatus
@@ -335,12 +453,12 @@ export default function AgeAssuranceVerificationPage() {
         </button>
       ) : null}
       {error && state?.sessionId && accessStatus !== "enabled" && accessStatus !== "pending" ? (
-        <button type="button" onClick={() => void beginUpgrade(token)} disabled={busy} style={actionStyle}>
-          Retry k-ID permission check
+        <button type="button" onClick={() => void refreshFeaturePermission(token)} disabled={busy} style={actionStyle}>
+          Retry Kai permission check
         </button>
       ) : null}
 
-      {sdkReady && token && !state?.sessionId ? (
+      {sdkReady && token && accessStatus !== "enabled" ? (
         clientConfigLoading ? <p role="status">Loading k-ID test setup…</p> : !publishableKey || !baseUrl || !supportEmail || !publicDashboardUrl ? (
           <p role="alert">
             The k-ID browser setup is incomplete. Open <a href="/dashboard/security/age-assurance">Dashboard → Security → Age Assurance</a> and save the publishable key, browser URL, dashboard URL, and support email.
@@ -371,32 +489,35 @@ export default function AgeAssuranceVerificationPage() {
               supportEmail,
             }}
           >
-            <KidSessionProvider
-              jurisdiction="auto"
-              challengeId={state?.challengeId || undefined}
-              sessionId={state?.sessionId || undefined}
-              onChallenge={(challengeId) => void handleChallenge(challengeId)}
-              onSession={(sessionId) => void handleSession(sessionId)}
-              onClaim={(claimToken) => void handleClaim(claimToken)}
-            >
-              <KidAgeGate>
-                <KidAgeGatePass>
-                  <p>k-ID created a session. Confirming the selected feature permission…</p>
-                </KidAgeGatePass>
-                <KidAgeGatePending>
-                  <p>Complete any k-ID consent step to continue.</p>
-                </KidAgeGatePending>
-                <KidAgeGateFail>
-                  <p>{state?.surface === "onboarding" ? "k-ID could not confirm this request. You may use the existing manual verification option." : "k-ID could not confirm this request. No feature access was granted."}</p>
-                </KidAgeGateFail>
-                <KidAgeGateProhibited>
-                  <p>k-ID did not create an eligible session. This result alone will not kick you.</p>
-                </KidAgeGateProhibited>
-                <KidAgeGateError>
-                  <KidAgeGateErrorDetails onRetry={retrySdk} />
-                </KidAgeGateError>
-              </KidAgeGate>
-            </KidSessionProvider>
+            {state?.sessionId ? (
+              <KidSettingsProvider
+                key={state.sessionId}
+                sessionId={state.sessionId}
+                challengeId={state.challengeId || undefined}
+                onChallenge={(challengeId) => void handleChallenge(challengeId)}
+              >
+                <FeaturePermissionRequest
+                  permissionName={PERMISSIONS[state.surface]}
+                  onPermissionUpdated={confirmPermissionServerSide}
+                />
+              </KidSettingsProvider>
+            ) : (
+              <KidSessionProvider
+                jurisdiction="auto"
+                challengeId={state?.challengeId || undefined}
+                onChallenge={(challengeId) => void handleChallenge(challengeId)}
+                onSession={(sessionId) => void handleSession(sessionId)}
+                onClaim={(claimToken) => void handleClaim(claimToken)}
+              >
+                <KidAgeGate>
+                  <KidAgeGatePass><p>Kai created a session. Confirming the selected feature permission...</p></KidAgeGatePass>
+                  <KidAgeGatePending><p>Complete any Kai consent step to continue.</p></KidAgeGatePending>
+                  <KidAgeGateFail><p>This Kai check did not complete. No feature access was granted.</p></KidAgeGateFail>
+                  <KidAgeGateProhibited><p>Kai did not create an eligible session. No feature access was granted.</p></KidAgeGateProhibited>
+                  <KidAgeGateError><KidAgeGateErrorDetails onRetry={retrySdk} /></KidAgeGateError>
+                </KidAgeGate>
+              </KidSessionProvider>
+            )}
           </KidCoreProvider>
         )
       ) : null}
@@ -404,7 +525,7 @@ export default function AgeAssuranceVerificationPage() {
       {accessStatus === "enabled" ? (
         <p><strong>{state?.surface === "onboarding" ? "Return to Discord. Your server verification is being completed automatically." : "Return to the feature you requested."}</strong></p>
       ) : null}
-      {["failed", "verification-required", "guardian-required", "unknown"].includes(accessStatus) ? (
+      {["failed", "guardian-required", "unknown"].includes(accessStatus) ? (
         <button type="button" onClick={retry} disabled={busy} style={actionStyle}>
           Retry k-ID check
         </button>

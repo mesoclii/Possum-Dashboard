@@ -10,7 +10,7 @@ import {
 const memoryCache = new Map<string, { expiresAt: number; payload: any }>();
 const INVALIDATE_CHANNEL = "possum.guild.invalidate";
 
-type CacheKind = "discord_admin_guilds" | "bot_installed_guilds" | "subscription_status";
+type CacheKind = "discord_admin_guilds" | "discord_user_guilds" | "bot_installed_guilds" | "subscription_status";
 
 function buildCacheKey(kind: CacheKind, key: string) {
   return `possum:${kind}:${key}`;

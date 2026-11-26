@@ -86,8 +86,21 @@ async function readBody(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (await limited(request, "jed_catalog_write")) return reply({ success: false, error: "Too many catalog updates. Retry shortly." }, 429);
-  const origin = request.headers.get("origin") || "";
-  if (!origin || new URL(origin).origin !== request.nextUrl.origin || request.headers.get("sec-fetch-site") === "cross-site") {
+  const fetchSite = String(request.headers.get("sec-fetch-site") || "").toLowerCase();
+  const forwardedProto = String(request.headers.get("x-forwarded-proto") || "").split(",")[0].trim().toLowerCase();
+  const forwardedHost = String(request.headers.get("x-forwarded-host") || "").split(",")[0].trim().toLowerCase();
+  const requestHost = String(forwardedHost || request.headers.get("host") || request.nextUrl.host).trim().toLowerCase();
+  const requestProto = forwardedProto || request.nextUrl.protocol.replace(/:$/, "").toLowerCase();
+  const expectedOrigin = `${requestProto}://${requestHost}`;
+  const origin = String(request.headers.get("origin") || "").trim();
+  const referer = String(request.headers.get("referer") || "").trim();
+  let sameOrigin = false;
+  try {
+    if (origin) sameOrigin = new URL(origin).origin.toLowerCase() === expectedOrigin;
+    else if (referer) sameOrigin = new URL(referer).origin.toLowerCase() === expectedOrigin;
+    else sameOrigin = fetchSite === "same-origin";
+  } catch { sameOrigin = false; }
+  if (!sameOrigin || fetchSite === "cross-site") {
     return reply({ success: false, error: "Same-origin request required." }, 403);
   }
   const actor = await userId(request);

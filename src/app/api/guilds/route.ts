@@ -11,6 +11,7 @@ import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
+  const includeAll = request.nextUrl.searchParams.get("includeAll") === "1";
   try {
     await enforceDashboardRateLimit(request, "guilds_admin");
   } catch (error: any) {
@@ -41,10 +42,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const cacheNamespace = includeAll ? "discord_user_guilds" : "discord_admin_guilds";
     const cached = await readGuildDiscoveryCache<{
       guilds: any[];
       user: typeof session.user;
-    }>("discord_admin_guilds", session.user.id);
+    }>(cacheNamespace, session.user.id);
 
     if (cached) {
       return NextResponse.json({
@@ -58,8 +60,8 @@ export async function GET(request: NextRequest) {
     }
 
     const guilds = await fetchDiscordGuilds(session.accessToken);
-    const manageableGuilds = guilds
-      .filter((guild) => hasGuildManageAccess(guild))
+    const listedGuilds = guilds
+      .filter((guild) => includeAll || hasGuildManageAccess(guild))
       .map((guild) => ({
         id: String(guild.id),
         name: String(guild.name || guild.id),
@@ -67,16 +69,16 @@ export async function GET(request: NextRequest) {
         iconUrl: getDiscordGuildIconUrl(String(guild.id), guild.icon),
         owner: guild.owner === true,
         permissions: String(guild.permissions_new || guild.permissions || ""),
-        manageable: true,
+        manageable: hasGuildManageAccess(guild),
         botPresent: false,
       }));
 
     await writeGuildDiscoveryCache(
-      "discord_admin_guilds",
+      cacheNamespace,
       session.user.id,
       {
         user: session.user,
-        guilds: manageableGuilds,
+        guilds: listedGuilds,
       },
       45
     );
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
       action: "load_admin_guilds",
       severity: "info",
       metadata: {
-        guildCount: manageableGuilds.length,
+        guildCount: listedGuilds.length,
       },
     });
 
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
       oauthConfigured: true,
       loggedIn: true,
       user: session.user,
-      guilds: manageableGuilds,
+      guilds: listedGuilds,
     });
   } catch (error: any) {
     void auditDashboardEvent({

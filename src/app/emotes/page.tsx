@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
-type Guild = { id: string; name: string; owner?: boolean; botPresent?: boolean };
-type Asset = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; published?: boolean };
+type Guild = { id: string; name: string; owner?: boolean; manageable?: boolean; botPresent?: boolean };
+type Asset = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; published?: boolean; sourceGuildId?: string; sourceGuildName?: string };
 type CatalogItem = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; publishedAt: string; useCount: number };
 type PendingCatalogItem = { id: string; sourceGuildId: string; sourceGuildName: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; submittedAt: string };
-type PersonalItem = { id: string; sourceGuildId: string; sourceGuildName: string; sourceAssetId: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; importedAt: string };
+type PersonalItem = { id: string; sourceGuildId: string; sourceGuildName: string; sourceAssetId: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; uploaded?: boolean; downloadName?: string; url: string; importedAt: string };
 
 const shell: CSSProperties = { minHeight: "100vh", padding: "clamp(18px, 4vw, 48px)", color: "#ffe4ee", background: "radial-gradient(ellipse at 85% 0%, #5b082e 0%, transparent 36%), radial-gradient(ellipse at 0% 40%, #3b071f 0%, transparent 40%), #10000b" };
 const panel: CSSProperties = { border: "1px solid #8a2450", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, rgba(55,5,29,.95), rgba(18,0,12,.97))", boxShadow: "0 12px 32px rgba(0,0,0,.22)" };
@@ -23,8 +23,10 @@ export default function EmoteLibraryPage() {
   const [personalItems, setPersonalItems] = useState<PersonalItem[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [guilds, setGuilds] = useState<Guild[]>([]);
-  const [sourceGuildId, setSourceGuildId] = useState("");
+  const [sourceGuildId, setSourceGuildId] = useState("all");
   const [targetGuildId, setTargetGuildId] = useState("");
+  const [botInviteUrl, setBotInviteUrl] = useState("");
+  const [assetLoadMessage, setAssetLoadMessage] = useState("");
   const [name, setName] = useState("");
   const [gifUrl, setGifUrl] = useState("");
   const [linkedAssetUrl, setLinkedAssetUrl] = useState("");
@@ -56,12 +58,16 @@ export default function EmoteLibraryPage() {
     setPendingItems(body.reviewer === true && Array.isArray(body.pending) ? body.pending : []);
   }, [signedIn]);
 
-  const loadGuildAssets = useCallback(async (guildId: string) => {
-    if (!guildId) { setAssets([]); return; }
+  const loadGuildAssets = useCallback(async (guildId: string): Promise<Asset[]> => {
+    if (!guildId) return [];
     const response = await fetch(`/api/jed-catalog?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not read that server's assets.");
-    setAssets(Array.isArray(body.items) ? body.items : []);
+    return (Array.isArray(body.items) ? body.items : []).map((item: Asset) => ({
+      ...item,
+      sourceGuildId: guildId,
+      sourceGuildName: String(body.guildName || "Discord server"),
+    }));
   }, []);
 
   const loadPersonalItems = useCallback(async () => {
@@ -83,36 +89,55 @@ export default function EmoteLibraryPage() {
         setSignedIn(true);
         void loadPersonalItems().catch((error) => active && setMessage(error instanceof Error ? error.message : "Private collection unavailable."));
         const [manageableResponse, installedResponse] = await Promise.all([
-          fetch("/api/guilds", { cache: "no-store" }), fetch("/api/guilds/installed", { cache: "no-store" }),
+          fetch("/api/guilds?includeAll=1", { cache: "no-store" }), fetch("/api/guilds/installed", { cache: "no-store" }),
         ]);
         const [manageable, installed] = await Promise.all([manageableResponse.json(), installedResponse.json()]);
-        if (!manageableResponse.ok || !manageable?.loggedIn || !installedResponse.ok || installed?.success !== true) throw new Error("Could not load your manageable servers.");
+        if (!manageableResponse.ok || !manageable?.loggedIn || !installedResponse.ok || installed?.success !== true) throw new Error("Could not load your Discord servers.");
         const botGuilds = new Set((Array.isArray(installed.guilds) ? installed.guilds : []).filter((entry: Guild) => entry?.botPresent !== false).map((entry: Guild) => entry.id));
         const options: Guild[] = (Array.isArray(manageable.guilds) ? manageable.guilds : [])
-          .filter((entry: Guild) => typeof entry?.id === "string" && botGuilds.has(entry.id))
-          .map((entry: Guild) => ({ id: entry.id, name: entry.name, owner: entry.owner, botPresent: true }));
+          .filter((entry: Guild) => typeof entry?.id === "string")
+          .map((entry: Guild) => ({ id: entry.id, name: entry.name, owner: entry.owner, manageable: entry.manageable === true, botPresent: botGuilds.has(entry.id) }));
         if (!active) return;
         setGuilds(options);
+        setBotInviteUrl(typeof installed.inviteUrl === "string" ? installed.inviteUrl : "");
         const previous = window.localStorage.getItem("activeGuildId") || "";
-        const first = options.find((entry) => entry.id === previous)?.id || options[0]?.id || "";
-        setSourceGuildId(first);
+        const readableGuilds = options.filter((entry) => entry.botPresent);
+        const destinations = options.filter((entry) => entry.botPresent && entry.manageable);
+        const first = destinations.find((entry) => entry.id === previous)?.id || destinations[0]?.id || "";
+        setSourceGuildId("all");
         setTargetGuildId(first);
+        setAssetLoadMessage(readableGuilds.length ? `Loading assets from ${readableGuilds.length} server${readableGuilds.length === 1 ? "" : "s"} where Possum Bot is installed…` : "Possum Bot is not installed in your servers yet.");
+        const loaded: Asset[] = [];
+        const failures: string[] = [];
+        for (let offset = 0; offset < readableGuilds.length; offset += 3) {
+          const batch = readableGuilds.slice(offset, offset + 3);
+          const results = await Promise.all(batch.map(async (guild) => {
+            try { return (await loadGuildAssets(guild.id)).map((asset) => ({ ...asset, sourceGuildName: guild.name })); }
+            catch (error) { failures.push(guild.name); return []; }
+          }));
+          loaded.push(...results.flat());
+          if (!active) return;
+        }
+        setAssets(loaded);
+        setAssetLoadMessage(failures.length
+          ? `Loaded ${loaded.length} assets. Could not read ${failures.slice(0, 5).join(", ")}${failures.length > 5 ? ` and ${failures.length - 5} more` : ""}; check Possum Bot's access there.`
+          : `Loaded ${loaded.length} assets from ${readableGuilds.length} server${readableGuilds.length === 1 ? "" : "s"}.`);
       } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "Server access could not be loaded."); }
     })();
     return () => { active = false; };
-  }, [loadCatalog, loadPersonalItems]);
+  }, [loadCatalog, loadGuildAssets, loadPersonalItems]);
 
-  useEffect(() => {
-    if (!sourceGuildId) { setAssets([]); return; }
-    void loadGuildAssets(sourceGuildId).catch((error) => setMessage(error instanceof Error ? error.message : "Could not read server assets."));
-  }, [sourceGuildId, loadGuildAssets]);
+  const readableGuilds = useMemo(() => guilds.filter((guild) => guild.botPresent), [guilds]);
+  const destinationGuilds = useMemo(() => guilds.filter((guild) => guild.botPresent && guild.manageable), [guilds]);
+  const selectedSourceGuild = guilds.find((guild) => guild.id === sourceGuildId);
+  const visibleGuildAssets = useMemo(() => sourceGuildId === "all" ? assets : assets.filter((asset) => asset.sourceGuildId === sourceGuildId), [assets, sourceGuildId]);
 
   const visibleItems = useMemo(() => items.filter((item) => `${item.name} ${item.assetType}`.toLowerCase().includes(search.trim().toLowerCase())), [items, search]);
 
-  async function changeCatalog(action: string, extra: Record<string, unknown>) {
-    if (!sourceGuildId) throw new Error("Choose a server first.");
+  async function changeCatalog(action: string, extra: Record<string, unknown>, guildId = sourceGuildId) {
+    if (!guildId || guildId === "all") throw new Error("Choose one source server first.");
     const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guildId: sourceGuildId, action, ...extra }) });
+      body: JSON.stringify({ guildId, action, ...extra }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body?.success !== true) throw new Error(body?.error || "JED catalog operation failed.");
     return body;
@@ -121,11 +146,12 @@ export default function EmoteLibraryPage() {
   async function publishAsset(asset: Asset) {
     setBusy(`publish:${asset.id}`); setMessage("");
     try {
+      const sourceId = String(asset.sourceGuildId || sourceGuildId);
       await changeCatalog(asset.published ? "withdraw" : "publish", asset.published
         ? { assetId: asset.id }
-        : { assetId: asset.id, assetType: asset.assetType, name: asset.name, rightsConfirmed, generalAudienceConfirmed: generalConfirmed });
+        : { assetId: asset.id, assetType: asset.assetType, name: asset.name, rightsConfirmed, generalAudienceConfirmed: generalConfirmed }, sourceId);
       setMessage(asset.published ? `${asset.name} was removed from the public library.` : `${asset.name} was added to the public library.`);
-      await Promise.all([loadCatalog(), loadGuildAssets(sourceGuildId)]);
+      await Promise.all([loadCatalog(), loadGuildAssets(sourceId).then((updated) => setAssets((current) => [...current.filter((entry) => entry.sourceGuildId !== sourceId), ...updated]))]);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update the listing."); }
     finally { setBusy(""); }
   }
@@ -133,7 +159,7 @@ export default function EmoteLibraryPage() {
   async function publishGif() {
     setBusy("publish-gif"); setMessage("");
     try {
-      await changeCatalog("publish", { assetType: "gif", name, url: gifUrl, rightsConfirmed, generalAudienceConfirmed: generalConfirmed });
+      await changeCatalog("publish", { assetType: "gif", name, url: gifUrl, rightsConfirmed, generalAudienceConfirmed: generalConfirmed }, sourceGuildId);
       setGifUrl(""); setName(""); setMessage("GIF added to the public JED library."); await loadCatalog();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not add the GIF."); }
     finally { setBusy(""); }
@@ -169,18 +195,56 @@ export default function EmoteLibraryPage() {
   }
 
   async function importAllAssets() {
-    if (!sourceGuildId) { setMessage("Choose the Alexandria/source server first."); return; }
+    const selectedGuilds = sourceGuildId === "all" ? readableGuilds : readableGuilds.filter((guild) => guild.id === sourceGuildId);
+    if (!selectedGuilds.length) {
+      setMessage(selectedSourceGuild
+        ? `${selectedSourceGuild.name}: Possum Bot must be installed before JED can read this server's emotes.`
+        : "Choose a server where Possum Bot is installed, or choose all available servers.");
+      return;
+    }
     if (!personalRightsConfirmed) { setMessage("Confirm you are authorized to keep these assets in your private collection."); return; }
     setBusy("import-all"); setMessage("");
     try {
-      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "import-all", guildId: sourceGuildId, rightsConfirmed: true }) });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not import server assets.");
-      setPersonalItems(Array.isArray(body.items) ? body.items : []);
+      let added = 0;
+      let skipped = 0;
+      let importedFrom = 0;
+      let finalItems: PersonalItem[] = [];
+      const failures: string[] = [];
+      for (const guild of selectedGuilds) {
+        const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "import-all", guildId: guild.id, rightsConfirmed: true }) });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok || body?.success !== true) {
+          failures.push(`${guild.name}${body?.error ? ` (${body.error})` : ""}`);
+          continue;
+        }
+        importedFrom += 1;
+        added += Number(body.added || 0);
+        skipped += Number(body.skipped || 0);
+        if (Array.isArray(body.errors) && body.errors.length) failures.push(`${guild.name}: ${body.errors.join("; ")}`);
+        if (Array.isArray(body.items)) finalItems = body.items;
+      }
+      if (importedFrom) setPersonalItems(finalItems);
       setPersonalRightsConfirmed(false);
-      setMessage(`Imported ${body.added} new assets from ${guildName(sourceGuildId)}; ${Math.max(0, body.total - body.added)} were already in your collection.`);
+      setMessage(`Saved ${added} new assets from ${importedFrom} server${importedFrom === 1 ? "" : "s"}; ${skipped} duplicates or unavailable assets were skipped.${failures.length ? ` Could not read: ${failures.join(", ")}.` : ""}`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not import server assets."); }
+    finally { setBusy(""); }
+  }
+
+  async function importOneAsset(asset: Asset) {
+    if (!personalRightsConfirmed) { setMessage("Confirm you are authorized to keep this asset in your private collection."); return; }
+    if (!asset.sourceGuildId) { setMessage("Choose an asset from one of your Discord servers first."); return; }
+    setBusy(`import-one:${asset.id}`); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import-one", guildId: asset.sourceGuildId, assetId: asset.id, rightsConfirmed: true }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not save this server asset.");
+      setPersonalItems(Array.isArray(body.items) ? body.items : []);
+      setMessage(body.added ? `Saved a private copy of ${asset.name} from ${asset.sourceGuildName}.` : `${asset.name} was already saved in your private collection.`);
+      if (Array.isArray(body.errors) && body.errors.length) setMessage(`${asset.name} could not be downloaded: ${body.errors.join("; ")}`);
+      setPersonalRightsConfirmed(false);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not save this server asset."); }
     finally { setBusy(""); }
   }
 
@@ -286,12 +350,12 @@ export default function EmoteLibraryPage() {
           <h2 style={{ marginTop: 0 }}>Browse the public library</h2>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <input aria-label="Search public assets" style={input} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search emoji, sticker, or GIF" />
-            <label style={muted}>Add to server <select style={input} value={targetGuildId} onChange={(event) => setTargetGuildId(event.target.value)} disabled={!guilds.length}>
-              <option value="">Choose a destination</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
+            <label style={muted}>Add to server <select style={input} value={targetGuildId} onChange={(event) => setTargetGuildId(event.target.value)} disabled={!destinationGuilds.length}>
+              <option value="">Choose a destination</option>{destinationGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
             </select></label>
             <label style={muted}>Save as <select style={{ ...input, maxWidth: 180 }} value={targetType} onChange={(event) => setTargetType(event.target.value as "emoji" | "sticker")}><option value="emoji">Emoji / GIF</option><option value="sticker">Sticker</option></select></label>
           </div>
-          {!signedIn ? <p style={muted}><a href="/api/auth/discord/login?returnTo=%2Femotes" style={{ color: "#ff9ebc" }}>Sign in with Discord</a> and manage a server with Possum Bot to import or export.</p> : !guilds.length ? <p style={muted}>No server where you can manage expressions and Possum Bot is installed was found.</p> : null}
+          {!signedIn ? <p style={muted}><a href="/api/auth/discord/login?returnTo=%2Femotes" style={{ color: "#ff9ebc" }}>Sign in with Discord</a> to see your servers and save JED assets.</p> : !destinationGuilds.length ? <p style={muted}>To add assets into a Discord server, Possum Bot must be installed there and your account must be able to manage that server.</p> : null}
           {loading ? <p role="status">Loading public assets…</p> : visibleItems.length ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginTop: 16 }}>
               {visibleItems.map((item) => <article key={item.id} style={{ ...panel, padding: 14 }}>
@@ -320,48 +384,73 @@ export default function EmoteLibraryPage() {
           </div> : <p style={muted}>No assets are waiting for review.</p>}
         </section> : null}
 
-        {signedIn && publishingEnabled ? <section style={panel}>
+        {signedIn ? <section style={panel}>
           <h2 style={{ marginTop: 0 }}>Import from your Discord server</h2>
-          <p style={muted}>Only servers where you can manage expressions and Possum Bot is installed are listed. Importing submits an asset privately for review; it does not change the source server or publish the asset automatically.</p>
+          <p style={muted}>JED lists every server you belong to. It can read that server&apos;s inventory when Possum Bot is installed there. Saving a private copy does not change the server or publish the asset.</p>
           <label style={{ ...muted, display: "block" }}>Source server<br /><select style={input} value={sourceGuildId} onChange={(event) => setSourceGuildId(event.target.value)}>
-            <option value="">Choose a source server</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
+            <option value="all">All servers where JED can read assets</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name} — {guild.botPresent ? "Possum Bot installed" : "Add Possum Bot to read assets"}</option>)}
           </select></label>
+          {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={{ ...panel, marginTop: 10 }}>
+            <strong>{selectedSourceGuild.name}</strong><p style={muted}>You’re a member, but Possum Bot isn’t installed there, so Discord won’t let JED read the server’s emoji/sticker inventory. Add the app to this server to enable bulk listing and import.</p>
+            {botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
+          </div> : null}
           <div style={{ ...panel, marginTop: 14, display: "grid", gap: 9 }}>
             <label style={muted}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)} /> I own this asset or have the right to redistribute it to a public catalog and other Discord servers.</label>
             <label style={muted}><input type="checkbox" checked={generalConfirmed} onChange={(event) => setGeneralConfirmed(event.target.checked)} /> I confirm this asset is suitable for a general-audience gallery and is not adult content.</label>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
-            {assets.map((asset) => <article key={asset.id} style={{ ...panel, padding: 12 }}>
+            {visibleGuildAssets.map((asset) => <article key={`${asset.sourceGuildId}:${asset.id}`} style={{ ...panel, padding: 12 }}>
               <img src={asset.url} alt={asset.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 104, objectFit: "contain", background: "#10000b", borderRadius: 8 }} />
               <strong style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{asset.name}</strong>
-              <div style={muted}>{asset.assetType}{asset.animated ? " · Animated" : ""}</div>
-              <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={Boolean(busy) || (!asset.published && !(rightsConfirmed && generalConfirmed))} onClick={() => void publishAsset(asset)}>
-                {busy === `publish:${asset.id}` ? "Saving…" : asset.published ? "Remove from public library" : "Publish to library"}
+              <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={!personalRightsConfirmed || Boolean(busy)} onClick={() => void importOneAsset(asset)}>
+                {busy === `import-one:${asset.id}` ? "Saving copy…" : "Save private copy"}
               </button>
+              <div style={muted}>{asset.assetType}{asset.animated ? " · Animated" : ""} · {asset.sourceGuildName}</div>
+              {publishingEnabled ? <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={Boolean(busy) || !guilds.find((guild) => guild.id === asset.sourceGuildId)?.manageable || (!asset.published && !(rightsConfirmed && generalConfirmed))} onClick={() => void publishAsset(asset)}>
+                {busy === `publish:${asset.id}` ? "Saving…" : asset.published ? "Remove from public library" : "Publish to library"}
+              </button> : null}
             </article>)}
           </div>
-          {sourceGuildId && !assets.length ? <p style={muted}>No supported Discord emoji or stickers were found.</p> : null}
+          {assetLoadMessage ? <p role="status" style={muted}>{assetLoadMessage}</p> : null}
+          {!publishingEnabled ? <p style={muted}>Public catalog submissions are disabled. Private imports and downloads remain available.</p> : null}
+          {sourceGuildId !== "all" && selectedSourceGuild && selectedSourceGuild.botPresent && !visibleGuildAssets.length ? <p style={muted}>No supported Discord emoji or stickers were found in {selectedSourceGuild.name}.</p> : null}
+          {sourceGuildId === "all" && !visibleGuildAssets.length && !assetLoadMessage ? <p style={muted}>No server assets are available yet.</p> : null}
           <div style={{ borderTop: "1px solid #5d1b39", marginTop: 20, paddingTop: 16 }}>
             <h3>Add a GIF URL</h3>
             <p style={muted}>Only HTTPS media from supported Discord, Tenor, Giphy, or Imgur hosts can be cataloged. JED revalidates and processes the URL during export.</p>
             <div style={{ display: "grid", gap: 10 }}>
               <input style={input} maxLength={32} value={name} onChange={(event) => setName(event.target.value)} placeholder="GIF name" aria-label="GIF name" />
               <input style={input} maxLength={2000} value={gifUrl} onChange={(event) => setGifUrl(event.target.value)} placeholder="https://media.tenor.com/..." aria-label="GIF URL" />
-              <button type="button" style={button} disabled={Boolean(busy) || !sourceGuildId || !name.trim() || !gifUrl.trim() || !(rightsConfirmed && generalConfirmed)} onClick={() => void publishGif()}>{busy === "publish-gif" ? "Adding…" : "Publish GIF"}</button>
+              <button type="button" style={button} disabled={Boolean(busy) || sourceGuildId === "all" || !selectedSourceGuild?.botPresent || !selectedSourceGuild?.manageable || !name.trim() || !gifUrl.trim() || !(rightsConfirmed && generalConfirmed)} onClick={() => void publishGif()}>{busy === "publish-gif" ? "Adding…" : "Publish GIF"}</button>
             </div>
           </div>
         </section> : null}
 
         {signedIn ? <section id="private-collection" style={panel}>
           <h2 style={{ marginTop: 0 }}>My private asset collection</h2>
-          <p style={muted}>Bulk import reads supported custom emoji and PNG/APNG/GIF stickers from a server you manage when Possum Bot is installed there. Discord does not expose a user-authorized API for reading a server&apos;s asset inventory without the bot. For other servers, save an individual Discord CDN link or upload a copied image below. This collection is private to your Discord account and is never published automatically.</p>
+          <p style={muted}>JED lists emotes and supported stickers from every server you belong to where Possum Bot is installed. The server name appears on each asset. Choose one server or leave “All servers” selected to import across all available servers. Servers without the bot stay visible in the selector; add Possum Bot there to unlock their inventory. This collection is private to your account and is never published automatically.</p>
           <label style={{ ...muted, display: "block" }}>Source server<br /><select style={input} value={sourceGuildId} onChange={(event) => setSourceGuildId(event.target.value)}>
-            <option value="">Choose a source server</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
+            <option value="all">All servers where JED can read assets</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name} — {guild.botPresent ? "Possum Bot installed" : "Add Possum Bot to read assets"}</option>)}
           </select></label>
+          {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={{ ...panel, marginTop: 10 }}>
+            <strong>{selectedSourceGuild.name}</strong><p style={muted}>Possum Bot isn’t in this server, so it cannot read the server inventory yet. Once an admin adds it, refresh this page and the server’s assets will appear here.</p>
+            {botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
+          </div> : null}
           <p style={muted}><label><input type="checkbox" checked={personalRightsConfirmed} onChange={(event) => setPersonalRightsConfirmed(event.target.checked)} /> I am authorized to keep these assets in my private collection and use them in servers I manage.</label></p>
-          <button type="button" style={button} disabled={!sourceGuildId || !personalRightsConfirmed || Boolean(busy)} onClick={() => void importAllAssets()}>
-            {busy === "import-all" ? "Importing server assets…" : `Import all ${assets.length} listed assets`}
+          <button type="button" style={button} disabled={!personalRightsConfirmed || !readableGuilds.length || (sourceGuildId !== "all" && !selectedSourceGuild?.botPresent) || Boolean(busy)} onClick={() => void importAllAssets()}>
+            {busy === "import-all" ? "Importing server assets…" : `Import all ${visibleGuildAssets.length} listed assets${sourceGuildId === "all" ? ` from ${readableGuilds.length} servers` : ""}`}
           </button>
+          {assetLoadMessage ? <p role="status" style={muted}>{assetLoadMessage}</p> : null}
+          {visibleGuildAssets.length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
+            {visibleGuildAssets.map((asset) => <article key={`${asset.sourceGuildId}:${asset.id}`} style={{ ...panel, padding: 12 }}>
+              <img src={asset.url} alt={asset.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 104, objectFit: "contain", background: "#10000b", borderRadius: 8 }} />
+              <strong style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{asset.name}</strong>
+              <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={!personalRightsConfirmed || Boolean(busy)} onClick={() => void importOneAsset(asset)}>
+                {busy === `import-one:${asset.id}` ? "Saving copy…" : "Save private copy"}
+              </button>
+              <div style={muted}>{asset.assetType}{asset.animated ? " · Animated" : ""} · {asset.sourceGuildName}</div>
+            </article>)}
+          </div> : null}
           <div style={{ ...panel, marginTop: 18 }}>
             <h3 style={{ marginTop: 0 }}>Save a Discord asset link</h3>
             <p style={muted}>Paste a direct Discord CDN URL for an emoji or sticker. JED downloads and validates the image into your private collection.</p>
@@ -395,6 +484,7 @@ export default function EmoteLibraryPage() {
             {personalItems.map((item) => <article key={item.id} style={{ ...panel, padding: 12 }}>
               <img src={item.url} alt={item.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 104, objectFit: "contain", background: "#10000b", borderRadius: 8 }} />
               <strong style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{item.name}</strong>
+              <a href={item.url} download={item.downloadName || item.name} style={{ ...button, display: "block", textAlign: "center", textDecoration: "none", marginTop: 8 }}>Download saved copy</a>
               <div style={muted}>{item.assetType}{item.animated ? " · Animated" : ""} · {item.sourceGuildName}</div>
               <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={!targetGuildId || Boolean(busy)} onClick={() => void exportPersonalItem(item)}>
                 {busy === `personal-export:${item.id}` ? "Using JED…" : `Add to ${guildName(targetGuildId)}`}

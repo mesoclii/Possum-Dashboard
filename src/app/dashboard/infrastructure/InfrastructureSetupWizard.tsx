@@ -161,6 +161,7 @@ type ApiResponse = {
     name?: string;
     reason?: string;
     locked?: boolean;
+    channelCreationDisabled?: boolean;
     entries?: PanelJournalEntry[];
     message?: string;
     ok?: boolean;

@@ -9,6 +9,46 @@ type CatalogItem = { id: string; name: string; assetType: "emoji" | "sticker" | 
 type PendingCatalogItem = { id: string; sourceGuildId: string; sourceGuildName: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; audience?: "general" | "adult"; url: string; submittedAt: string };
 type PersonalItem = { id: string; sourceGuildId: string; sourceGuildName: string; sourceAssetId: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; uploaded?: boolean; publicListingStatus?: string; url: string; importedAt: string };
 
+function parseDiscordAssetLinks(value: string) {
+  const found = new Map<string, { url: string; name: string; assetType: "emoji" | "sticker"; animated: boolean }>();
+  const emojiPattern = /<(a?):([a-zA-Z0-9_]{2,32}):(\d{16,20})>/g;
+  for (const match of value.matchAll(emojiPattern)) {
+    const animated = match[1] === "a";
+    const id = match[3];
+    const assetType = "emoji" as const;
+    found.set(`${assetType}:${id}`, {
+      url: `https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}`,
+      name: match[2], assetType, animated,
+    });
+  }
+  const stickerSharePattern = /https:\/\/discord\.com\/stickers\/(\d{16,20})/gi;
+  for (const match of value.matchAll(stickerSharePattern)) {
+    const id = match[1];
+    found.set(`sticker:${id}`, {
+      url: `https://media.discordapp.net/stickers/${id}.png?size=320`,
+      name: `sticker_${id}`, assetType: "sticker", animated: false,
+    });
+  }
+  const urlPattern = /https:\/\/[^\s<>()[\]{}]+/gi;
+  for (const match of value.matchAll(urlPattern)) {
+    const raw = match[0].replace(/[),.!?]+$/g, "");
+    try {
+      const url = new URL(raw);
+      if (url.username || url.password || url.port || !["cdn.discordapp.com", "media.discordapp.net"].includes(url.hostname.toLowerCase())) continue;
+      const assetMatch = url.pathname.match(/^\/(emojis|stickers)\/(\d{16,20})\.(png|gif|webp)$/i);
+      if (!assetMatch) continue;
+      const assetType = assetMatch[1].toLowerCase() === "emojis" ? "emoji" : "sticker";
+      const id = assetMatch[2];
+      found.set(`${assetType}:${id}`, {
+        url: url.toString(),
+        name: assetType === "emoji" ? `emoji_${id}` : `sticker_${id}`,
+        assetType, animated: assetMatch[3].toLowerCase() === "gif",
+      });
+    } catch { /* Ignore text that is not a Discord CDN asset URL. */ }
+  }
+  return [...found.values()];
+}
+
 function catalogImageUrl(item: { id: string; url: string; audience?: "general" | "adult" }, guildId = "") {
   return item.url.startsWith("jed-upload:")
     ? `/api/jed-catalog?publicAssetId=${encodeURIComponent(item.id)}${item.audience === "adult" ? `&audience=adult&guildId=${encodeURIComponent(guildId)}` : ""}`
@@ -38,6 +78,8 @@ export default function EmoteLibraryPage() {
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [generalConfirmed, setGeneralConfirmed] = useState(false);
   const [personalRightsConfirmed, setPersonalRightsConfirmed] = useState(false);
+  const [linkedRightsConfirmed, setLinkedRightsConfirmed] = useState(false);
+  const [linkedAssetText, setLinkedAssetText] = useState("");
   const [uploadRightsConfirmed, setUploadRightsConfirmed] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadName, setUploadName] = useState("");
@@ -230,11 +272,35 @@ export default function EmoteLibraryPage() {
       setPersonalItems(Array.isArray(body.items) ? body.items : []);
       setNameDrafts(Object.fromEntries((Array.isArray(body.items) ? body.items as PersonalItem[] : []).map((item) => [item.id, item.name])));
       setPersonalRightsConfirmed(false);
-      const resultMessage = `Imported ${body.added} new assets from ${guildName(sourceGuildId)}; ${Math.max(0, body.total - body.added)} were already in your collection.`;
+      const skipped = Number(body.skipped) || Math.max(0, Number(body.total) - Number(body.added));
+      const resultMessage = `Imported ${body.added} new assets from ${guildName(sourceGuildId)}; ${skipped} invalid or already-saved assets were skipped.`;
       setImportStatus(resultMessage); setMessage(resultMessage);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Could not import server assets.";
       setImportStatus(errorMessage); setMessage(errorMessage);
+    } finally { setBusy(""); }
+  }
+
+  async function importDiscordLinks() {
+    if (!linkedRightsConfirmed) { setImportStatus("Confirm that you made these assets or have permission to save them."); return; }
+    const linkedAssets = parseDiscordAssetLinks(linkedAssetText);
+    if (!linkedAssets.length) { setImportStatus("Paste custom emoji markup such as <:name:id> or direct Discord emoji/sticker CDN links."); return; }
+    setBusy("import-links"); setImportStatus(`Saving ${linkedAssets.length} Discord asset link${linkedAssets.length === 1 ? "" : "s"} to your private collection…`); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import-linked-personal", rightsConfirmed: true, assets: linkedAssets }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not import those Discord assets.");
+      const next = Array.isArray(body.items) ? body.items as PersonalItem[] : [];
+      setPersonalItems(next);
+      setNameDrafts(Object.fromEntries(next.map((item) => [item.id, item.name])));
+      setLinkedAssetText("");
+      const details = Array.isArray(body.errors) && body.errors.length ? ` Some could not be fetched: ${body.errors.join("; ")}` : "";
+      const result = `Saved ${Number(body.added) || 0} new asset${Number(body.added) === 1 ? "" : "s"}; ${Number(body.skipped) || 0} duplicate or unavailable link${Number(body.skipped) === 1 ? "" : "s"} skipped.${details}`;
+      setImportStatus(result); setMessage(result);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Could not import those Discord assets.";
+      setImportStatus(text); setMessage(text);
     } finally { setBusy(""); }
   }
 
@@ -421,7 +487,14 @@ export default function EmoteLibraryPage() {
               <button type="button" style={button} disabled={!uploadFile || !uploadName.trim() || !uploadRightsConfirmed || Boolean(busy)} onClick={() => void uploadPersonalAsset()}>{busy === "personal-upload" ? "Saving…" : "Upload to my private JED collection"}</button>
             </div>
           </section>
-          <h3>Import expressions from a Discord server</h3>
+          <h3>Import from a server without adding Possum Bot</h3>
+          <p style={muted}>Discord does not let a website enumerate a member&apos;s server emoji lists. For a server that does not have Possum Bot, paste copied custom emoji markup, a Discord sticker share link, or a direct Discord CDN link below. JED downloads supported PNG, GIF, and WebP assets into your private collection; it does not need access to the source server.</p>
+          <label style={{ ...muted, display: "block" }}>Discord emoji mentions, sticker links, or CDN links (one or more)<br /><textarea style={{ ...input, display: "block", minHeight: 100, maxWidth: 760, resize: "vertical" }} value={linkedAssetText} onChange={(event) => setLinkedAssetText(event.target.value)} placeholder={"<:possum:123456789012345678>\nhttps://discord.com/stickers/123456789012345678\nhttps://cdn.discordapp.com/emojis/123456789012345678.png"} /></label>
+          <p style={muted}><label><input type="checkbox" checked={linkedRightsConfirmed} onChange={(event) => setLinkedRightsConfirmed(event.target.checked)} /> I made these assets or have permission to keep them in my private collection.</label></p>
+          <button type="button" style={button} disabled={Boolean(busy) || !linkedAssetText.trim() || !linkedRightsConfirmed} onClick={() => void importDiscordLinks()}>
+            {busy === "import-links" ? "Saving Discord assets…" : "Save linked assets to my collection"}
+          </button>
+          <h3>Import expressions from a Discord server with Possum Bot installed</h3>
           <p style={muted}>Import every supported custom emoji and PNG/APNG/GIF sticker from a server you manage. This appends items and never removes existing roles, expressions, or saved assets.</p>
           <label style={{ ...muted, display: "block" }}>Source server<br /><select style={input} value={sourceGuildId} onChange={(event) => setSourceGuildId(event.target.value)}>
             <option value="">Choose a source server</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}

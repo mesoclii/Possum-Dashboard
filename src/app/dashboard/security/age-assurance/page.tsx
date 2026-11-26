@@ -29,11 +29,18 @@ type ProviderStatus = {
     serverApiKeyConfigured: boolean;
     publishableKeyConfigured: boolean;
     providerConfigured: boolean;
+    apiBaseUrl: string;
+    browserBaseUrl: string;
   }>;
 };
 
 type ProviderMode = "test" | "live";
 type KeyDraft = { apiKey: string; publishableKey: string };
+type UrlDraft = { apiBaseUrl: string; browserBaseUrl: string };
+const defaultUrls: Record<ProviderMode, UrlDraft> = {
+  test: { apiBaseUrl: "https://kai-api.test.k-id.com/api/v1", browserBaseUrl: "https://kai-api.test.k-id.com/fapi/v1" },
+  live: { apiBaseUrl: "https://kai-api.k-id.com/api/v1", browserBaseUrl: "https://kai-api.k-id.com/fapi/v1" },
+};
 
 const DEFAULT_POLICY: Policy = {
   onboarding: false,
@@ -60,6 +67,21 @@ const button: CSSProperties = {
   fontWeight: 700,
 };
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 20_000) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`The dashboard request timed out after ${Math.round(timeoutMs / 1000)} seconds. Retry; saved k-ID keys are preserved.`);
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export default function AgeAssuranceSettingsPage() {
   const [guildId, setGuildId] = useState("");
   const [guildName, setGuildName] = useState("");
@@ -77,6 +99,7 @@ export default function AgeAssuranceSettingsPage() {
     test: { apiKey: "", publishableKey: "" },
     live: { apiKey: "", publishableKey: "" },
   });
+  const [urlDrafts, setUrlDrafts] = useState<Record<ProviderMode, UrlDraft>>(defaultUrls);
   const [providerAction, setProviderAction] = useState<"save-test" | "save-live" | "activate" | "test" | "start" | null>(null);
   const [providerMessage, setProviderMessage] = useState("");
   const [providerError, setProviderError] = useState("");
@@ -127,12 +150,16 @@ export default function AgeAssuranceSettingsPage() {
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/age-assurance/provider", { cache: "no-store" }).then(async (response) => {
+    void fetchWithTimeout("/api/age-assurance/provider", { cache: "no-store" }).then(async (response) => {
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "Could not load k-ID provider settings.");
       if (!active) return;
       const next = result.provider as ProviderStatus;
       setProvider(next);
+      setUrlDrafts({
+        test: { apiBaseUrl: next.profiles?.test?.apiBaseUrl || defaultUrls.test.apiBaseUrl, browserBaseUrl: next.profiles?.test?.browserBaseUrl || defaultUrls.test.browserBaseUrl },
+        live: { apiBaseUrl: next.profiles?.live?.apiBaseUrl || defaultUrls.live.apiBaseUrl, browserBaseUrl: next.profiles?.live?.browserBaseUrl || defaultUrls.live.browserBaseUrl },
+      });
       setProviderWebsiteUrl(next.publicWebsiteUrl || "https://possumbot.com");
       setProviderDashboardUrl(next.dashboardUrl || window.location.origin);
       setProviderDevelopmentOrigin(next.developmentOrigin || "http://localhost:3000");
@@ -148,7 +175,7 @@ export default function AgeAssuranceSettingsPage() {
     setError("");
     setMessage("");
     try {
-      const response = await fetch("/api/bot/engine-config", {
+      const response = await fetchWithTimeout("/api/bot/engine-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ guildId, engine: "ageAssurance", config: next }),
@@ -179,18 +206,18 @@ export default function AgeAssuranceSettingsPage() {
   async function saveProvider(mode: ProviderMode) {
     setProviderAction(mode === "live" ? "save-live" : "save-test"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
     try {
-      const response = await fetch("/api/age-assurance/provider", {
+      const response = await fetchWithTimeout("/api/age-assurance/provider", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode,
           activate: false,
-          apiBaseUrl: mode === "live" ? "https://game-api.k-id.com/api/v1" : "https://game-api.test.k-id.com/api/v1",
+          apiBaseUrl: urlDrafts[mode].apiBaseUrl,
           dashboardUrl: providerDashboardUrl,
           publicWebsiteUrl: providerWebsiteUrl,
           developmentOrigin: providerDevelopmentOrigin,
           apiKey: keyDrafts[mode].apiKey,
           publishableKey: keyDrafts[mode].publishableKey,
-          browserBaseUrl: mode === "live" ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1",
+          browserBaseUrl: urlDrafts[mode].browserBaseUrl,
           supportEmail: providerSupportEmail,
         }),
       });
@@ -207,7 +234,7 @@ export default function AgeAssuranceSettingsPage() {
   async function activateProvider(mode: ProviderMode) {
     setProviderAction("activate"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
     try {
-      const response = await fetch("/api/age-assurance/provider-activate", {
+      const response = await fetchWithTimeout("/api/age-assurance/provider-activate", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode }),
       });
@@ -215,6 +242,10 @@ export default function AgeAssuranceSettingsPage() {
       if (!response.ok || result?.success !== true) throw new Error(result?.error || `Could not activate ${mode} k-ID settings.`);
       setProvider(result.provider as ProviderStatus);
       const activeProvider = result.provider as ProviderStatus;
+      setUrlDrafts({
+        test: { apiBaseUrl: activeProvider.profiles?.test?.apiBaseUrl || defaultUrls.test.apiBaseUrl, browserBaseUrl: activeProvider.profiles?.test?.browserBaseUrl || defaultUrls.test.browserBaseUrl },
+        live: { apiBaseUrl: activeProvider.profiles?.live?.apiBaseUrl || defaultUrls.live.apiBaseUrl, browserBaseUrl: activeProvider.profiles?.live?.browserBaseUrl || defaultUrls.live.browserBaseUrl },
+      });
       setProviderWebsiteUrl(activeProvider.publicWebsiteUrl || "https://possumbot.com");
       setProviderDashboardUrl(activeProvider.dashboardUrl || window.location.origin);
       setProviderDevelopmentOrigin(activeProvider.developmentOrigin || "http://localhost:3000");
@@ -226,7 +257,7 @@ export default function AgeAssuranceSettingsPage() {
   async function testProvider() {
     setProviderAction("test"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
     try {
-      const response = await fetch("/api/age-assurance/provider-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const response = await fetchWithTimeout("/api/age-assurance/provider-test", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result?.success !== true) throw new Error(result?.error || "k-ID test failed.");
       setProviderTestResult(`Connected to k-ID ${provider?.mode || "active"} API. Server key accepted. This does not test the browser key or its allowed origins.`);
@@ -238,7 +269,7 @@ export default function AgeAssuranceSettingsPage() {
     if (!guildId || !policy.adultFeatures) return;
     setProviderAction("start"); setProviderError(""); setProviderMessage(""); setProviderTestResult("");
     try {
-      const response = await fetch("/api/age-assurance/request", {
+      const response = await fetchWithTimeout("/api/age-assurance/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
@@ -294,12 +325,13 @@ export default function AgeAssuranceSettingsPage() {
             const configured = Boolean(profile?.providerConfigured || (provider?.mode === mode && provider?.providerConfigured));
             const hasServerKey = Boolean(profile?.serverApiKeyConfigured || (provider?.mode === mode && provider?.serverApiKeyConfigured));
             const hasBrowserKey = Boolean(profile?.publishableKeyConfigured || (provider?.mode === mode && provider?.publishableKeyConfigured));
-            const apiUrl = live ? "https://game-api.k-id.com/api/v1" : "https://game-api.test.k-id.com/api/v1";
-            const browserUrl = live ? "https://kai-api.k-id.com/fapi/v1" : "https://kai-api.test.k-id.com/fapi/v1";
+            const urls = urlDrafts[mode];
             return (
               <div key={mode} style={{ ...card, marginTop: 0, borderColor: provider?.mode === mode ? "#e94876" : "#6d1834" }}>
                 <h3 style={{ marginTop: 0 }}>{live ? "Live (production)" : "Test (development)"}{provider?.mode === mode ? " | Active" : ""}</h3>
-                <p style={muted}>Server API: <code>{apiUrl}</code><br />Browser SDK: <code>{browserUrl}</code></p>
+                <p style={muted}>Set the two k-ID endpoints for this environment. Test and Live are saved separately.</p>
+                <label style={muted}>Server API URL (KID_API)<br /><input value={urls.apiBaseUrl} onChange={(event) => setUrlDrafts((current) => ({ ...current, [mode]: { ...current[mode], apiBaseUrl: event.target.value } }))} placeholder={defaultUrls[mode].apiBaseUrl} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
+                <label style={muted}>Browser SDK URL (baseUrl)<br /><input value={urls.browserBaseUrl} onChange={(event) => setUrlDrafts((current) => ({ ...current, [mode]: { ...current[mode], browserBaseUrl: event.target.value } }))} placeholder={defaultUrls[mode].browserBaseUrl} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
                 <p style={muted}>Server key: {hasServerKey ? "saved securely" : "not saved"} | Publishable key: {hasBrowserKey ? "saved securely" : "not saved"}</p>
                 <label style={muted}>k-ID server secret key<br /><input type="password" autoComplete="new-password" value={keyDrafts[mode].apiKey} onChange={(event) => setKeyDrafts((current) => ({ ...current, [mode]: { ...current[mode], apiKey: event.target.value } }))} placeholder={hasServerKey ? "Saved securely - leave blank to keep" : "Paste the " + (live ? "live" : "test") + " server key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
                 <label style={muted}>k-ID publishable key<br /><input type="password" autoComplete="new-password" value={keyDrafts[mode].publishableKey} onChange={(event) => setKeyDrafts((current) => ({ ...current, [mode]: { ...current[mode], publishableKey: event.target.value } }))} placeholder={hasBrowserKey ? "Saved securely - leave blank to keep" : "Paste the " + (live ? "live" : "test") + " publishable key"} style={{ ...card, color: "#fff", padding: 10, width: "100%" }} /></label>
@@ -357,6 +389,22 @@ export default function AgeAssuranceSettingsPage() {
           {policy.adultFeatures ? "Disable Adult Emote Studio AgeKey" : "Enable Adult Emote Studio AgeKey"}
         </button>
         <span style={{ ...muted, marginLeft: 12 }}>{policy.adultFeatures ? "Enabled for this server" : "Off"}</span>
+      </section>
+
+      <section style={card}>
+        <h2 style={{ marginTop: 0 }}>Product feature checks</h2>
+        <p style={muted}>These product surfaces request their own permission only when a member opens the feature. They do not age-gate the dashboard, public Gaming Hub, ordinary bot use, or the all-ages JED shelf.</p>
+        <ul style={{ ...muted, paddingLeft: 22 }}>
+          <li><strong>Possum TCG battles:</strong> server-checks <code>multiplayer</code> for both players before battle actions.</li>
+          <li><strong>Possum TCG trades:</strong> server-checks <code>send-gifts</code> for both players before trade actions.</li>
+          <li><strong>Public JED publishing:</strong> requires <code>mods</code> before an asset is submitted for other people to see.</li>
+          <li><strong>JED 18+ catalog:</strong> requires this server&apos;s Adult Emote Studio switch and the account&apos;s <code>mature-language</code> permission.</li>
+        </ul>
+        <p style={muted}>Set the thresholds and age rules for these permissions in k-ID Compliance Studio. The checks run when a member tries the gated action; only the 18+ JED shelf also uses the server switch above.</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a href="/tcg" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Open Possum TCG</a>
+          <a href="/emotes" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Open JED library</a>
+        </div>
       </section>
 
       {saving ? <p role="status">Saving…</p> : null}

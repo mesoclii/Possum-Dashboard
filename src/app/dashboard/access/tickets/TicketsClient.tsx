@@ -30,10 +30,13 @@ type TicketTypeConfig = {
   memberReplyAcknowledgementEnabled: boolean;
   memberReplyAcknowledgement: string;
   memberReplyCooldownMinutes: number;
+  autoReplyRules: { enabled: boolean; keywords: string; response: string }[];
 };
 
 type TicketsConfig = {
   active: boolean;
+  stopAutomationAfterStaffReply: boolean;
+  inactivityClose: { enabled: boolean; hours: number; reminderEnabled: boolean; reminderHoursBefore: number; reminderMessage: string };
   panelChannelId: string;
   panelLayout: "separate" | "combined";
   panelTitle: string;
@@ -106,12 +109,15 @@ function emptyType(key: TicketTypeKey): TicketTypeConfig {
     memberReplyAcknowledgementEnabled: false,
     memberReplyAcknowledgement: "Automated acknowledgement: we received your update, {member}. The team will review it soon.",
     memberReplyCooldownMinutes: 10,
+    autoReplyRules: [],
   };
 }
 
 function defaultConfig(): TicketsConfig {
   return {
     active: true,
+    stopAutomationAfterStaffReply: true,
+    inactivityClose: { enabled: true, hours: 48, reminderEnabled: true, reminderHoursBefore: 24, reminderMessage: "We have not seen a reply in your ticket for a while. It will close in about {hours} hours. Reply here if you still need help; your ticket timer will reset." },
     panelChannelId: "",
     panelLayout: "separate",
     panelTitle: "Support Tickets",
@@ -171,6 +177,14 @@ function normalizeConfig(inputValue: any): TicketsConfig {
 
   return {
     active: input.active !== false,
+    stopAutomationAfterStaffReply: input.stopAutomationAfterStaffReply !== false,
+    inactivityClose: {
+      enabled: input.inactivityClose?.enabled !== false,
+      hours: Math.max(24, Math.min(72, Number(input.inactivityClose?.hours) || 48)),
+      reminderEnabled: input.inactivityClose?.reminderEnabled !== false,
+      reminderHoursBefore: Math.max(1, Math.min(Math.max(1, (Number(input.inactivityClose?.hours) || 48) - 1), Number(input.inactivityClose?.reminderHoursBefore) || 24)),
+      reminderMessage: String(input.inactivityClose?.reminderMessage || base.inactivityClose.reminderMessage),
+    },
     panelChannelId: String(input.panelChannelId || ""),
     panelLayout: String(input.panelLayout || base.panelLayout).toLowerCase() === "combined" ? "combined" : "separate",
     panelTitle: String(input.panelTitle || base.panelTitle),
@@ -203,6 +217,7 @@ function normalizeConfig(inputValue: any): TicketsConfig {
         panelDescription: String(types.support?.panelDescription || base.types.support.panelDescription),
         panelThumbnailUrl: String(types.support?.panelThumbnailUrl || ""),
         panelImageUrl: String(types.support?.panelImageUrl || ""),
+        autoReplyRules: Array.isArray(types.support?.autoReplyRules) ? types.support.autoReplyRules.slice(0, 8).map((rule: any) => ({ enabled: rule?.enabled !== false, keywords: String(rule?.keywords || "").slice(0, 250), response: String(rule?.response || "").slice(0, 1000) })) : [],
       },
       vip: {
         ...base.types.vip,
@@ -213,6 +228,7 @@ function normalizeConfig(inputValue: any): TicketsConfig {
         panelDescription: String(types.vip?.panelDescription || base.types.vip.panelDescription),
         panelThumbnailUrl: String(types.vip?.panelThumbnailUrl || ""),
         panelImageUrl: String(types.vip?.panelImageUrl || ""),
+        autoReplyRules: Array.isArray(types.vip?.autoReplyRules) ? types.vip.autoReplyRules.slice(0, 8).map((rule: any) => ({ enabled: rule?.enabled !== false, keywords: String(rule?.keywords || "").slice(0, 250), response: String(rule?.response || "").slice(0, 1000) })) : [],
       },
       drops: {
         ...base.types.drops,
@@ -223,6 +239,7 @@ function normalizeConfig(inputValue: any): TicketsConfig {
         panelDescription: String(types.drops?.panelDescription || base.types.drops.panelDescription),
         panelThumbnailUrl: String(types.drops?.panelThumbnailUrl || ""),
         panelImageUrl: String(types.drops?.panelImageUrl || ""),
+        autoReplyRules: Array.isArray(types.drops?.autoReplyRules) ? types.drops.autoReplyRules.slice(0, 8).map((rule: any) => ({ enabled: rule?.enabled !== false, keywords: String(rule?.keywords || "").slice(0, 250), response: String(rule?.response || "").slice(0, 1000) })) : [],
       },
     },
   };
@@ -601,6 +618,20 @@ export default function TicketsClient() {
             </div>
           </div>
 
+          <div style={card}>
+            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Opener Inactivity and Reminder</h3>
+            <p style={{ color: "#ffb0b0", fontSize: 12 }}>Only messages from the person who opened the ticket reset this timer. The reminder includes a private button that safely keeps their ticket open; other members cannot use it for them.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+              <label><input type="checkbox" checked={cfg.stopAutomationAfterStaffReply} onChange={(event) => setCfg((prev) => ({ ...prev, stopAutomationAfterStaffReply: event.target.checked }))} /> Stop automatic replies when staff first responds</label>
+              <label><input type="checkbox" checked={cfg.inactivityClose.enabled} onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, enabled: event.target.checked } }))} /> Automatically close after opener inactivity</label>
+              <label>Close after (24–72 hours)<input style={input} type="number" min={24} max={72} value={cfg.inactivityClose.hours} onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, hours: Math.max(24, Math.min(72, Number(event.target.value) || 48)), reminderHoursBefore: Math.min(prev.inactivityClose.reminderHoursBefore, Math.max(1, (Number(event.target.value) || 48) - 1)) } }))} /></label>
+              <label><input type="checkbox" checked={cfg.inactivityClose.reminderEnabled} onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, reminderEnabled: event.target.checked } }))} /> Send a reminder before closing</label>
+              <label>Reminder timing (hours before close)<input style={input} type="number" min={1} max={Math.max(1, cfg.inactivityClose.hours - 1)} value={cfg.inactivityClose.reminderHoursBefore} onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, reminderHoursBefore: Math.max(1, Math.min(prev.inactivityClose.hours - 1, Number(event.target.value) || 24)) } }))} /></label>
+            </div>
+            <label style={{ display: "block", marginTop: 10 }}>Reminder message<textarea style={{ ...input, minHeight: 90 }} maxLength={1000} value={cfg.inactivityClose.reminderMessage} onChange={(event) => setCfg((prev) => ({ ...prev, inactivityClose: { ...prev.inactivityClose, reminderMessage: event.target.value } }))} /></label>
+            <div style={{ color: "#ffb0b0", fontSize: 12 }}>Use <code>{"{member}"}</code>, <code>{"{username}"}</code>, <code>{"{server}"}</code>, <code>{"{ticket}"}</code>, and <code>{"{hours}"}</code>. For example, a 48-hour close with a 24-hour reminder warns after 24 hours.</div>
+          </div>
+
           {TYPE_ORDER.map((key) => {
             const typeCfg = cfg.types[key];
             return (
@@ -773,6 +804,17 @@ export default function TicketsClient() {
                       />
                     </label>
                     <span style={{ color: "#ffb0b0", fontSize: 12 }}>At most one automatic reply per ticket during this interval.</span>
+                  </div>
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid #5f0000" }}>
+                    <strong>Keyword responses (up to 8 per ticket type)</strong>
+                    <p style={{ color: "#ffb0b0", fontSize: 12 }}>When the opener's message contains a comma-separated keyword, send the first matching response. Staff replies stop this automation by default. These are configured replies; the bot does not invent policy answers.</p>
+                    {typeCfg.autoReplyRules.map((rule, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "auto minmax(140px, .7fr) minmax(180px, 1fr) auto", gap: 8, marginBottom: 8 }}>
+                      <label><input aria-label="Enable keyword response" type="checkbox" checked={rule.enabled} onChange={(event) => setType(key, { autoReplyRules: typeCfg.autoReplyRules.map((item, i) => i === index ? { ...item, enabled: event.target.checked } : item) })} /></label>
+                      <input style={input} maxLength={250} value={rule.keywords} placeholder="Keywords, comma separated" onChange={(event) => setType(key, { autoReplyRules: typeCfg.autoReplyRules.map((item, i) => i === index ? { ...item, keywords: event.target.value } : item) })} />
+                      <textarea style={{ ...input, minHeight: 64 }} maxLength={1000} value={rule.response} placeholder="Configured response" onChange={(event) => setType(key, { autoReplyRules: typeCfg.autoReplyRules.map((item, i) => i === index ? { ...item, response: event.target.value } : item) })} />
+                      <button type="button" style={input} onClick={() => setType(key, { autoReplyRules: typeCfg.autoReplyRules.filter((_, i) => i !== index) })}>Remove</button>
+                    </div>)}
+                    <button type="button" style={{ ...input, width: "auto", cursor: "pointer" }} disabled={typeCfg.autoReplyRules.length >= 8} onClick={() => setType(key, { autoReplyRules: [...typeCfg.autoReplyRules, { enabled: true, keywords: "", response: "" }] })}>Add keyword response</button>
                   </div>
                 </div>
               </div>

@@ -21,7 +21,7 @@ const field: CSSProperties = { width: "100%", padding: 10, border: "1px solid #d
 const button: CSSProperties = { padding: "10px 15px", borderRadius: 9, border: "1px solid #ff3982", color: "#fff", background: "#a7003e", cursor: "pointer", fontWeight: 700 };
 const card: CSSProperties = { padding: 18, border: "1px solid #802346", borderRadius: 14, background: "#1d0010" };
 
-export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
+export default function PublicSquads({ profileReady }: { profileReady: boolean }) {
   const [listings, setListings] = useState<Listing[]>([]);
   const [mine, setMine] = useState<Listing[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
       return { listings: data.listings as Listing[], nextCursor: data.nextCursor as string | null };
       })(),
       (async () => {
-        if (!loggedIn) return [] as Listing[];
+        if (!profileReady) return [] as Listing[];
         const response = await fetch("/api/public-lfg?me=1", { cache: "no-store" });
         const data = await response.json();
         if (!response.ok || !data.success || !Array.isArray(data.listings)) throw new Error(data.error || "Your squad memberships could not be loaded.");
@@ -72,7 +72,7 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
     else setMine([]);
     if (publicResult.status === "rejected") throw publicResult.reason;
     if (ownResult.status === "rejected") throw ownResult.reason;
-  }, [loggedIn, cursor]);
+  }, [profileReady, cursor]);
 
   useEffect(() => {
     let active = true;
@@ -132,7 +132,7 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
       </div>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {!loggedIn && <div><a href="/api/auth/discord/login?returnTo=%2Fgaming%3Ftab%3Dsquads" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Sign in to post or join a squad</a></div>}
+      {!profileReady && <p role="status">Opening a private profile so you can post, join and manage squads without Discord...</p>}
       <label>Search this page of squads <input style={field} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Try Fortnite, duos or PC" /></label>
       {loading ? <p role="status">Loading squads…</p> : visible.length ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 270px), 1fr))", gap: 12 }}>
@@ -144,10 +144,10 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
               {listing.mode && <p>{listing.mode}</p>}
               {listing.note && <p>{listing.note}</p>}
               <ul style={{ paddingLeft: 20 }}>{listing.members.map((member, index) => <li key={`${member.nickname}-${index}`}>{member.nickname}{member.contact ? ` — ${member.contact}` : ""}</li>)}</ul>
-              {loggedIn && membership?.isHost ? <button style={button} disabled={busy} onClick={() => void act({ action: "close", id: listing.id }, "Squad closed.")}>Close squad</button>
-                : loggedIn && membership?.isMember ? <button style={button} disabled={busy} onClick={() => void act({ action: "leave", id: listing.id }, "You left the squad.")}>Leave squad</button>
-                  : loggedIn ? <button style={button} disabled={busy || listing.members.length >= listing.capacity} onClick={() => { setJoinId(listing.id); setJoinConsent(false); }}>Join squad</button>
-                    : <a href="/api/auth/discord/login?returnTo=%2Fgaming%3Ftab%3Dsquads" style={{ color: "#ff9ebc" }}>Sign in to join</a>}
+              {profileReady && membership?.isHost ? <button style={button} disabled={busy} onClick={() => void act({ action: "close", id: listing.id }, "Squad closed.")}>Close squad</button>
+                : profileReady && membership?.isMember ? <button style={button} disabled={busy} onClick={() => void act({ action: "leave", id: listing.id }, "You left the squad.")}>Leave squad</button>
+                  : profileReady ? <button style={button} disabled={busy || listing.members.length >= listing.capacity} onClick={() => { setJoinId(listing.id); setJoinConsent(false); }}>Join squad</button>
+                    : null}
             </article>;
           })}
         </div>
@@ -156,14 +156,14 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
         {previousCursors.length > 0 && <button type="button" style={button} onClick={() => { setCursor(previousCursors[previousCursors.length - 1]); setPreviousCursors(previousCursors.slice(0, -1)); }}>Previous squads</button>}
         {nextCursor && <button type="button" style={button} onClick={() => { setPreviousCursors([...previousCursors, cursor]); setCursor(nextCursor); }}>More squads</button>}
       </div>}
-      {loggedIn && joinId && <form onSubmit={join} style={{ ...card, display: "grid", gap: 12 }}>
+      {profileReady && joinId && <form onSubmit={join} style={{ ...card, display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Join this squad</h3>
         <label>Public nickname <input style={field} required maxLength={40} value={joinName} onChange={(event) => setJoinName(event.target.value)} /></label>
         <label>Public contact handle (optional) <input style={field} maxLength={80} value={joinContact} onChange={(event) => setJoinContact(event.target.value)} /></label>
         <label><input type="checkbox" checked={joinConsent} onChange={(event) => setJoinConsent(event.target.checked)} /> I agree to publish these details with this squad to everyone online.</label>
         <div style={{ display: "flex", gap: 10 }}><button style={button} disabled={busy || !joinConsent}>Confirm join</button><button type="button" style={button} onClick={() => setJoinId("")}>Cancel</button></div>
       </form>}
-      {loggedIn && <form onSubmit={post} style={{ ...card, display: "grid", gap: 12 }}>
+      {profileReady && <form onSubmit={post} style={{ ...card, display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Start a public squad</h3>
         <label>Game <input style={field} required maxLength={80} value={form.game} onChange={(event) => setForm({ ...form, game: event.target.value })} /></label>
         <label>Mode or queue <input style={field} maxLength={60} value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value })} /></label>

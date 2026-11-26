@@ -69,16 +69,28 @@ function KidAgeGateErrorDetails({ onRetry }: { onRetry: () => void }) {
 }
 
 async function postAction(action: string, payload: Record<string, string>) {
-  const response = await fetch(`/api/age-assurance/${action}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(payload),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 20_000);
+  let response: Response;
+  try {
+    response = await fetch(`/api/age-assurance/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("k-ID did not respond within 20 seconds. Your saved session is preserved; retry the permission check.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.success !== true) {
-    const failure = new Error(String(data?.error || "Age assurance request failed.")) as Error & { status?: number };
+    const failure = new Error(String(data?.error || "Age assurance request failed.")) as Error & { status?: number; data?: any };
     failure.status = response.status;
+    failure.data = data;
     throw failure;
   }
   return data;
@@ -96,6 +108,7 @@ export default function AgeAssuranceVerificationPage() {
   const [clientConfig, setClientConfig] = useState<ClientConfig | null>(null);
   const [clientConfigLoading, setClientConfigLoading] = useState(true);
   const claimInFlight = useRef(false);
+  const claimedTokens = useRef(new Set<string>());
 
   const surfaceLabel = state ? LABELS[state.surface] : "requested feature";
   const publishableKey = String(clientConfig?.publishableKey || "").trim();
@@ -179,16 +192,29 @@ export default function AgeAssuranceVerificationPage() {
   }, [beginUpgrade, refreshStatus]);
 
   const handleClaim = useCallback(async (claimToken: string) => {
-    if (!token || claimInFlight.current) return;
+    if (!token || claimInFlight.current || claimedTokens.current.has(claimToken)) return;
     claimInFlight.current = true;
+    claimedTokens.current.add(claimToken);
     setBusy(true);
     setError("");
     try {
       const result = await postAction("claim", { token, claimToken });
       setState(result.state || null);
-      setAccessStatus(String(result.status || "pending"));
+      // A successful claim can be followed by an exact feature-permission
+      // challenge. The permission status from the pre-challenge session is not
+      // the challenge state; keep the challenge iframe visible until it resolves.
+      setAccessStatus(result.challenge || result.state?.challengeUrl
+        ? "pending"
+        : String(result.status || "pending"));
       setSdkReady(!result.state?.sessionId);
     } catch (claimError) {
+      claimedTokens.current.delete(claimToken);
+      const savedState = (claimError as Error & { data?: { state?: AssuranceState } })?.data?.state;
+      if (savedState) {
+        setState(savedState);
+        setAccessStatus(savedState.challengeUrl ? "pending" : "unknown");
+        setSdkReady(!savedState.sessionId);
+      }
       setError(claimError instanceof Error ? claimError.message : "k-ID could not confirm this session.");
     } finally {
       claimInFlight.current = false;
@@ -221,21 +247,40 @@ export default function AgeAssuranceVerificationPage() {
   const retry = () => {
     if (token) void beginUpgrade(token);
   };
-  const checkPendingResult = async () => {
+  const checkPendingResult = useCallback(async () => {
     if (!token || busy) return;
     setBusy(true);
     setError("");
     try { await refreshStatus(token); }
     catch (statusError) { setError(statusError instanceof Error ? statusError.message : "Could not check the k-ID result."); }
     finally { setBusy(false); }
-  };
+  }, [token, busy, refreshStatus]);
+
+  useEffect(() => {
+    if (!state?.challengeId || !state.challengeUrl || accessStatus !== "pending") return;
+    let trustedOrigin = "";
+    try { trustedOrigin = new URL(state.challengeUrl).origin; } catch { return; }
+    const onChallengeMessage = (event: MessageEvent) => {
+      if (event.origin !== trustedOrigin) return;
+      const message = event.data;
+      const challengeId = String(message?.data?.id || message?.challengeId || "");
+      if (message?.eventType !== "Challenge.StateChange" || challengeId !== state.challengeId) return;
+      // postMessage only prompts a server check. The backend reads the saved
+      // challenge ID and verifies its status with k-ID before granting access.
+      void checkPendingResult();
+    };
+    window.addEventListener("message", onChallengeMessage);
+    return () => window.removeEventListener("message", onChallengeMessage);
+  }, [state?.challengeId, state?.challengeUrl, accessStatus, checkPendingResult]);
   const retrySdk = () => {
     setError("");
     setSdkAttempt((attempt) => attempt + 1);
   };
 
   const statusText = accessStatus === "enabled"
-    ? `k-ID confirmed access to ${surfaceLabel}. Return to the feature you requested.`
+    ? state?.surface === "onboarding"
+      ? "k-ID confirmed the server-admission permission. Possum Bot is completing your server verification now."
+      : `k-ID confirmed access to ${surfaceLabel}. Return to the feature you requested.`
     : accessStatus === "prohibited"
       ? "k-ID says this feature is not available for this account. No other access decisions were made."
       : accessStatus === "guardian-required"
@@ -282,6 +327,16 @@ export default function AgeAssuranceVerificationPage() {
       {state?.challengeId && accessStatus === "pending" ? (
         <button type="button" onClick={() => void checkPendingResult()} disabled={busy} style={actionStyle}>
           {busy ? "Checking with k-ID…" : "Check k-ID result"}
+        </button>
+      ) : null}
+      {state?.sessionId && accessStatus === "pending" && !state.challengeId ? (
+        <button type="button" onClick={() => void checkPendingResult()} disabled={busy} style={actionStyle}>
+          {busy ? "Checking with k-ID..." : "Check feature permission"}
+        </button>
+      ) : null}
+      {error && state?.sessionId && accessStatus !== "enabled" && accessStatus !== "pending" ? (
+        <button type="button" onClick={() => void beginUpgrade(token)} disabled={busy} style={actionStyle}>
+          Retry k-ID permission check
         </button>
       ) : null}
 
@@ -347,7 +402,7 @@ export default function AgeAssuranceVerificationPage() {
       ) : null}
 
       {accessStatus === "enabled" ? (
-        <p><strong>Return to Discord and press “Finish k-ID verification.”</strong></p>
+        <p><strong>{state?.surface === "onboarding" ? "Return to Discord. Your server verification is being completed automatically." : "Return to the feature you requested."}</strong></p>
       ) : null}
       {["failed", "verification-required", "guardian-required", "unknown"].includes(accessStatus) ? (
         <button type="button" onClick={retry} disabled={busy} style={actionStyle}>

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
+import { readPersonalSocialGuestId } from "@/lib/personalSocialGuest";
+import prisma from "@/lib/prisma";
 import { readPublicGamingGuestId } from "@/lib/publicGamingGuest";
 
 export const dynamic = "force-dynamic";
@@ -43,7 +45,10 @@ function profile(value: any) {
     game: value.game,
     contactHandle: typeof value.contactHandle === "string" ? value.contactHandle : "",
     discordTag: typeof value.discordTag === "string" ? value.discordTag : "",
-    accounts: Array.isArray(value.accounts) ? value.accounts.filter((item: any) => item && typeof item.label === "string" && typeof item.url === "string").slice(0, 8) : [],
+    accounts: Array.isArray(value.accounts) ? value.accounts.filter((item: any) => item && typeof item.label === "string" && typeof item.url === "string").slice(0, 8).map((item: any) => ({
+      label: item.label, url: item.url,
+      ...(item.verified === true && ["twitch", "youtube", "reddit", "x", "tiktok"].includes(item.provider) ? { verified: true, provider: item.provider } : {}),
+    })) : [],
     gameStats: Array.isArray(value.gameStats) ? value.gameStats.filter((item: any) => item && typeof item.game === "string" && typeof item.platform === "string" && typeof item.progress === "string" && typeof item.hours === "number").slice(0, 20) : [],
   };
 }
@@ -108,6 +113,42 @@ export async function POST(request: NextRequest) {
     if (!body || (body.action !== "publish" && body.action !== "revoke")) {
       return reply({ success: false, error: "Invalid action." }, 400);
     }
+    const selectedProviders = Array.isArray(body.linkedProviders) ? body.linkedProviders : [];
+    const allowedProviders = new Set(["twitch", "youtube", "reddit", "x", "tiktok"]);
+    if (selectedProviders.length > 5 || selectedProviders.some((provider: unknown) => typeof provider !== "string" || !allowedProviders.has(provider))) {
+      return reply({ success: false, error: "Choose valid linked provider accounts." }, 400);
+    }
+    if (selectedProviders.length && (body.linkedAccountsConsent !== true || body.action !== "publish")) {
+      return reply({ success: false, error: "Explicit consent is required before publishing linked provider accounts." }, 400);
+    }
+    let linkedAccounts: { provider: string; label: string; url: string; verified: true }[] = [];
+    if (selectedProviders.length) {
+      const socialUserId = String(identity.session?.user?.id || readPersonalSocialGuestId(request) || "");
+      if (!socialUserId) return reply({ success: false, error: "Reconnect the provider from this browser before sharing it." }, 401);
+      const rows = await prisma.$queryRaw<{ provider: string; providerId: string; label: string; url: string; revision: string | null }[]>`
+        SELECT a."provider", a."providerId", a."label", a."url", r."revision"
+        FROM "PersonalSocialAccount" a
+        JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider"
+        WHERE a."userId" = ${socialUserId}
+      `;
+      linkedAccounts = rows.filter((row) => selectedProviders.includes(row.provider) && /^[a-f0-9]{32}$/.test(row.revision || "") &&
+        typeof row.providerId === "string" && row.providerId.length > 0 && typeof row.label === "string" && typeof row.url === "string")
+        .map(({ provider, label, url }) => ({ provider, label, url, verified: true as const }));
+      if (linkedAccounts.length !== new Set(selectedProviders).size) {
+        return reply({ success: false, error: "A selected provider is no longer linked. Refresh your connections and choose again." }, 409);
+      }
+    }
+    const manualAccounts = Array.isArray(body.accounts)
+      ? body.accounts.filter((item: any) => String(item?.label || "").trim() || String(item?.url || "").trim())
+        .map((item: any) => ({ label: item?.label, url: item?.url }))
+      : body.accounts;
+    const accountList = Array.isArray(manualAccounts) ? [...manualAccounts] : [];
+    for (const linked of linkedAccounts) {
+      const existing = accountList.findIndex((account: any) => String(account?.url || "").trim().toLowerCase() === linked.url.toLowerCase());
+      if (existing >= 0) accountList.splice(existing, 1);
+      accountList.push(linked);
+    }
+    if (accountList.length > 8) return reply({ success: false, error: "A public profile can include up to 8 account links total." }, 400);
     const shareDiscordTag = Boolean(identity.session?.user?.id) && body.shareDiscordTag === true;
     const discordTag = shareDiscordTag ? String(identity.session?.user?.username || "") : "";
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming/me`, {
@@ -119,7 +160,7 @@ export async function POST(request: NextRequest) {
         nickname: body.nickname,
         game: body.game,
         contactHandle: body.contactHandle,
-        accounts: Array.isArray(body.accounts) ? body.accounts.filter((item: any) => String(item?.label || "").trim() || String(item?.url || "").trim()) : body.accounts,
+        accounts: accountList,
         gameStats: Array.isArray(body.gameStats) ? body.gameStats.filter((item: any) => String(item?.game || "").trim() || String(item?.platform || "").trim() || String(item?.progress || "").trim() || Number(item?.hours) > 0) : body.gameStats,
         shareDiscordTag,
         discordTag,

@@ -31,7 +31,8 @@ function resolveViewerUserId() {
   return userId;
 }
 
-export function useGuildEngineEditor<T>(engine: string, defaults: T) {
+export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled !== false;
   const initialGuildId = typeof window === "undefined" ? "" : resolveGuildId();
   const initialViewerUserId = typeof window === "undefined" ? "" : resolveViewerUserId();
   const initialRuntime = typeof window === "undefined" ? null : peekRuntimeEngine(initialGuildId, engine, initialViewerUserId);
@@ -103,6 +104,10 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
   }, [defaults]);
 
   const reload = useCallback(async (targetGuildId = guildId, targetUserId = viewerUserId) => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     if (!targetGuildId) {
       setLoading(false);
       return;
@@ -187,11 +192,12 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T) {
       if (engine !== "botPersonalizer" ||
           (contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId)) setLoading(false);
     }
-  }, [engine, guildId, viewerUserId]);
+  }, [enabled, engine, guildId, viewerUserId]);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    if (enabled) void reload();
+    else setLoading(false);
+  }, [enabled, reload]);
 
   // Do not auto-reload editor pages while the user is working.
   // Forced refresh intervals were clobbering in-progress form edits and made the

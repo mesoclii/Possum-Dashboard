@@ -161,7 +161,7 @@ export default function PublicGamingPage() {
           <button type="button" aria-pressed={tab === "squads"} style={{ ...button, background: tab === "squads" ? "#d40050" : "#290016" }} onClick={() => setTab("squads")}>Find a squad</button>
           <button type="button" aria-pressed={tab === "directory"} style={{ ...button, background: tab === "directory" ? "#d40050" : "#290016" }} onClick={() => setTab("directory")}>Public player directory</button>
         </nav>
-        {tab === "squads" && <div style={panel}><PublicSquads profileReady={sessionLoaded} /></div>}
+        {tab === "squads" && <div style={panel}><PublicSquads loggedIn={sessionLoaded && loggedIn} /></div>}
         {tab === "directory" && <>
         <section style={panel} aria-labelledby="public-players">
           <h2 id="public-players" style={{ color: "#fff", fontSize: 24, margin: "0 0 8px" }}>Meet the players</h2>

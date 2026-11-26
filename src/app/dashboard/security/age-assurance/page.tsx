@@ -263,6 +263,7 @@ export default function AgeAssuranceSettingsPage() {
         dashboard, Gaming Hub, ordinary bot use, purchases, or public podcast playback.
         Connect and test the k-ID product here, then enable each feature for the selected server. Configure the age thresholds and AgeKey methods in k-ID Compliance Studio.
       </p>
+      <p style={muted}>Feature mapping: server admission uses <code>join-groups</code>; the 18+ JED shelf uses <code>mature-language</code>; public JED publishing uses <code>mods</code>; TCG battles use <code>multiplayer</code>; TCG card trades use <code>send-gifts</code>; podcast recording uses <code>voice-chat</code>. Each check applies only to that feature. Possum Bot stays available to Everyone.</p>
       <div style={card}>
         <strong>Selected server</strong>
         <div style={{ marginTop: 6 }}>{guildName || "Server"}</div>
@@ -325,7 +326,7 @@ export default function AgeAssuranceSettingsPage() {
         <p style={muted}>
           When enabled, members can choose k-ID instead of the existing ID-review route. Existing
           welcome text, ID tickets, refusal behavior, and post-verification flow are preserved.
-          Only a confirmed <code>multiplayer</code> permission can complete admission; pending,
+          Only a confirmed <code>join-groups</code> permission can complete admission; pending,
           unknown, or provider-error results never grant access or trigger removal.
         </p>
         <button type="button" style={button} disabled={!guildId || loading || saving} onClick={() => toggle("onboarding")}>

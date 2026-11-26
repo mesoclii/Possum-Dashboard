@@ -50,6 +50,7 @@ export default function EmoteLibraryPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [verificationUrl, setVerificationUrl] = useState("");
   const [importStatus, setImportStatus] = useState("");
 
   const guildName = (id: string) => guilds.find((entry) => entry.id === id)?.name || id;
@@ -136,28 +137,32 @@ export default function EmoteLibraryPage() {
     const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ guildId: sourceGuildId, action, audience, ...extra }) });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok || body?.success !== true) throw new Error(body?.error || "JED catalog operation failed.");
+    if (!response.ok || body?.success !== true) {
+      const error = new Error(body?.error || "JED catalog operation failed.") as Error & { verificationUrl?: string };
+      if (typeof body?.verificationUrl === "string") error.verificationUrl = body.verificationUrl;
+      throw error;
+    }
     return body;
   }
 
   async function publishAsset(asset: Asset) {
-    setBusy(`publish:${asset.id}`); setMessage("");
+    setBusy(`publish:${asset.id}`); setMessage(""); setVerificationUrl("");
     try {
       await changeCatalog(asset.published ? "withdraw" : "publish", asset.published
         ? { assetId: asset.id }
         : { assetId: asset.id, assetType: asset.assetType, name: asset.name, rightsConfirmed, generalAudienceConfirmed: audience === "general" && generalConfirmed, adultAudienceConfirmed: audience === "adult" && adultConfirmed });
       setMessage(asset.published ? `${asset.name} was removed from the public library.` : `${asset.name} was added to the public library.`);
       await Promise.all([loadCatalog(), loadGuildAssets(sourceGuildId)]);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update the listing."); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update the listing."); setVerificationUrl(String((error as Error & { verificationUrl?: string })?.verificationUrl || "")); }
     finally { setBusy(""); }
   }
 
   async function publishGif() {
-    setBusy("publish-gif"); setMessage("");
+    setBusy("publish-gif"); setMessage(""); setVerificationUrl("");
     try {
       await changeCatalog("publish", { assetType: "gif", name, url: gifUrl, rightsConfirmed, generalAudienceConfirmed: audience === "general" && generalConfirmed, adultAudienceConfirmed: audience === "adult" && adultConfirmed });
       setGifUrl(""); setName(""); setMessage("GIF added to the public JED library."); await loadCatalog();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not add the GIF."); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not add the GIF."); setVerificationUrl(String((error as Error & { verificationUrl?: string })?.verificationUrl || "")); }
     finally { setBusy(""); }
   }
 
@@ -165,16 +170,20 @@ export default function EmoteLibraryPage() {
     if (!publishingEnabled) { setMessage("Public JED submissions are currently closed."); return; }
     if (!sourceGuildId) { setMessage("Choose a server to submit the asset from."); return; }
     if (!rightsConfirmed || !audienceConfirmed) { setMessage(audience === "adult" ? "Confirm permission to share the asset and mark it as adult-only." : "Confirm permission to share the asset and that it is appropriate for all ages."); return; }
-    setBusy(`personal-publish:${item.id}`); setMessage("");
+    setBusy(`personal-publish:${item.id}`); setMessage(""); setVerificationUrl("");
     try {
       const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "publish-personal", guildId: sourceGuildId, itemId: item.id, rightsConfirmed, audience, generalAudienceConfirmed: audience === "general" && generalConfirmed, adultAudienceConfirmed: audience === "adult" && adultConfirmed }) });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not submit this asset.");
+      if (!response.ok || body?.success !== true) {
+        const error = new Error(body?.error || "Could not submit this asset.") as Error & { verificationUrl?: string };
+        if (typeof body?.verificationUrl === "string") error.verificationUrl = body.verificationUrl;
+        throw error;
+      }
       setPersonalItems((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, publicListingStatus: body.status || "pending_review" } : entry));
       setMessage(`“${item.name}” was submitted for public review. It will appear in the library after approval.`);
       await loadCatalog(true);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not submit this asset."); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not submit this asset."); setVerificationUrl(String((error as Error & { verificationUrl?: string })?.verificationUrl || "")); }
     finally { setBusy(""); }
   }
 
@@ -319,7 +328,7 @@ export default function EmoteLibraryPage() {
           <p style={{ ...muted, maxWidth: 900, marginBottom: 0 }}>Browse approved public assets or manage your private collection imported from a Discord server you manage. Your private collection is visible only to your account; ordinary JED saves remain in each server&apos;s automatic guild vault.</p>
         </header>
 
-        {message ? <div role="status" style={panel}>{message}</div> : null}
+        {message ? <div role="status" style={panel}>{message}{verificationUrl ? <p><a href={verificationUrl} target="_blank" rel="noreferrer" style={{ color: "#ff9ebc" }}>Complete the k-ID check</a></p> : null}</div> : null}
         {!publishingEnabled ? <div style={panel}>New shared public submissions are disabled. Existing approved items remain available; use the private collection below for your server assets.</div> : null}
 
         <section style={panel}>
@@ -328,7 +337,7 @@ export default function EmoteLibraryPage() {
             <button type="button" aria-pressed={audience === "general"} style={{ ...button, background: audience === "general" ? "#a7003e" : "#260b18" }} onClick={() => setAudience("general")}>SFW · All ages</button>
             <button type="button" aria-pressed={audience === "adult"} style={{ ...button, background: audience === "adult" ? "#a7003e" : "#260b18" }} onClick={() => setAudience("adult")}>18+ · NSFW</button>
           </div>
-          {audience === "adult" ? <p style={muted}>The 18+ shelf is separate from all-ages assets and requires k-ID&apos;s mods permission for the signed-in account. The SFW shelf stays open. Enable 18+ catalog submissions in the selected server&apos;s JED settings, then complete the AgeKey check in Adult Emote Studio. <a href="/dashboard/jed/adult-emotes" style={{ color: "#ff9ebc" }}>Open Adult Emote Studio</a> · <a href="/dashboard/security/age-assurance" style={{ color: "#ff9ebc" }}>Set up AgeKey</a></p> : null}
+          {audience === "adult" ? <p style={muted}>The 18+ shelf is separate from all-ages assets and requires k-ID&apos;s mature-language permission for the signed-in account. The SFW shelf stays open. Publishing assets for others also requires the mods permission. Enable 18+ catalog submissions in the selected server&apos;s JED settings, then complete the AgeKey check in Adult Emote Studio. <a href="/dashboard/jed/adult-emotes" style={{ color: "#ff9ebc" }}>Open Adult Emote Studio</a> · <a href="/dashboard/security/age-assurance" style={{ color: "#ff9ebc" }}>Set up AgeKey</a></p> : null}
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <input aria-label="Search public assets" style={input} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search emoji, sticker, or GIF" />
             <label style={muted}>Add to server <select style={input} value={targetGuildId} onChange={(event) => setTargetGuildId(event.target.value)} disabled={!guilds.length}>

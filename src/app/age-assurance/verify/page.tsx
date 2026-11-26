@@ -13,7 +13,7 @@ import {
 } from "@k-id/core-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type Surface = "onboarding" | "adultFeatures" | "podcasts";
+type Surface = "onboarding" | "adultFeatures" | "podcasts" | "tcgBattles" | "tcgTrades" | "jedPublishing";
 type AssuranceState = {
   surface: Surface;
   sessionId: string;
@@ -28,6 +28,9 @@ const LABELS: Record<Surface, string> = {
   onboarding: "server admission",
   adultFeatures: "Adult Emote Studio",
   podcasts: "podcast recording",
+  tcgBattles: "Possum TCG battles",
+  tcgTrades: "Possum TCG card trading",
+  jedPublishing: "public JED asset publishing",
 };
 
 const panelStyle = {
@@ -89,6 +92,7 @@ export default function AgeAssuranceVerificationPage() {
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkAttempt, setSdkAttempt] = useState(0);
+  const [returnTo, setReturnTo] = useState("");
   const [clientConfig, setClientConfig] = useState<ClientConfig | null>(null);
   const [clientConfigLoading, setClientConfigLoading] = useState(true);
   const claimInFlight = useRef(false);
@@ -136,7 +140,10 @@ export default function AgeAssuranceVerificationPage() {
   useEffect(() => {
     const pageUrl = new URL(window.location.href);
     const incomingToken = String(pageUrl.searchParams.get("token") || "").trim();
+    const requestedReturnTo = String(pageUrl.searchParams.get("returnTo") || "");
+    if (["/tcg", "/emotes"].includes(requestedReturnTo)) setReturnTo(requestedReturnTo);
     pageUrl.searchParams.delete("token");
+    pageUrl.searchParams.delete("returnTo");
     window.history.replaceState({}, "", `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`);
     if (!/^[A-Za-z0-9_-]{40,64}$/.test(incomingToken)) {
       setError("This age assurance link is missing or invalid. Return to Discord and request a new one.");
@@ -211,35 +218,16 @@ export default function AgeAssuranceVerificationPage() {
     }
   }, [refreshStatus, token]);
 
-  useEffect(() => {
-    if (!token || !state?.challengeId || accessStatus !== "pending") return;
-    let active = true;
-    let timer: number | undefined;
-    let delayMs = 6000;
-    async function poll() {
-      try {
-        const status = await refreshStatus(token);
-        delayMs = 6000;
-        setError("");
-        if (!active || status !== "pending") return;
-      } catch (statusError) {
-        if (!active) return;
-        const httpStatus = Number((statusError as Error & { status?: number })?.status || 0);
-        setError(statusError instanceof Error ? statusError.message : "Could not refresh k-ID status.");
-        if (httpStatus === 429) delayMs = Math.min(Math.max(delayMs * 2, 10000), 60000);
-      }
-      if (active) schedule();
-    }
-    function schedule() { timer = window.setTimeout(() => { void poll(); }, delayMs); }
-    schedule();
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [accessStatus, refreshStatus, state?.challengeId, token]);
-
   const retry = () => {
     if (token) void beginUpgrade(token);
+  };
+  const checkPendingResult = async () => {
+    if (!token || busy) return;
+    setBusy(true);
+    setError("");
+    try { await refreshStatus(token); }
+    catch (statusError) { setError(statusError instanceof Error ? statusError.message : "Could not check the k-ID result."); }
+    finally { setBusy(false); }
   };
   const retrySdk = () => {
     setError("");
@@ -277,6 +265,7 @@ export default function AgeAssuranceVerificationPage() {
       </p>
       {error ? <p role="alert" style={{ color: "#ff9b9b" }}>{error}</p> : null}
       {statusText ? <p role="status">{statusText}</p> : null}
+      {accessStatus === "enabled" && returnTo ? <p><a href={returnTo} style={{ color: "#ff9ebc" }}>Return to the feature</a></p> : null}
       {busy ? <p>Confirming with k-ID…</p> : null}
 
       {state?.challengeUrl && accessStatus === "pending" ? (
@@ -289,6 +278,11 @@ export default function AgeAssuranceVerificationPage() {
           referrerPolicy="no-referrer"
           style={{ border: "1px solid #6f1b2b", borderRadius: 12, background: "#fff" }}
         />
+      ) : null}
+      {state?.challengeId && accessStatus === "pending" ? (
+        <button type="button" onClick={() => void checkPendingResult()} disabled={busy} style={actionStyle}>
+          {busy ? "Checking with k-ID…" : "Check k-ID result"}
+        </button>
       ) : null}
 
       {sdkReady && token && !state?.sessionId ? (
@@ -312,6 +306,8 @@ export default function AgeAssuranceVerificationPage() {
                 { name: "text-chat-private" },
                 { name: "photo-video-sharing" },
                 { name: "mods" },
+                { name: "mature-language" },
+                { name: "send-gifts" },
                 { name: "voice-chat" },
               ],
               privacyPolicyUrl: `${publicDashboardUrl}/privacy`,

@@ -45,7 +45,7 @@ export default function AgeAssuranceSettingsPage() {
     <p>Manage the k-ID permissions attached to your account. Turning a permission off can disable its gated feature; this page does not gate the dashboard or public Gaming Hub.</p>
     {message ? <p role="status">{message}</p> : null}
     {ready ? <KidCoreProvider publishableKey={config!.publishableKey} baseUrl={config!.baseUrl} declare={{
-      permissions: [{ name: "multiplayer" }, { name: "join-groups" }, { name: "public-profile" }, { name: "custom-username" }, { name: "online-status" }, { name: "text-chat-public" }, { name: "text-chat-private" }, { name: "photo-video-sharing" }, { name: "mods" }, { name: "voice-chat" }],
+      permissions: [{ name: "multiplayer" }, { name: "join-groups" }, { name: "public-profile" }, { name: "custom-username" }, { name: "online-status" }, { name: "text-chat-public" }, { name: "text-chat-private" }, { name: "photo-video-sharing" }, { name: "mods" }, { name: "mature-language" }, { name: "send-gifts" }, { name: "voice-chat" }],
       privacyPolicyUrl: dashboardUrl + "/privacy", termsOfServiceUrl: dashboardUrl + "/terms", iconUrl: dashboardUrl + "/kid-app-icon.png", supportEmail: config!.supportEmail,
     }}><KidSettingsProvider sessionId={saved!.sessionId} challengeId={saved!.challengeId || undefined} onChallenge={(id) => void saveChallenge(id)}><KidSettings /></KidSettingsProvider></KidCoreProvider> : null}
     {saved ? <button type="button" onClick={() => void forgetSession()} disabled={busy} style={{ ...button, marginTop: 20 }}>{busy ? "Removing?" : "Remove saved k-ID session"}</button> : null}

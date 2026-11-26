@@ -5,6 +5,7 @@ import { resolveGuildContext } from "@/lib/liveRuntime";
 
 type Policy = {
   onboarding: boolean;
+  onboardingAdultOnly: boolean;
   adultFeatures: boolean;
   podcasts: boolean;
 };
@@ -44,6 +45,7 @@ const defaultUrls: Record<ProviderMode, UrlDraft> = {
 
 const DEFAULT_POLICY: Policy = {
   onboarding: false,
+  onboardingAdultOnly: false,
   adultFeatures: false,
   podcasts: false,
 };
@@ -133,6 +135,7 @@ export default function AgeAssuranceSettingsPage() {
         const config = result.config && typeof result.config === "object" ? result.config : {};
         setPolicy({
           onboarding: config.onboarding === true,
+          onboardingAdultOnly: config.onboardingAdultOnly === true,
           adultFeatures: config.adultFeatures === true,
           podcasts: config.podcasts === true,
         });
@@ -187,6 +190,7 @@ export default function AgeAssuranceSettingsPage() {
       const saved = result.config && typeof result.config === "object" ? result.config : next;
       setPolicy({
         onboarding: saved.onboarding === true,
+        onboardingAdultOnly: saved.onboardingAdultOnly === true,
         adultFeatures: saved.adultFeatures === true,
         podcasts: saved.podcasts === true,
       });
@@ -365,6 +369,18 @@ export default function AgeAssuranceSettingsPage() {
           {policy.onboarding ? "Disable server admission AgeKey" : "Enable server admission AgeKey"}
         </button>
         <span style={{ ...muted, marginLeft: 12 }}>{policy.onboarding ? "Enabled for this server" : "Off"}</span>
+        <label style={{ ...muted, display: "flex", gap: 10, alignItems: "flex-start", marginTop: 14 }}>
+          <input
+            type="checkbox"
+            checked={policy.onboardingAdultOnly}
+            disabled={!guildId || loading || saving || !policy.onboarding}
+            onChange={() => toggle("onboardingAdultOnly")}
+          />
+          <span>
+            This server is 18+. Require k-ID Verify Age at the civil adult age for the member&apos;s
+            jurisdiction, in addition to <code>join-groups</code>.
+          </span>
+        </label>
       </section>
 
       <section style={card}>

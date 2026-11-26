@@ -15,6 +15,7 @@ import {
   KidSessionVerifyAgePending,
   KidSettingsProvider,
   KidSessionProvider,
+  useKidPermissionSettings,
 } from "@k-id/core-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useKidBrowserConfig } from "@/components/possum/KidCoreAppProvider";
@@ -98,6 +99,45 @@ const actionStyle = {
 const REQUEST_TOKEN_STORAGE_KEY = "possum.age-assurance.request.v1";
 const REQUEST_TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 const REQUEST_TOKEN_PATTERN = /^[A-Za-z0-9_-]{40,64}$/;
+
+function PermissionSettingsGuidance({ permission, mode }: { permission: string; mode: "test" | "live" }) {
+  const { permissions, isLoaded, error: settingsError } = useKidPermissionSettings();
+
+  if (settingsError) {
+    return <p role="alert">k-ID could not load this session&apos;s permission settings. Refresh the page and try again.</p>;
+  }
+
+  if (!isLoaded) {
+    return <p role="status">Loading this k-ID session&apos;s permissions…</p>;
+  }
+
+  const matching = permissions.filter((entry) => entry.name === permission);
+  if (matching.length !== 1) {
+    return (
+      <p role="alert">
+        This k-ID session does not include <strong>{permission}</strong>, so Possum Bot cannot confirm server admission.
+        {mode === "live"
+          ? " Add Join Groups to the live product's permissions in Kai; SDK declarations only configure test keys."
+          : " Add Join Groups to the test app's declared permissions, then request a fresh verification link."}
+      </p>
+    );
+  }
+
+  const selected = matching[0];
+  if (selected.managedBy === "PROHIBITED") {
+    return <p role="alert">k-ID marks <strong>{permission}</strong> as unavailable for this account or jurisdiction. Use the server&apos;s manual verification route.</p>;
+  }
+  if (selected.managedBy === "GUARDIAN") {
+    return <p role="status">A guardian must approve <strong>{permission}</strong> in the k-ID settings below before server admission can continue.</p>;
+  }
+  if (selected.enabled) {
+    return <p role="status"><strong>{permission}</strong> is enabled in this session. Use “Check permission again” to refresh the server decision.</p>;
+  }
+  if (selected.verifiedAgeThreshold !== undefined) {
+    return <p role="status">Complete the age verification option shown for <strong>{permission}</strong> below, then check the result again.</p>;
+  }
+  return <p role="status">Enable <strong>{permission}</strong> in the k-ID settings below, then check the result again.</p>;
+}
 
 function readStoredRequestToken() {
   try {
@@ -421,6 +461,7 @@ export default function AgeAssuranceVerificationPage() {
                       challengeId={state.challengeId || undefined}
                       onChallenge={(challengeId) => void handleChallenge(challengeId)}
                     >
+                      <PermissionSettingsGuidance permission={PERMISSIONS[state.surface]} mode={clientConfig.mode} />
                       <KidPermissionSettings />
                     </KidSettingsProvider>
                   </section>
@@ -460,7 +501,7 @@ export default function AgeAssuranceVerificationPage() {
       {accessStatus === "enabled" ? (
         <p><strong>Return to Discord and press “Finish k-ID verification.”</strong></p>
       ) : null}
-      {["failed", "verification-required", "guardian-required", "unknown"].includes(accessStatus) ? (
+      {["failed", "verification-required", "guardian-required", "disabled", "unknown"].includes(accessStatus) ? (
         <button type="button" onClick={retry} disabled={busy} style={actionStyle}>
           {state?.sessionId ? "Check permission again" : "Retry k-ID check"}
         </button>

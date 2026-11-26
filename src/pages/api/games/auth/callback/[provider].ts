@@ -7,6 +7,7 @@ import {
 } from "@/lib/botApiServer";
 import { readActorUserId } from "@/lib/botApi";
 import { getConfiguredGameAuthOrigin } from "@/lib/gameAuthOrigin";
+import { readPublicGamingGuestIdFromCookie } from "@/lib/publicGamingGuest";
 
 function readFirst(value: string | string[] | undefined): string {
   return String(Array.isArray(value) ? value[0] : value || "").trim();
@@ -41,23 +42,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const providerKey = readFirst((req.query.provider as string | string[] | undefined) || (req.query.providerKey as string | string[] | undefined));
   const origin = getRequestOrigin(req);
   const actorUserId = await readActorUserId(req);
-  const fallback = fallbackPath(req, actorUserId);
+  const state = readFirst(req.query.state as string | string[] | undefined);
+  const isPublicGamingFlow = /^g[a-f0-9]{32}$/i.test(state);
+  const publicGamingUserId = actorUserId || readPublicGamingGuestIdFromCookie(req.cookies.possum_gaming_guest);
+  const fallback = isPublicGamingFlow ? "/gaming?tab=directory" : fallbackPath(req, actorUserId);
 
-  if (!providerKey || !origin || !actorUserId) {
-    return res.redirect(302, appendError(fallback, providerKey || "unknown", "A valid dashboard session, provider, and origin are required."));
+  if (!providerKey || !origin || (isPublicGamingFlow ? !publicGamingUserId : !actorUserId)) {
+    return res.redirect(302, appendError(fallback, providerKey || "unknown", isPublicGamingFlow
+      ? "Return to the Gaming Hub in the same browser to finish linking this account."
+      : "A valid dashboard session, provider, and origin are required."));
   }
 
   try {
-    const response = await fetchServerBotApi(`${SERVER_BOT_API}/api/game-provider-auth/callback`, {
+    const response = await fetchServerBotApi(isPublicGamingFlow
+      ? `${SERVER_BOT_API}/internal/public-gaming/provider-auth/callback/${encodeURIComponent(providerKey)}`
+      : `${SERVER_BOT_API}/api/game-provider-auth/callback`, {
       method: "POST",
       headers: {
-        ...buildServerBotApiHeaders(actorUserId, { allowFallback: false }),
+        ...buildServerBotApiHeaders(isPublicGamingFlow ? publicGamingUserId : actorUserId, { allowFallback: false }),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         providerKey,
         callbackBaseUrl: origin,
         query: req.query,
+        ...(isPublicGamingFlow ? { publicGamingUserId } : {}),
       }),
     });
     const json = await readServerBotApiJson(response);

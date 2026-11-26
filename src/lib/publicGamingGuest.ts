@@ -25,6 +25,10 @@ function readGuestCookie(value: string | undefined) {
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual) ? id : "";
 }
 
+export function readPublicGamingGuestIdFromCookie(value: string | undefined) {
+  return readGuestCookie(value);
+}
+
 export async function publicGamingActor(request: NextRequest, createGuest = false): Promise<GamingActor | null> {
   const sessionValue = request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value;
   const session = await readDashboardSessionValue(sessionValue).catch(() => null);

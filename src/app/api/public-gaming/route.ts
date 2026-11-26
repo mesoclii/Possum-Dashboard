@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
+import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
 import { attachPublicGamingGuestCookie, publicGamingActor } from "@/lib/publicGamingGuest";
+import { readPersonalSocialGuestId } from "@/lib/personalSocialGuest";
+import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store, private" };
@@ -12,13 +15,16 @@ function reply(data: unknown, status = 200) {
 
 function profile(value: any) {
   if (!value || typeof value.nickname !== "string" || typeof value.game !== "string") return null;
+  const verifiedProviders = new Set(["twitch", "youtube", "reddit", "x", "tiktok", "steam", "battlenet", "epic", "xbox", "bungie"]);
   const accounts = Array.isArray(value.accounts) ? value.accounts.flatMap((entry: any) => {
     if (!entry || typeof entry.label !== "string" || entry.label.length < 1 || entry.label.length > 40 ||
         typeof entry.url !== "string" || entry.url.length > 300) return [];
+    const verified = entry.verified === true && verifiedProviders.has(String(entry.provider || ""));
+    if (verified && !entry.url) return [{ label: entry.label, url: "", verified: true, provider: entry.provider }];
     try {
       const url = new URL(entry.url);
       if (url.protocol !== "https:" || !url.hostname || url.username || url.password) return [];
-      return [{ label: entry.label, url: url.href }];
+      return [{ label: entry.label, url: url.href, ...(verified ? { verified: true, provider: entry.provider } : {}) }];
     } catch {
       return [];
     }
@@ -91,10 +97,60 @@ export async function POST(request: NextRequest) {
     if (!body || (body.action !== "publish" && body.action !== "revoke")) {
       return reply({ success: false, error: "Invalid action." }, 400);
     }
+    const selectedProviders = Array.isArray(body.linkedProviders) ? body.linkedProviders : [];
+    const socialProviders = new Set(["twitch", "youtube", "reddit", "x", "tiktok"]);
+    const gameProviders = new Set(["steam", "battlenet", "epic", "xbox", "bungie"]);
+    if (selectedProviders.length > 8 || selectedProviders.some((provider: unknown) => typeof provider !== "string" || (!socialProviders.has(provider) && !gameProviders.has(provider)))) {
+      return reply({ success: false, error: "Choose valid verified account links." }, 400);
+    }
+    if (selectedProviders.length && (body.linkedAccountsConsent !== true || body.action !== "publish")) {
+      return reply({ success: false, error: "Explicit consent is required before publishing verified account links." }, 400);
+    }
+    const linkedAccounts: { provider: string; label: string; url: string; verified: true }[] = [];
+    const selectedSocial = selectedProviders.filter((provider: string) => socialProviders.has(provider));
+    if (selectedSocial.length) {
+      const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
+      const socialUserId = String(session?.user?.id || readPersonalSocialGuestId(request) || "");
+      if (!socialUserId) return reply({ success: false, error: "Reconnect the social account in this browser before sharing it." }, 401);
+      const rows = await prisma.$queryRaw<{ provider: string; providerId: string; label: string; url: string; revision: string | null }[]>`
+        SELECT a."provider", a."providerId", a."label", a."url", r."revision"
+        FROM "PersonalSocialAccount" a
+        JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider"
+        WHERE a."userId" = ${socialUserId}
+      `;
+      const socialLinks = rows.filter((row) => selectedSocial.includes(row.provider) && /^[a-f0-9]{32}$/.test(row.revision || "") &&
+        typeof row.providerId === "string" && row.providerId.length > 0 && typeof row.label === "string" && typeof row.url === "string")
+        .map(({ provider, label, url }) => ({ provider, label, url, verified: true as const }));
+      if (socialLinks.length !== new Set(selectedSocial).size) return reply({ success: false, error: "A selected social account is no longer linked. Refresh and choose again." }, 409);
+      linkedAccounts.push(...socialLinks);
+    }
+    const selectedGames = selectedProviders.filter((provider: string) => gameProviders.has(provider));
+    if (selectedGames.length) {
+      const linkedResponse = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming/linked-accounts/me`, {
+        headers: buildServerBotApiHeaders(actor.id), cache: "no-store",
+      });
+      const linkedData = await readServerBotApiJson(linkedResponse);
+      if (!linkedResponse.ok || !Array.isArray(linkedData.accounts)) return reply({ success: false, error: "Verified game accounts are unavailable. Refresh and try again." }, 503);
+      const gameLinks = linkedData.accounts.filter((entry: any) => selectedGames.includes(entry?.provider) && entry?.verified === true && typeof entry.label === "string" && typeof entry.url === "string")
+        .map((entry: any) => ({ provider: entry.provider, label: entry.label, url: entry.url, verified: true as const }));
+      if (gameLinks.length !== new Set(selectedGames).size) return reply({ success: false, error: "A selected game account is no longer linked. Refresh and choose again." }, 409);
+      linkedAccounts.push(...gameLinks);
+    }
+    const manualAccounts = Array.isArray(body.accounts)
+      ? body.accounts.filter((item: any) => String(item?.label || "").trim() || String(item?.url || "").trim())
+        .map((item: any) => ({ label: item?.label, url: item?.url }))
+      : body.accounts;
+    const accountList = Array.isArray(manualAccounts) ? [...manualAccounts] : [];
+    for (const linked of linkedAccounts) {
+      const existing = accountList.findIndex((account: any) => (linked.url && String(account?.url || "").trim().toLowerCase() === linked.url.toLowerCase()) || account?.provider === linked.provider);
+      if (existing >= 0) accountList.splice(existing, 1);
+      accountList.push(linked);
+    }
+    if (accountList.length > 8) return reply({ success: false, error: "A public profile can include up to 8 account links total." }, 400);
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-gaming/me`, {
       method: "POST",
       headers: { ...buildServerBotApiHeaders(actor.id), "Content-Type": "application/json" },
-      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle, accounts: body.accounts, gameStats: body.gameStats }),
+      body: JSON.stringify({ action: body.action, consent: body.consent, nickname: body.nickname, game: body.game, contactHandle: body.contactHandle, accounts: accountList, gameStats: body.gameStats }),
       cache: "no-store",
     });
     const data = await readServerBotApiJson(upstream);

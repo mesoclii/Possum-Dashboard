@@ -6,11 +6,13 @@ import Link from "next/link";
 import GameSocialClient from "@/components/possum/GameSocialClient";
 import PublicSquads from "@/components/possum/PublicSquads";
 
-type AccountLink = { label: string; url: string };
+type AccountLink = { label: string; url: string; verified?: boolean; provider?: string };
 type GameStat = { game: string; platform: string; hours: string; progress: string };
 type PublicGameStat = { game: string; platform: string; hours: number; progress: string };
 type Profile = { nickname: string; game: string; contactHandle: string; accounts: AccountLink[]; gameStats: PublicGameStat[] };
+type VerifiedAccount = { provider: string; label: string; url: string; verified: true };
 type Guild = { id: string; name: string };
+const providerNames: Record<string, string> = { twitch: "Twitch", youtube: "YouTube", reddit: "Reddit", x: "X", tiktok: "TikTok", steam: "Steam", battlenet: "Battle.net", epic: "Epic Games", xbox: "Xbox", bungie: "Bungie" };
 const panel: CSSProperties = { border: "1px solid #ff2e75", borderRadius: 16, padding: 20, background: "#21000e" };
 const input: CSSProperties = { width: "100%", padding: 10, border: "1px solid #ff2e75", borderRadius: 8, color: "#fff", background: "#16000b" };
 const button: CSSProperties = { padding: "10px 16px", borderRadius: 8, border: "1px solid #ff2e75", color: "#fff", background: "#a7003e", cursor: "pointer", fontWeight: 700 };
@@ -34,6 +36,9 @@ export default function PublicGamingPage() {
   const [game, setGame] = useState("");
   const [contactHandle, setContactHandle] = useState("");
   const [accountLinks, setAccountLinks] = useState<AccountLink[]>([]);
+  const [verifiedAccounts, setVerifiedAccounts] = useState<VerifiedAccount[]>([]);
+  const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
+  const [linkedAccountsConsent, setLinkedAccountsConsent] = useState(false);
   const [gameStats, setGameStats] = useState<GameStat[]>([{ game: "", platform: "", hours: "", progress: "" }]);
   const [filter, setFilter] = useState("");
   const [consent, setConsent] = useState(false);
@@ -49,6 +54,15 @@ export default function PublicGamingPage() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("tab") === "squads") setTab("squads");
+    const query = new URLSearchParams(window.location.search);
+    const providerAuth = query.get("providerAuth");
+    if (providerAuth) {
+      setMessage(query.get("authMessage") || `${providerNames[query.get("provider") || ""] || "Provider"} ${providerAuth === "success" ? "linked and verified" : "linking failed"}.`);
+      query.delete("providerAuth");
+      query.delete("provider");
+      query.delete("authMessage");
+      window.history.replaceState({}, "", `${window.location.pathname}${query.toString() ? `?${query}` : ""}${window.location.hash}`);
+    }
     void loadProfiles().catch(() => {
       setUnavailable(true);
       setMessage("Public profiles are unavailable. Please try again later.");
@@ -85,16 +99,24 @@ export default function PublicGamingPage() {
       }
 
       try {
+        if (!discordUserId) await fetch("/api/personal-social/guest", { cache: "no-store" });
         const response = await fetch("/api/public-gaming?me=1", { cache: "no-store" });
         const data = await response.json();
         if (!response.ok || !data.success) throw new Error(data.error || "Your public Gaming Hub profile is unavailable.");
+        const linkedResponse = await fetch("/api/public-gaming/linked-accounts", { cache: "no-store" });
+        const linkedData = linkedResponse.ok ? await linkedResponse.json() : { accounts: [] };
+        const linked = Array.isArray(linkedData.accounts) ? linkedData.accounts.filter((entry: any) => entry?.verified === true && typeof entry.provider === "string") : [];
+        setVerifiedAccounts(linked);
         setOwn(data.profile);
         setOwnLoaded(true);
         setGuestReady(true);
         setNickname(data.profile?.nickname || "");
         setGame(data.profile?.game || "");
         setContactHandle(data.profile?.contactHandle || "");
-        setAccountLinks(Array.isArray(data.profile?.accounts) ? data.profile.accounts : []);
+        const publishedVerified = (data.profile?.accounts || []).filter((entry: AccountLink) => entry.verified && linked.some((account: VerifiedAccount) => account.provider === entry.provider && account.url === entry.url));
+        setLinkedProviders(publishedVerified.map((entry: AccountLink) => entry.provider!));
+        setLinkedAccountsConsent(publishedVerified.length > 0);
+        setAccountLinks((data.profile?.accounts || []).filter((entry: AccountLink) => !entry.verified || !linked.some((account: VerifiedAccount) => account.provider === entry.provider && account.url === entry.url)));
         setGameStats(Array.isArray(data.profile?.gameStats) && data.profile.gameStats.length
           ? data.profile.gameStats.map((entry: PublicGameStat) => ({ ...entry, hours: String(entry.hours) }))
           : [{ game: "", platform: "", hours: "", progress: "" }]);
@@ -134,13 +156,20 @@ export default function PublicGamingPage() {
       const response = await fetch("/api/public-gaming", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, nickname, game, contactHandle, accounts: accountLinks, gameStats: publicGameStats, consent }),
+        body: JSON.stringify({
+          action, nickname, game, contactHandle, accounts: accountLinks, gameStats: publicGameStats, consent,
+          linkedProviders: action === "publish" ? linkedProviders : [],
+          linkedAccountsConsent: action === "publish" && linkedAccountsConsent,
+        }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || "Update failed.");
       setOwn(data.profile);
       setOwnLoaded(true);
-      setAccountLinks(action === "revoke" || !Array.isArray(data.profile?.accounts) ? [] : data.profile.accounts);
+      const savedAccounts = action === "revoke" || !Array.isArray(data.profile?.accounts) ? [] : data.profile.accounts;
+      setAccountLinks(savedAccounts.filter((entry: AccountLink) => !entry.verified));
+      setLinkedProviders(savedAccounts.filter((entry: AccountLink) => entry.verified && typeof entry.provider === "string").map((entry: AccountLink) => entry.provider!));
+      setLinkedAccountsConsent(action === "publish" && savedAccounts.some((entry: AccountLink) => entry.verified));
       setGameStats(action === "revoke" || !Array.isArray(data.profile?.gameStats) || !data.profile.gameStats.length
         ? [{ game: "", platform: "", hours: "", progress: "" }]
         : data.profile.gameStats.map((entry: PublicGameStat) => ({ ...entry, hours: String(entry.hours) })));
@@ -232,7 +261,7 @@ export default function PublicGamingPage() {
           <input id="public-filter" style={{ ...input, marginTop: 8 }} value={filter} onChange={(event) => setFilter(event.target.value)} />
           {loading ? <p>Loading profiles…</p> : unavailable ? <p>Public profiles are unavailable.</p> : visible.length ? (
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 12, marginTop: 16 }}>
-              {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong><div style={{ color: "#ff81ad", marginTop: 8 }}>{entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}{entry.accounts.length ? <div style={{ display: "grid", gap: 6, marginTop: 12 }}><strong style={{ color: "#ffd0df", fontSize: 13 }}>Public account links</strong>{entry.accounts.map((account, accountIndex) => <a key={`${account.label}-${accountIndex}`} href={account.url} target="_blank" rel="noopener noreferrer" style={{ color: "#ff9ebc", overflowWrap: "anywhere" }}>{account.label}</a>)}</div> : null}</li>)}
+              {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong><div style={{ color: "#ff81ad", marginTop: 8 }}>{entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}{entry.accounts.length ? <div style={{ display: "grid", gap: 6, marginTop: 12 }}><strong style={{ color: "#ffd0df", fontSize: 13 }}>Player accounts</strong>{entry.accounts.map((account, accountIndex) => <span key={`${account.label}-${accountIndex}`} style={{ color: "#ff9ebc", overflowWrap: "anywhere" }}>{account.url ? <a href={account.url} target="_blank" rel="noopener noreferrer" style={{ color: "inherit" }}>{account.label}</a> : account.label}{account.verified ? ` · Verified ${providerNames[account.provider || ""] || "provider"}` : " · self-reported"}</span>)}</div> : null}</li>)}
             </ul>
           ) : <p style={{ ...panel, marginTop: 16, color: "#f4b7ce" }}>{filter ? "No matching public profiles." : "No public profiles yet. Publish an introduction below to get started."}</p>}
           {visible.some((entry) => entry.gameStats?.length) && <div style={{ marginTop: 18 }}>
@@ -268,17 +297,20 @@ export default function PublicGamingPage() {
                   <button type="button" disabled={busy || gameStats.length >= 20} style={{ ...button, justifySelf: "start" }} onClick={() => setGameStats((current) => [...current, { game: "", platform: "", hours: "", progress: "" }])}>Add a game</button>
                 </div>
                 <div style={{ display: "grid", gap: 10 }}>
-                  <div><strong>Link your other accounts</strong><p style={{ margin: "4px 0 0", color: "#efb4c9" }}>Add public profile URLs for any games or services you use. These are links only; Possum does not sign in to or verify them.</p></div>
+                  <div><strong>Link your gaming and social accounts</strong><p style={{ margin: "4px 0 0", color: "#efb4c9" }}>Verify supported accounts with their provider, without Discord. Verification does not import private stats. Choose separately which verified names and links to publish.</p></div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{["steam", "epic", "battlenet", "xbox", "bungie"].map((provider) => <a key={provider} href={`/api/games/auth/guest/start?provider=${provider}`} style={{ ...button, display: "inline-block", textDecoration: "none" }}>Connect {providerNames[provider]}</a>)}</div>
+                  <div><a href="/personal-social" style={{ color: "#ffc4d9" }}>Connect Twitch, YouTube, Reddit, X or TikTok</a> · Discord is optional.</div>
+                  {verifiedAccounts.length ? <div style={{ display: "grid", gap: 6 }}><strong>Choose verified accounts to publish</strong>{verifiedAccounts.map((account) => <label key={account.provider}><input type="checkbox" checked={linkedProviders.includes(account.provider)} onChange={(event) => { if (event.target.checked && accountLinks.length + linkedProviders.length >= 8) { setMessage("A public profile can include up to 8 account links total."); return; } setLinkedProviders((current) => event.target.checked ? [...current, account.provider] : current.filter((provider) => provider !== account.provider)); setLinkedAccountsConsent(false); }} /> Publish verified {providerNames[account.provider] || account.provider} account: {account.label}</label>)}{linkedProviders.length > 0 ? <label><input type="checkbox" checked={linkedAccountsConsent} onChange={(event) => setLinkedAccountsConsent(event.target.checked)} /> I specifically agree to publish the selected verified account names and links to everyone online.</label> : null}</div> : <p>No verified accounts linked yet. You can connect providers above or add public URLs manually.</p>}
                   {accountLinks.map((account, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr)) auto", gap: 8, alignItems: "end" }}>
                     <label>Platform or account name <input style={input} required maxLength={40} value={account.label} onChange={(event) => updateAccountLink(index, "label", event.target.value)} /></label>
                     <label>Public profile URL <input style={input} required type="url" maxLength={300} placeholder="https://…" value={account.url} onChange={(event) => updateAccountLink(index, "url", event.target.value)} /></label>
                     <button type="button" disabled={busy} style={button} onClick={() => setAccountLinks((current) => current.filter((_, entryIndex) => entryIndex !== index))}>Remove</button>
                   </div>)}
-                  <button type="button" disabled={busy || accountLinks.length >= 8} style={{ ...button, justifySelf: "start" }} onClick={() => setAccountLinks((current) => [...current, { label: "", url: "" }])}>Add account link</button>
+                  <button type="button" disabled={busy || accountLinks.length + linkedProviders.length >= 8} style={{ ...button, justifySelf: "start" }} onClick={() => setAccountLinks((current) => [...current, { label: "", url: "" }])}>Add account link</button>
                 </div>
                 <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I explicitly agree to publish the profile, account links and game details entered above to everyone online until I revoke sharing.</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                  <button type="submit" disabled={busy || !consent || !ownLoaded} style={button}>{own ? "Update public introduction" : "Publish introduction"}</button>
+                  <button type="submit" disabled={busy || !consent || !ownLoaded || (linkedProviders.length > 0 && !linkedAccountsConsent)} style={button}>{own ? "Update public introduction" : "Publish introduction"}</button>
                   <button type="button" disabled={busy} style={button} onClick={() => void update("revoke")}>Revoke public sharing</button>
                 </div>
               </form>

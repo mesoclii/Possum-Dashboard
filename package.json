@@ -12,11 +12,11 @@
     "lint": "eslint .",
     "deploy:vm": "node scripts/deploy-vm.js",
     "catalog:sync": "node scripts/sync-catalog.js",
-    "prebuild": "node scripts/sync-catalog.js",
+    "prebuild": "prisma generate && node scripts/sync-catalog.js",
     "predev": "node scripts/sync-catalog.js"
   },
   "dependencies": {
-    "@k-id/core-react": "1.0.0",
+    "@k-id/core-react": "^1.0.0",
     "@prisma/adapter-better-sqlite3": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "better-sqlite3": "^12.6.2",

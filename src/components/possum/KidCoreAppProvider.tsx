@@ -94,7 +94,7 @@ export default function KidCoreAppProvider({ children }: { children: ReactNode }
         permissions: DECLARED_PERMISSIONS.map((name) => ({ name })),
         privacyPolicyUrl: `${config.dashboardUrl.replace(/\/+$/, "")}/privacy`,
         termsOfServiceUrl: `${config.dashboardUrl.replace(/\/+$/, "")}/terms`,
-        ...(config.iconUrl ? { iconUrl: config.iconUrl } : {}),
+        iconUrl: config.iconUrl || "/kid-app-icon.png",
         supportEmail: config.supportEmail,
       } : undefined}
     >

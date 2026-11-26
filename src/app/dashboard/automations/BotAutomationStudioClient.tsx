@@ -21,14 +21,38 @@ type TriggerType =
   | "MESSAGE_CREATE"
   | "MESSAGE_DELETE"
   | "MESSAGE_UPDATE"
+  | "MESSAGE_BULK_DELETE"
   | "BUTTON_CLICK"
   | "REACTION_ADD"
+  | "REACTION_REMOVE"
+  | "MEMBER_JOIN"
+  | "MEMBER_LEAVE"
+  | "MEMBER_UPDATE"
   | "MEMBER_ROLE_ADD"
   | "MEMBER_ROLE_REMOVE"
   | "VOICE_JOIN"
   | "VOICE_LEAVE"
+  | "VOICE_MOVE"
   | "THREAD_CREATE"
-  | "MEMBER_JOIN"
+  | "CHANNEL_CREATE"
+  | "CHANNEL_UPDATE"
+  | "CHANNEL_DELETE"
+  | "ROLE_CREATE"
+  | "ROLE_UPDATE"
+  | "ROLE_DELETE"
+  | "GUILD_BAN_ADD"
+  | "GUILD_BAN_REMOVE"
+  | "INVITE_CREATE"
+  | "INVITE_DELETE"
+  | "WEBHOOKS_UPDATE"
+  | "EMOJI_CREATE"
+  | "EMOJI_UPDATE"
+  | "EMOJI_DELETE"
+  | "STICKER_CREATE"
+  | "STICKER_UPDATE"
+  | "STICKER_DELETE"
+  | "VACATION_MODE_START"
+  | "VACATION_MODE_END"
   | "SCHEDULED";
 
 type ConditionType =
@@ -36,6 +60,10 @@ type ConditionType =
   | "CATEGORY_IS"
   | "MESSAGE_CONTAINS"
   | "MESSAGE_STARTS_WITH"
+  | "MESSAGE_EQUALS"
+  | "MESSAGE_HAS_ATTACHMENT"
+  | "MESSAGE_HAS_LINK"
+  | "IS_BOT"
   | "HAS_ROLE"
   | "LACKS_ROLE"
   | "IS_STAFF"
@@ -109,24 +137,61 @@ type TriggerDef = {
   description: string;
 };
 
-const TRIGGERS: TriggerDef[] = [
-  { value: "MESSAGE_CREATE", label: "Sends a message", description: "Runs when a new message is sent." },
-  { value: "MESSAGE_DELETE", label: "Deletes a message", description: "Runs when a message is deleted." },
-  { value: "MESSAGE_UPDATE", label: "Edits a message", description: "Runs when a message is edited." },
-  { value: "BUTTON_CLICK", label: "Clicks a button", description: "Runs on button interactions." },
-  { value: "REACTION_ADD", label: "Adds a reaction", description: "Runs when a reaction is added." },
-  { value: "MEMBER_ROLE_ADD", label: "Gains a role", description: "Runs when a member gains a role." },
-  { value: "MEMBER_ROLE_REMOVE", label: "Loses a role", description: "Runs when a role is removed from member." },
-  { value: "VOICE_JOIN", label: "Joins a voice channel", description: "Runs when member joins voice." },
-  { value: "VOICE_LEAVE", label: "Leaves a voice channel", description: "Runs when member leaves voice." },
-  { value: "THREAD_CREATE", label: "Creates a thread", description: "Runs when a new thread is created." },
-  { value: "MEMBER_JOIN", label: "Joins the server", description: "Runs when a member joins guild." },
-  { value: "SCHEDULED", label: "Hits a timer", description: "Runs on the interval you set." },
+const TRIGGER_GROUPS: Array<{ label: string; items: TriggerDef[] }> = [
+  { label: "Messages and community", items: [
+    { value: "MESSAGE_CREATE", label: "Sends a message", description: "Runs when a member sends a message." },
+    { value: "MESSAGE_UPDATE", label: "Edits a message", description: "Runs when a member edits a message." },
+    { value: "MESSAGE_DELETE", label: "Deletes a message", description: "Runs when a member deletes a message." },
+    { value: "MESSAGE_BULK_DELETE", label: "Messages are bulk-deleted", description: "Runs when messages are purged in a channel." },
+    { value: "BUTTON_CLICK", label: "Clicks a button", description: "Runs on a server button interaction." },
+    { value: "REACTION_ADD", label: "Adds a reaction", description: "Runs when a member adds a reaction." },
+    { value: "REACTION_REMOVE", label: "Removes a reaction", description: "Runs when a member removes a reaction." },
+    { value: "THREAD_CREATE", label: "Creates a thread", description: "Runs when a new thread is created." },
+  ] },
+  { label: "Members and voice", items: [
+    { value: "MEMBER_JOIN", label: "Joins the server", description: "Runs when a member joins." },
+    { value: "MEMBER_LEAVE", label: "Leaves the server", description: "Runs when a member leaves." },
+    { value: "MEMBER_UPDATE", label: "Updates their member profile", description: "Runs when Discord reports a member profile or role update." },
+    { value: "MEMBER_ROLE_ADD", label: "Gains a role", description: "Runs when a member gains one of the selected roles." },
+    { value: "MEMBER_ROLE_REMOVE", label: "Loses a role", description: "Runs when a member loses one of the selected roles." },
+    { value: "VOICE_JOIN", label: "Joins a voice channel", description: "Runs when a member joins voice." },
+    { value: "VOICE_LEAVE", label: "Leaves a voice channel", description: "Runs when a member leaves voice." },
+    { value: "VOICE_MOVE", label: "Moves voice channels", description: "Runs when a member moves between voice channels." },
+  ] },
+  { label: "Server changes", items: [
+    { value: "CHANNEL_CREATE", label: "A channel is created", description: "Runs when a server channel is created." },
+    { value: "CHANNEL_UPDATE", label: "A channel is updated", description: "Runs when a server channel changes." },
+    { value: "CHANNEL_DELETE", label: "A channel is deleted", description: "Runs when a server channel is deleted." },
+    { value: "ROLE_CREATE", label: "A role is created", description: "Runs when a server role is created." },
+    { value: "ROLE_UPDATE", label: "A role is updated", description: "Runs when a server role changes." },
+    { value: "ROLE_DELETE", label: "A role is deleted", description: "Runs when a server role is deleted." },
+    { value: "GUILD_BAN_ADD", label: "A member is banned", description: "Runs when Discord reports a server ban." },
+    { value: "GUILD_BAN_REMOVE", label: "A ban is removed", description: "Runs when a server ban is lifted." },
+    { value: "INVITE_CREATE", label: "An invite is created", description: "Runs when a server invite is created." },
+    { value: "INVITE_DELETE", label: "An invite is deleted", description: "Runs when a server invite is deleted." },
+    { value: "WEBHOOKS_UPDATE", label: "Server webhooks change", description: "Runs when Discord reports a channel webhook update." },
+    { value: "EMOJI_CREATE", label: "An emoji is added", description: "Runs when a server emoji is added." },
+    { value: "EMOJI_UPDATE", label: "An emoji is changed", description: "Runs when a server emoji is changed." },
+    { value: "EMOJI_DELETE", label: "An emoji is removed", description: "Runs when a server emoji is removed." },
+    { value: "STICKER_CREATE", label: "A sticker is added", description: "Runs when a server sticker is added." },
+    { value: "STICKER_UPDATE", label: "A sticker is changed", description: "Runs when a server sticker is changed." },
+    { value: "STICKER_DELETE", label: "A sticker is removed", description: "Runs when a server sticker is removed." },
+  ] },
+  { label: "Schedules and vacation mode", items: [
+    { value: "SCHEDULED", label: "Hits a timer", description: "Runs on the interval you set." },
+    { value: "VACATION_MODE_START", label: "Vacation mode starts", description: "Runs when an admin turns vacation mode on." },
+    { value: "VACATION_MODE_END", label: "Vacation mode ends", description: "Runs when an admin turns vacation mode off." },
+  ] },
 ];
+const TRIGGERS = TRIGGER_GROUPS.flatMap((group) => group.items);
 
 const CONDITION_OPTIONS: Array<{ value: ConditionType; label: string }> = [
   { value: "MESSAGE_CONTAINS", label: "Message contains" },
   { value: "MESSAGE_STARTS_WITH", label: "Message starts with" },
+  { value: "MESSAGE_EQUALS", label: "Message exactly matches" },
+  { value: "MESSAGE_HAS_ATTACHMENT", label: "Message has an attachment" },
+  { value: "MESSAGE_HAS_LINK", label: "Message has a link" },
+  { value: "IS_BOT", label: "Author is a bot" },
   { value: "CHANNEL_IS", label: "Channel is" },
   { value: "CATEGORY_IS", label: "Category is" },
   { value: "HAS_ROLE", label: "Member has role" },
@@ -151,7 +216,7 @@ const ACTION_OPTIONS: Array<{ value: ActionType; label: string }> = [
   { value: "DELETE_TRIGGER_MESSAGE", label: "Delete trigger message" },
   { value: "DELAY", label: "Delay" },
   { value: "CREATE_THREAD", label: "Create thread" },
-  { value: "RUN_NATIVE_COMMAND", label: "Run bot slash command" },
+  { value: "RUN_NATIVE_COMMAND", label: "Run an available bot command" },
 ];
 
 function getGuildId(): string {
@@ -232,10 +297,17 @@ function toggleId(list: string[], id: string): string[] {
 function defaultTriggerConfig(triggerType: TriggerType): Record<string, unknown> {
   switch (triggerType) {
     case "REACTION_ADD":
+    case "REACTION_REMOVE":
       return { emojis: [] };
+    case "BUTTON_CLICK":
+      return { customIds: [] };
+    case "MEMBER_ROLE_ADD":
+    case "MEMBER_ROLE_REMOVE":
+      return { roleIds: [] };
     case "SCHEDULED":
       return { intervalValue: 1, intervalUnit: "hours", channelId: "" };
     case "MESSAGE_CREATE":
+    case "MESSAGE_DELETE":
     case "MESSAGE_UPDATE":
       return { channels: [], keywords: [] };
     default:
@@ -249,7 +321,7 @@ function defaultCondition(type: ConditionType): ConditionDraft {
   if (type === "HAS_ROLE" || type === "LACKS_ROLE") return { id: uid("cond"), type, negate: false, config: { roleId: "" } };
   if (type === "VOICE_SESSION_SHORTER_THAN") return { id: uid("cond"), type, negate: false, config: { seconds: 30 } };
   if (type === "RANDOM_CHANCE") return { id: uid("cond"), type, negate: false, config: { pct: 100 } };
-  if (type === "IS_STAFF") return { id: uid("cond"), type, negate: false, config: {} };
+  if (type === "IS_STAFF" || type === "IS_BOT" || type === "MESSAGE_HAS_ATTACHMENT" || type === "MESSAGE_HAS_LINK") return { id: uid("cond"), type, negate: false, config: {} };
   return { id: uid("cond"), type, negate: false, config: { value: "" } };
 }
 
@@ -335,6 +407,8 @@ export default function BotAutomationStudioClient() {
   const [msg, setMsg] = useState("");
   const [logChannelId, setLogChannelId] = useState("");
   const [exemptRoleIds, setExemptRoleIds] = useState<string[]>([]);
+  const [vacationModeEnabled, setVacationModeEnabled] = useState(false);
+  const [vacationBusy, setVacationBusy] = useState(false);
 
   const [roles, setRoles] = useState<GuildRole[]>([]);
   const [channels, setChannels] = useState<GuildChannel[]>([]);
@@ -429,6 +503,7 @@ export default function BotAutomationStudioClient() {
         ? json.config.exemptRoleIds.map((id: unknown) => String(id || "").trim()).filter(Boolean)
         : []
     );
+    setVacationModeEnabled(json?.config?.vacationMode?.enabled === true);
   }
 
   async function loadNativeCommands(targetGuildId: string) {
@@ -564,6 +639,36 @@ export default function BotAutomationStudioClient() {
       setMsg(err instanceof Error ? err.message : "Failed to save automation studio config");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleVacationMode() {
+    if (!guildId) return;
+    const nextEnabled = !vacationModeEnabled;
+    setVacationBusy(true);
+    setMsg("");
+    try {
+      const res = await fetch("/api/bot/engine-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guildId,
+          engine: "automationStudio",
+          patch: { vacationMode: { enabled: nextEnabled } },
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.success === false) {
+        throw new Error((json as { error?: string })?.error || "Could not change vacation mode.");
+      }
+      setVacationModeEnabled(json?.config?.vacationMode?.enabled === true);
+      setMsg(nextEnabled
+        ? "Vacation mode is on. Published Vacation Mode Starts automations have been triggered."
+        : "Vacation mode is off. Published Vacation Mode Ends automations have been triggered.");
+    } catch (err: unknown) {
+      setMsg(err instanceof Error ? err.message : "Could not change vacation mode.");
+    } finally {
+      setVacationBusy(false);
     }
   }
 
@@ -935,6 +1040,15 @@ export default function BotAutomationStudioClient() {
       setActions([
         { id: uid("act"), type: "REPLY", config: { content: "Thread created. Team notified.", ephemeral: false } },
       ]);
+      return;
+    }
+    if (templateKey === "vacation-start" || templateKey === "vacation-end") {
+      const starting = templateKey === "vacation-start";
+      const trigger: TriggerType = starting ? "VACATION_MODE_START" : "VACATION_MODE_END";
+      resetDraft(trigger);
+      setName(starting ? "Vacation Mode - Start" : "Vacation Mode - End");
+      setDescription(starting ? "Run when vacation mode is turned on." : "Run when vacation mode is turned off.");
+      setActions([defaultAction("SEND_MESSAGE")]);
     }
   }
 
@@ -1018,6 +1132,18 @@ export default function BotAutomationStudioClient() {
         </div>
       </div>
 
+      <div style={{ ...panelStyle, marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontWeight: 900 }}>Vacation mode: {vacationModeEnabled ? "ON" : "OFF"}</div>
+          <div style={{ marginTop: 4, color: "#ffabab", fontSize: 12 }}>
+            Turning it on or off fires a matching automation event. Build a start/end flow to post an away notice, DM staff, or run an available bot command.
+          </div>
+        </div>
+        <button onClick={() => void toggleVacationMode()} style={btnStyle} disabled={vacationBusy || loading}>
+          {vacationBusy ? "Updating…" : vacationModeEnabled ? "End Vacation Mode" : "Start Vacation Mode"}
+        </button>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "320px minmax(0,1fr)", gap: 12, marginTop: 12 }}>
         <aside style={panelStyle}>
           <button onClick={createNewDraft} style={{ ...btnStyle, width: "100%", marginBottom: 10 }} disabled={saving}>
@@ -1030,6 +1156,8 @@ export default function BotAutomationStudioClient() {
             <button style={miniCardStyle} onClick={() => applyStarterTemplate("welcome")} disabled={saving}>Welcome</button>
             <button style={miniCardStyle} onClick={() => applyStarterTemplate("starboard")} disabled={saving}>Starboard</button>
             <button style={miniCardStyle} onClick={() => applyStarterTemplate("thread-joiner")} disabled={saving}>Thread Joiner</button>
+            <button style={miniCardStyle} onClick={() => applyStarterTemplate("vacation-start")} disabled={saving}>Vacation Mode Start</button>
+            <button style={miniCardStyle} onClick={() => applyStarterTemplate("vacation-end")} disabled={saving}>Vacation Mode End</button>
           </div>
 
           <div style={{ borderTop: "1px solid #2b0000", margin: "12px 0" }} />
@@ -1130,29 +1258,77 @@ export default function BotAutomationStudioClient() {
 
           <div style={sectionStyle}>
             <div style={sectionTitleStyle}>When</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10, marginTop: 10 }}>
-              {TRIGGERS.map((t) => {
-                const active = triggerType === t.value;
-                return (
-                  <button
-                    key={t.value}
-                    onClick={() => {
-                      setTriggerType(t.value);
-                      if (selectedId === "new") setTriggerConfig(defaultTriggerConfig(t.value));
+            <select
+              value={triggerType}
+              onChange={(e) => {
+                const nextTrigger = e.target.value as TriggerType;
+                setTriggerType(nextTrigger);
+                setTriggerConfig(defaultTriggerConfig(nextTrigger));
+              }}
+              style={{ ...inputStyle, marginTop: 10 }}
+            >
+              {TRIGGER_GROUPS.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.items.map((trigger) => <option key={trigger.value} value={trigger.value}>{trigger.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+            <div style={{ marginTop: 6, ...hintInline }}>{TRIGGERS.find((item) => item.value === triggerType)?.description || "Choose the event that starts this automation."}</div>
+            {["MESSAGE_CREATE", "MESSAGE_UPDATE", "MESSAGE_DELETE"].includes(triggerType) ? (
+              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "minmax(200px,1fr) minmax(200px,1fr)", gap: 8 }}>
+                <label style={{ ...hintInline, display: "grid", gap: 6 }}>
+                  Only in these channels (optional)
+                  <select
+                    multiple
+                    value={Array.isArray(triggerConfig.channels) ? triggerConfig.channels.map(String) : []}
+                    onChange={(e) => {
+                      const channels = [...e.currentTarget.selectedOptions].map((option) => option.value);
+                      setTriggerConfig((prev) => ({ ...prev, channels }));
                     }}
-                    style={{
-                      ...miniCardStyle,
-                      borderColor: active ? "#ff4f4f" : "#420000",
-                      background: active ? "rgba(255,54,54,0.15)" : "#130000",
-                    }}
+                    style={{ ...inputStyle, minHeight: 110 }}
                   >
-                    <div style={{ fontWeight: 900, color: "#ffe1e1", textAlign: "left" }}>{t.label}</div>
-                    <div style={{ marginTop: 4, fontSize: 12, color: "#ffaaaa", textAlign: "left" }}>{t.description}</div>
-                  </button>
-                );
-              })}
-            </div>
-            {triggerType === "REACTION_ADD" ? (
+                    {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+                  </select>
+                </label>
+                <label style={{ ...hintInline, display: "grid", gap: 6 }}>
+                  Message must contain any keyword (optional)
+                  <input
+                    value={Array.isArray(triggerConfig.keywords) ? triggerConfig.keywords.join(", ") : ""}
+                    onChange={(e) => setTriggerConfig((prev) => ({ ...prev, keywords: e.target.value.split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean) }))}
+                    style={inputStyle}
+                    placeholder="support, help, question"
+                  />
+                </label>
+              </div>
+            ) : null}
+            {triggerType === "BUTTON_CLICK" ? (
+              <label style={{ ...hintInline, display: "grid", gap: 6, marginTop: 10 }}>
+                Button custom IDs (optional, comma separated)
+                <input
+                  value={Array.isArray(triggerConfig.customIds) ? triggerConfig.customIds.join(", ") : ""}
+                  onChange={(e) => setTriggerConfig((prev) => ({ ...prev, customIds: e.target.value.split(/[\r\n,]+/).map((value) => value.trim()).filter(Boolean) }))}
+                  style={inputStyle}
+                  placeholder="Only run for these button IDs"
+                />
+              </label>
+            ) : null}
+            {["MEMBER_ROLE_ADD", "MEMBER_ROLE_REMOVE"].includes(triggerType) ? (
+              <label style={{ ...hintInline, display: "grid", gap: 6, marginTop: 10 }}>
+                Only when these roles change (optional)
+                <select
+                  multiple
+                  value={Array.isArray(triggerConfig.roleIds) ? triggerConfig.roleIds.map(String) : []}
+                  onChange={(e) => {
+                    const roleIds = [...e.currentTarget.selectedOptions].map((option) => option.value);
+                    setTriggerConfig((prev) => ({ ...prev, roleIds }));
+                  }}
+                  style={{ ...inputStyle, minHeight: 110 }}
+                >
+                  {sortedRoles.map((role) => <option key={role.id} value={role.id}>@{role.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {["REACTION_ADD", "REACTION_REMOVE"].includes(triggerType) ? (
               <div style={{ marginTop: 10 }}>
                 <label style={{ ...hintInline, display: "grid", gap: 6 }}>
                   Reaction filter (optional, comma separated)
@@ -1263,7 +1439,7 @@ export default function BotAutomationStudioClient() {
                       </div>
                     </div>
 
-                    {cond.type === "MESSAGE_CONTAINS" || cond.type === "MESSAGE_STARTS_WITH" ? (
+                    {cond.type === "MESSAGE_CONTAINS" || cond.type === "MESSAGE_STARTS_WITH" || cond.type === "MESSAGE_EQUALS" ? (
                       <input
                         value={asString(cond.config, "value", "")}
                         onChange={(e) => updateConditionConfig(cond.id, { value: e.target.value })}
@@ -1341,6 +1517,9 @@ export default function BotAutomationStudioClient() {
 
           <div style={sectionStyle}>
             <div style={sectionTitleStyle}>Do This</div>
+            <div style={{ ...hintInline, marginTop: 6 }}>
+              Chain multiple replies, messages, role changes, and available bot commands. Message templates support {"{user}"}, {"{username}"}, {"{server}"}, {"{channel}"}, and {"{triggerContent}"}.
+            </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
               <button
                 style={btnStyle}
@@ -1729,6 +1908,7 @@ export default function BotAutomationStudioClient() {
 
                   {action.type === "RUN_NATIVE_COMMAND" ? (
                     <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      <div style={hintInline}>Runs an available bot command through its built-in handler. It does not fake a member typing or send a slash command as a user.</div>
                       <input
                         list="automation-native-command-keys"
                         value={asString(action.config, "commandKey", "")}

@@ -113,6 +113,7 @@ type SetupReport = {
   ready?: boolean;
   reason?: string;
   featureCatalog?: Feature[];
+  panelGuides?: { id: string; label: string; href: string; page: string; resourceType: string; destination: string; configured: boolean }[];
   proposals?: Proposal[];
   rewardRoleOptions?: RewardRoleOption[];
   vipRole?: { id: string; name: string } | null;
@@ -194,13 +195,15 @@ type PreviewSnapshot = {
 
 const GROUPS = [
   { id: "community", label: "Community" },
+  { id: "onboarding", label: "Onboarding & Age Assurance" },
   { id: "moderation", label: "Moderation & Security" },
   { id: "economy", label: "Economy" },
-  { id: "gaming", label: "Gaming Hub" },
   { id: "fun", label: "Fun & Games" },
   { id: "social", label: "Social Alerts" },
   { id: "automation", label: "Automation" },
   { id: "support", label: "Support & Administration" },
+  { id: "logging", label: "Logging" },
+  { id: "community-panels", label: "Community Panels" },
 ];
 
 const DEFAULT_FLOW_CHOICES: FlowChoices = {
@@ -378,6 +381,8 @@ export default function InfrastructureSetupWizard() {
         setCategoryNames(next?.settings?.categoryNameOverrides || {});
         setResourceCounts(next?.settings?.resourceCounts || {});
         setSetupTuning(Object.fromEntries((next?.setupTuning || []).map((setting) => [setting.id, setting.value])));
+        setAutopilotEnabled(next?.settings?.autopilotEnabled === true);
+        setAutomaticProvisioningEnabled(next?.settings?.automaticProvisioningEnabled === true);
       })
       .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not load this server's setup options."))
       .finally(() => setLoading(false));
@@ -399,10 +404,10 @@ export default function InfrastructureSetupWizard() {
   );
   const previewRoleSelections = sorted(selectedRoleMappings);
   const previewRewardRoleSelections = sorted(rewardRoleSelections);
-  const normalizedCustomRoleNames = [...new Set(customRoleText.split(/\r?\n/).map((name) => name.trim()).filter(Boolean))].slice(0, 10);
+  const normalizedCustomRoleNames = [...new Set(customRoleText.split(/\r?\n/).map((name) => name.trim().slice(0, 100)).filter(Boolean))].slice(0, 100);
   const normalizedCustomChannelNames = customChannelText.split(/\r?\n/).map((name) => name.trim().slice(0, 100)).filter((name, index, all) =>
     Boolean(name.replace(/[^a-z0-9]+/gi, "")) && all.findIndex((other) => other.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, "")) === index
-  ).slice(0, 10);
+  ).slice(0, 100);
   const pendingCustomChannels = normalizedCustomChannelNames.filter((name) =>
     !isPanelDestinationName(name) &&
     !(report?.createdResources || []).some((resource) => resource.resourceKey === `custom-channel:${name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`) &&
@@ -714,6 +719,9 @@ export default function InfrastructureSetupWizard() {
         setBatchProgress(`Creating approved resources (batch ${batch}; ${allCreated.length} created so far)…`);
         const data = await callApi({ action: "provision", confirmed: true });
         const result = data.result || {};
+        if (result.channelCreationDisabled === true) {
+          throw new Error(String(result.message || "Resource creation is disabled for this setup mode. Nothing was created."));
+        }
         const batchCreated = result.created || [];
         allCreated.push(...batchCreated);
         for (const warning of result.loggingWarnings || []) loggingWarnings.add(warning);
@@ -917,11 +925,35 @@ export default function InfrastructureSetupWizard() {
         <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
         <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed">
-          Choose features by category, review existing resources and proposed destinations, then approve setup. Existing resources can be connected and selected roles created.
+          Start with the panel checklist, then choose features, connect existing resources, and create the missing roles, channels, and categories you approve.
         </p>
         <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup reads this server&apos;s channels, categories and roles, proposes links, then creates only resources still missing after approval. Existing mappings are preserved; an exact-name collision stops that create for review. Only the protected-flow choices below can change onboarding, verification or pre-onboarding, and only after approval. Other runtime switches, including TTS, stay unchanged here. Panels are configured separately.
+          Setup never posts or publishes panels. It shows the channel destinations each panel needs and links to the feature page where you choose them. Resource setup can create approved roles, channels, and categories, but it will not rewrite existing mappings or protected onboarding settings.
         </p>
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black uppercase">Panel and member-entry destinations</h2>
+            <p className="mt-1 max-w-3xl text-sm text-pink-100/75">Set each panel&apos;s destination before publishing it from its feature page. The list also links to protected member-entry flows. Setup only guides and links; it never sends a panel message.</p>
+          </div>
+          <a href="/dashboard/channels" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-bold">Review channels</a>
+        </div>
+        <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+          {(report?.panelGuides || []).map((item) => (
+            <article key={item.id} className="rounded-lg border border-pink-900/40 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <strong>{item.label}</strong>
+                <span className={`rounded px-2 py-0.5 text-xs ${item.configured ? "bg-emerald-950/50 text-emerald-200" : "bg-amber-950/40 text-amber-100"}`}>
+                  {item.id.endsWith(":flow") ? "Configure on page" : !report?.ready ? "Scan to inspect" : item.configured ? "Destination found" : "Needs a destination"}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-pink-100/70">{item.destination}</p>
+              <a href={item.href} className="mt-2 inline-flex min-h-9 items-center font-bold text-pink-200 underline">Configure in {item.page} →</a>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
@@ -937,10 +969,10 @@ export default function InfrastructureSetupWizard() {
               <p key={entry.kind}>
                 <strong>{entry.kind === "reviews" ? "Reviews" : "Self roles"}:</strong>{" "}
                 {entry.status === "not-started" ? "No creation request recorded." :
-                  entry.status === "verified" ? `Recorded channel #${entry.name} (${entry.id}) currently matches Discord. Review it before configuring a panel separately.` :
+                  entry.status === "verified" ? `Recorded channel #${entry.name} currently matches Discord. Review it before configuring the panel separately.` :
                   entry.status === "uncertain" ? "The request may have succeeded. Check Discord and the journal; do not retry automatically." :
-                  entry.status === "changed" ? `Recorded channel ${entry.id} no longer matches the approved destination. Inspect Discord manually.` :
-                  entry.status === "unverified" ? `Recorded channel ${entry.id} could not be verified against Discord.` :
+                  entry.status === "changed" ? "The recorded channel no longer matches the approved destination. Inspect Discord manually." :
+                  entry.status === "unverified" ? "The recorded channel could not be verified against Discord." :
                   "The journal is incomplete or invalid. Inspect it manually; no automatic retry is safe."}
               </p>
             ))}
@@ -954,7 +986,7 @@ export default function InfrastructureSetupWizard() {
         <ol className="mt-3 grid gap-3 text-sm leading-relaxed md:grid-cols-2">
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>1. Choose what this server uses.</strong> Select base features for setup; the wizard inspects their existing resources and lets you customize destinations and optional roles/channels before approval. Runtime switches are not silently changed.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>2. Choose protected flows explicitly.</strong> Onboarding, verification and pre-onboarding stay as they are unless you select a change below and approve setup. Configure TTS, economy and other runtime switches on their own dashboard pages.</li>
-          <li className="rounded-lg border border-pink-900/40 p-3"><strong>3. Set up security and audit details.</strong> Review <a className="underline" href="/dashboard/security/pre-onboarding">pre-onboarding safeguards</a> and select the moderation logging systems below.</li>
+          <li className="rounded-lg border border-pink-900/40 p-3"><strong>3. Configure member entry.</strong> Use the <a className="underline" href="/dashboard/security/pre-onboarding">Onboarding &amp; Age Assurance section</a> for pre-onboarding, onboarding, verification, and age rules. Choose destinations there; setup leaves those protected flows alone unless you explicitly approve a change.</li>
           <li className="rounded-lg border border-pink-900/40 p-3"><strong>4. Configure your custom bot securely.</strong> Use the <a className="underline" href="/dashboard/bot-personalizer#custom-bot-credentials">Bot Personalizer</a> for its token, client ID, and OAuth settings. Never paste tokens into chat.</li>
           <li className="rounded-lg border border-pink-900/40 p-3 md:col-span-2"><strong>5. Set message routing and verify permissions.</strong> In Bot Personalizer, choose who can send DMs, whether guild messages use the bot or webhook, then confirm the bot can manage the selected channels and roles.</li>
         </ol>
@@ -1145,7 +1177,7 @@ export default function InfrastructureSetupWizard() {
             </div>
             {availableRewardRoleOptions.length ? (
               <div className="mt-4">
-                <h3 className="text-sm font-black uppercase">Configured achievement and level rewards ({availableRewardRoleOptions.length})</h3>
+                <h3 className="text-sm font-black uppercase">Achievement, level, and prestige rewards ({availableRewardRoleOptions.length})</h3>
                 <div className="mt-2 grid gap-2 md:grid-cols-2">
                   {availableRewardRoleOptions.map((option) => (
                     <div key={option.id} className="grid gap-2 rounded-lg border border-pink-900/40 p-3 text-sm">
@@ -1168,22 +1200,22 @@ export default function InfrastructureSetupWizard() {
               </div>
             ) : null}
             <label className="mt-4 grid gap-2 text-sm">
-              <span><strong>Custom Discord roles</strong><span className="block text-xs text-pink-100/60">One role name per line, up to 10. Create them here for later dashboard assignment; this works even when no systems are selected.</span></span>
+              <span><strong>Custom Discord roles</strong><span className="block text-xs text-pink-100/60">One role name per line, up to 100. Create them here for later dashboard assignment; this works even when no systems are selected.</span></span>
               <textarea
                 value={customRoleText}
                 onChange={(event) => setCustomRoleText(event.target.value)}
-                maxLength={1100}
+                maxLength={10100}
                 rows={3}
                 aria-label="Optional custom role names"
                 placeholder={"Community Helper\nEvent Champion"}
                 className="min-h-24 w-full rounded-md border border-pink-900/50 bg-black px-3 py-2 text-sm text-pink-50"
               />
-              <span className="text-xs text-pink-100/60">{normalizedCustomRoleNames.length}/10 custom roles</span>
+              <span className="text-xs text-pink-100/60">{normalizedCustomRoleNames.length}/100 custom roles</span>
             </label>
             <label className="mt-4 grid gap-2 text-sm">
-              <span><strong>Custom text channels</strong><span className="block text-xs text-pink-100/60">One name per line, up to 10. Existing matching channels are skipped.</span></span>
-              <textarea value={customChannelText} onChange={(event) => setCustomChannelText(event.target.value)} maxLength={1100} rows={3} aria-label="Optional custom channel names" placeholder={"community-chat\nannouncements"} className="min-h-24 w-full rounded-md border border-pink-900/50 bg-black px-3 py-2 text-sm text-pink-50" />
-              <span className="text-xs text-pink-100/60">{normalizedCustomChannelNames.length}/10 custom channels</span>
+              <span><strong>Custom text channels</strong><span className="block text-xs text-pink-100/60">One name per line, up to 100. Existing matching channels are skipped.</span></span>
+              <textarea value={customChannelText} onChange={(event) => setCustomChannelText(event.target.value)} maxLength={10100} rows={3} aria-label="Optional custom channel names" placeholder={"community-chat\nannouncements"} className="min-h-24 w-full rounded-md border border-pink-900/50 bg-black px-3 py-2 text-sm text-pink-50" />
+              <span className="text-xs text-pink-100/60">{normalizedCustomChannelNames.length}/100 custom channels</span>
               {normalizedCustomChannelNames.some(isPanelDestinationName) ? <span className="text-xs text-amber-200">Panel-like names are retained but are not created by setup.</span> : null}
             </label>
       </section>
@@ -1400,7 +1432,7 @@ export default function InfrastructureSetupWizard() {
               />
               <span>
                 <strong className="block">Allow automatic creation of missing resources</strong>
-                <span className="mt-1 block text-xs text-pink-100/70">When enabled, infrastructure may create missing non-panel resources for tracked systems. Uncertain creates require manual review.</span>
+                <span className="mt-1 block text-xs text-pink-100/70">When enabled, infrastructure may create missing non-panel roles, channels, and categories for tracked systems. Uncertain creates require manual review.</span>
               </span>
             </label>
             {previewSnapshot.report.setupTuning?.length ? <p className="mt-2 text-xs text-pink-100/70">Approved game and reward values are saved only after confirmation; existing customized settings are not overwritten.</p> : null}

@@ -70,6 +70,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/infrastructure", label: "Infrastructure" },
         { href: "/dashboard/giveaways", label: "Giveaways" },
         { href: "/dashboard/jed", label: "Jed" },
+        { href: "/emotes", label: "JED Asset Library" },
         { href: "/dashboard/jed/adult-emotes", label: "Adult Emote Studio" },
         { href: "/dashboard/music", label: "Music" },
         { href: "/dashboard/vip", label: "VIP" },
@@ -82,8 +83,19 @@ export function getDashboardNavSections(
       items: [
         { href: "/dashboard/slash-commands", label: "Slash Commands" },
         { href: "/dashboard/commands", label: "!Command Studio" },
+        { href: "/dashboard/custom-commands", label: "Custom Commands" },
         { href: "/dashboard/automations/studio", label: "Automation Studio" },
         { href: "/dashboard/event-reactor", label: "Event Alerts" },
+      ],
+    },
+    {
+      label: "Onboarding & Age Assurance",
+      items: [
+        { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
+        { href: "/dashboard/security/onboarding", label: "Onboarding" },
+        { href: "/dashboard/security/verification", label: "Verification" },
+        { href: "/age-assurance/settings", label: "My k-ID Permissions" },
+        { href: "/dashboard/security/age-assurance", label: "Age Assurance" },
       ],
     },
     {
@@ -102,11 +114,6 @@ export function getDashboardNavSections(
         { href: "/dashboard/moderator", label: "Moderator" },
         { href: "/dashboard/security/audit-trail", label: "Audit Trail" },
         { href: "/dashboard/governance", label: "Governance" },
-        { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
-        { href: "/dashboard/security/onboarding", label: "Onboarding" },
-        { href: "/dashboard/security/verification", label: "Verification" },
-        { href: "/age-assurance/settings", label: "My k-ID Permissions" },
-        { href: "/dashboard/security/age-assurance", label: "Age Assurance" },
         { href: "/dashboard/security/account-integrity", label: "Account Integrity" },
         { href: "/dashboard/security/link-intel", label: "Link Intel" },
         { href: "/dashboard/security/threat-intel", label: "Threat Intel" },
@@ -144,8 +151,6 @@ export function getDashboardNavSections(
     {
       label: "Social",
       items: [
-        { href: "/dashboard/games", label: "Gaming Hub" },
-        { href: "/dashboard/wow", label: "WoW Groups" },
         { href: "/dashboard/podcast", label: "Podcast Studio" },
         { href: "/dashboard/community-studio", label: "Community Studio" },
         { href: "/dashboard/bump-reminder", label: "Bump Reminder" },
@@ -157,6 +162,8 @@ export function getDashboardNavSections(
     {
       label: "Fun + Games",
       items: [
+        { href: "/dashboard/games", label: "Gaming Hub" },
+        { href: "/dashboard/wow", label: "WoW Groups" },
         { href: "/dashboard/crew", label: "Crew" },
         { href: "/dashboard/dominion", label: "Dominion" },
         { href: "/dashboard/contracts", label: "Contracts" },
@@ -164,9 +171,11 @@ export function getDashboardNavSections(
         { href: "/dashboard/rarespawn", label: "Rare Spawn" },
         { href: "/dashboard/range", label: "Range" },
         { href: "/dashboard/truthdare", label: "Truth Dare" },
+        { href: "/dashboard/heist", label: "Heist" },
         { href: "/dashboard/pokemon-catching", label: "Pokemon Catching", pokemonOperatorOnly: true },
         { href: "/dashboard/pokemon-battle", label: "Pokemon Battle", pokemonOperatorOnly: true },
         { href: "/dashboard/pokemon-trade", label: "Pokemon Trade", pokemonOperatorOnly: true },
+        { href: "/tcg", label: "Possum Underworld TCG" },
       ],
     },
     {
@@ -175,9 +184,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/premium-features", label: "Possum Pro" },
         { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
-        { href: "/tcg", label: "Possum Underworld TCG" },
         { href: "/dashboard/analytics", label: "Analytics" },
-        { href: "/dashboard/heist", label: "Heist" },
         { href: "/dashboard/tts", label: "TTS" },
         { href: "/dashboard/ai/persona", label: "Persona AI" },
         { href: "/dashboard/alert-inbox", label: "Alert Inbox" },

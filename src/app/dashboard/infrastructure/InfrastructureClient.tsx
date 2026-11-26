@@ -47,6 +47,7 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
+  panelGuides?: { id: string; label: string; href: string; page: string; destination: string; configured: boolean }[];
   settings?: { mode: string; repairEnabled: boolean; autopilotEnabled?: boolean; automaticProvisioningEnabled?: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
   allEngines?: { engine: string; label: string; requirements: number }[];
@@ -398,11 +399,11 @@ export default function InfrastructureClient() {
 
   useEffect(() => {
     let active = true;
-    const load = () => {
+    const load = (force = false) => {
       const nextGuild = readDashboardGuildId();
       const nextUser = readDashboardUserId();
       const context = `${nextGuild}:${nextUser}`;
-      if (context === loadedContext.current) return;
+      if (!force && context === loadedContext.current) return;
       loadedContext.current = context;
       const sequence = ++loadSequence.current;
       setGuildId(nextGuild);
@@ -424,16 +425,17 @@ export default function InfrastructureClient() {
         });
     };
     load();
-    window.addEventListener("popstate", load);
-    window.addEventListener("storage", load);
-    window.addEventListener("focus", load);
-    document.addEventListener("visibilitychange", load);
+    const refresh = () => load(true);
+    window.addEventListener("popstate", refresh);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       active = false;
-      window.removeEventListener("popstate", load);
-      window.removeEventListener("storage", load);
-      window.removeEventListener("focus", load);
-      document.removeEventListener("visibilitychange", load);
+      window.removeEventListener("popstate", refresh);
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
 
@@ -619,8 +621,8 @@ export default function InfrastructureClient() {
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
           <ActionButton label="Preview Auto-Adapt" tip="Show empty mappings that match one existing resource. Nothing is written until you apply the preview." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked} onClick={() => post("adapt-preview", { action: "adapt" })} />
           <ActionButton label={`Autopilot ${report?.settings?.autopilotEnabled ? "On" : "Off"}`} tip="Reroute only to a unique, unused existing channel/category. Channel repair is disabled." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
-          <ActionButton label={`Auto-create ${report?.settings?.automaticProvisioningEnabled ? "On" : "Off"}`} tip="When enabled, infrastructure may create missing non-panel resources. Uncertain creates require manual review." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
-          <ActionButton label={`Repair ${report?.settings?.repairEnabled ? "On" : "Off"}`} tip="Save the repair preference. Channel and category repair is currently disabled." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
+          <ActionButton label={`Auto-create ${report?.settings?.automaticProvisioningEnabled ? "On" : "Off"}`} tip="When enabled, infrastructure may create missing non-panel roles, channels, and categories for tracked systems. Uncertain creates require manual review." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
+          <span title="Deleted channel and category mappings stay untouched. Use Auto-Adapt to review a unique existing replacement." className="inline-flex min-h-10 items-center rounded-md border border-amber-800/60 px-3 py-2 text-xs font-black uppercase text-amber-100">Channel repair: manual review</span>
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
           <ActionButton label="TXT" tip="Download the directory as text." busy={busyAction === "export-txt"} busyLabel="Exporting…" locked={locked} onClick={() => download("txt")} />
@@ -629,6 +631,14 @@ export default function InfrastructureClient() {
         <p className="mt-2 text-xs text-red-200/70">Undo Setup is available in <a className="underline" href="/dashboard/server-setup">Server Setup</a> only to the current Discord server owner or globally authorized Possum emergency staff, not other administrators or dashboard roles.</p>
         <p className="mt-1 text-xs text-red-200/70">Undo Setup is currently disabled until dashboard sessions and bot ingress are isolated from other services.</p>
         <p className="mt-1 text-xs text-red-200/70"><a className="underline" href="/emergency-undo">Emergency access by server ID</a> is available without dashboard manager access.</p>
+      </section>
+
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <div>
+          <h2 className="text-lg font-black uppercase text-red-200">Need to plan panel destinations?</h2>
+          <p className="mt-1 max-w-3xl text-sm text-red-100/75">Guided Server Setup owns the panel checklist. Infrastructure stays focused on scanning server resources, health, and saved mappings.</p>
+        </div>
+        <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">Open panel checklist</a>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">

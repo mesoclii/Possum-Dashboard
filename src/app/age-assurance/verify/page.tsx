@@ -187,6 +187,7 @@ export default function AgeAssuranceVerificationPage() {
   const [busy, setBusy] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const claimInFlight = useRef(false);
+  const sessionSignalPending = useRef(false);
   const requestToken = useRef("");
   const { config: clientConfig, loading: clientConfigLoading, error: clientConfigError } = useKidBrowserConfig();
 
@@ -274,16 +275,33 @@ export default function AgeAssuranceVerificationPage() {
     } catch {}
   }, [accessStatus, token]);
 
+  const sendSessionSignal = useCallback(async () => {
+    if (!token) return;
+    try {
+      // The backend uses its saved claim/session IDs; the SDK's ID is not sent
+      // back as proof of identity or permission.
+      const result = await postAction("session", { token });
+      if (result.status && result.status !== "awaiting-claim") {
+        setState(result.state || null);
+        setAccessStatus(String(result.status));
+      }
+    } catch (sessionError) {
+      setError(sessionError instanceof Error ? sessionError.message : "Could not confirm the k-ID session.");
+    }
+  }, [token]);
+
   const handleClaim = useCallback(async (claimToken: string) => {
     if (!token || claimInFlight.current) return;
     claimInFlight.current = true;
     setBusy(true);
     setError("");
+    let claimedChallenge = false;
     try {
       const result = await postAction("claim", { token, claimToken });
       setState(result.state || null);
       setAccessStatus(String(result.status || "pending"));
       setSdkReady(!result.state?.sessionId);
+      claimedChallenge = Boolean(result.state?.challengeId && !result.state?.sessionId);
     } catch (claimError) {
       if (claimError instanceof AgeAssuranceActionError) {
         const failedState = claimError.responseData.state;
@@ -301,8 +319,12 @@ export default function AgeAssuranceVerificationPage() {
     } finally {
       claimInFlight.current = false;
       setBusy(false);
+      if (sessionSignalPending.current) {
+        sessionSignalPending.current = false;
+        if (claimedChallenge) void sendSessionSignal();
+      }
     }
-  }, [token]);
+  }, [sendSessionSignal, token]);
 
   const handleChallenge = useCallback(async (challengeId: string) => {
     if (!token) return;
@@ -315,34 +337,14 @@ export default function AgeAssuranceVerificationPage() {
     }
   }, [token]);
 
-  const handleSession = useCallback(async (sessionId: string) => {
+  const handleSession = useCallback(async (_sessionId: string) => {
     if (!token) return;
-    try {
-      const result = await postAction("session", { token, sessionId });
-      if (result.status && result.status !== "awaiting-claim") {
-        setState(result.state || null);
-        setAccessStatus(String(result.status));
-      }
-    } catch (sessionError) {
-      setError(sessionError instanceof Error ? sessionError.message : "Could not confirm the saved k-ID session.");
+    if (claimInFlight.current) {
+      sessionSignalPending.current = true;
+      return;
     }
-  }, [token]);
-
-  useEffect(() => {
-    if (!token || (!state?.challengeId && !state?.challengeUrl) || accessStatus !== "pending") return;
-    let active = true;
-    const timer = window.setInterval(() => {
-      void refreshStatus(token).then((status) => {
-        if (active && status !== "pending") window.clearInterval(timer);
-      }).catch((statusError) => {
-        if (active) setError(statusError instanceof Error ? statusError.message : "Could not refresh k-ID status.");
-      });
-    }, 4000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [accessStatus, refreshStatus, state?.challengeId, state?.challengeUrl, token]);
+    await sendSessionSignal();
+  }, [sendSessionSignal, token]);
 
   const retry = () => {
     if (token) void beginUpgrade(token);

@@ -13,9 +13,9 @@ function load(file, mocks = {}) {
   const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const loadedModule = { exports: {} };
-  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), loadedModule, loadedModule.exports);
-  return loadedModule.exports;
+  const module = { exports: {} };
+  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports);
+  return module.exports;
 }
 
 const { createJedPrivateClient } = load("lib/jedPrivateClient.ts");
@@ -69,7 +69,7 @@ test("client requires consent, carries review digest and uses only same-origin p
 test("page exposes review, upload and share controls disabled before readiness", () => {
   const page = load("app/dashboard/jed/private-media/page.tsx", {
     "@/lib/jedPrivateClient": { createJedPrivateClient },
-    "@/lib/liveRuntime": { resolveGuildContext: () => ({ guildId: "100000000000000001" }) },
+    "@/lib/liveRuntime": { resolveGuildContext: () => ({ guildId: "", guildName: "", userId: "" }) },
     "@/components/possum/DiscordMemberPicker": () => null,
   });
   const html = renderToStaticMarkup(React.createElement(page.default));

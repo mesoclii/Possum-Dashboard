@@ -121,13 +121,13 @@ export default function PersonalSocialPage() {
   }
 
   return <main style={{ maxWidth: 850, margin: "auto", padding: 28, color: "#ffe2e2" }}>
-    <a href="/gaming">Back to Gaming Hub</a> · <a href="/guilds">Back to servers</a>
+    <a href="/guilds">Back to servers</a>
     <h1>Personal social accounts</h1>
-    <p>You can connect supported providers without Discord. Linked accounts stay private until you choose to share them with a server or separately select them on your public Gaming Hub profile. Public Gaming Hub sharing is visible to everyone online and can be removed there at any time.</p>
+    <p>Accounts linked without Discord stay private in this browser profile and are not automatically published to a Gaming Hub profile. With Discord, accounts are private until you choose a server. Sharing is separate for each server and can be turned off at any time. Server members can view shared profiles here; server alerts are separate.</p>
     <p>Only accounts verified with the provider are linked. No manually entered URLs are treated as verified.</p>
     {message && <p role="alert">{message} {message.includes("Sign in") && <a href={`/api/auth/discord/login?returnTo=${encodeURIComponent(returnTo)}`}>Sign in</a>}</p>}
     {!data && !message && <p>Loading…</p>}
-    {data?.identityType === "browser" && <p>You are using a private browser profile. Discord sign-in is optional. <a href="/gaming" style={{ color: "#ffc4d9" }}>Return to the public Gaming Hub</a> to choose which verified links, if any, to publish.</p>}
+    {data?.identityType === "browser" && <p>You are using a private browser profile. Provider accounts stay private unless you sign in with Discord and explicitly choose server sharing.</p>}
     {data?.identityType === "discord" && !data.guildsVerified && <p>Discord membership could not be checked. Existing sharing choices can still be removed below.</p>}
     {data?.providers.map((provider) => {
       const account = data.accounts.find((entry) => entry.provider === provider.id);

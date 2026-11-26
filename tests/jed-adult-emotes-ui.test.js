@@ -13,12 +13,12 @@ function load(file, mocks = {}) {
   const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const loadedModule = { exports: {} };
-  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), loadedModule, loadedModule.exports);
-  return loadedModule.exports;
+  const module = { exports: {} };
+  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports);
+  return module.exports;
 }
 
-test("adult emote studio requires its feature-level age check and does not expose publication controls", () => {
+test("adult emote studio fails closed behind its feature-level age check", () => {
   const page = load("app/dashboard/jed/adult-emotes/page.tsx", {
     "@/components/possum/useGuildEngineEditor": {
       useGuildEngineEditor: () => ({
@@ -38,7 +38,7 @@ test("adult emote studio requires its feature-level age check and does not expos
   const html = renderToStaticMarkup(React.createElement(page.default));
   assert.match(html, /Adult Emote Studio/);
   assert.match(html, /Feature-level age check/);
-  assert.match(html, /does not age-gate the dashboard, Gaming Hub, ordinary bot features, or public JED galleries/);
   assert.match(html, /Start k-ID AgeKey check/);
-  assert.doesNotMatch(html, /Publish to gallery|Upload|Stage privately/);
+  assert.match(html, /Pending, failed, or unknown results never grant access/);
+  assert.doesNotMatch(html, /Publish to gallery/);
 });

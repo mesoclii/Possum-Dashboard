@@ -174,26 +174,6 @@ export default function CatDropEnginePage() {
           </section>
 
           <section style={card}>
-            <label htmlFor="cat-drop-log-channel" style={{ display: "block", marginBottom: 6 }}>
-              Cat Spawn Log Channel
-            </label>
-            <select
-              id="cat-drop-log-channel"
-              style={input}
-              value={cfg.logChannelId || ""}
-              onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), logChannelId: e.target.value }))}
-            >
-              <option value="">Use moderator log channel</option>
-              {textChannels.map((channel) => (
-                <option key={channel.id} value={channel.id}>#{channel.name}</option>
-              ))}
-            </select>
-            <div style={{ color: "#ff9c9c", fontSize: 12, marginTop: 6 }}>
-              Successful scheduled and manual cat spawns are logged here. Leave blank to use the server&apos;s moderator log channel.
-            </div>
-          </section>
-
-          <section style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
               <div>
                 <div style={{ marginBottom: 6 }}>Max Active Spawns</div>
@@ -215,6 +195,26 @@ export default function CatDropEnginePage() {
                 <div style={{ marginBottom: 6 }}>Minimum Catch Age (ms)</div>
                 <input style={input} type="number" min={0} max={60000} value={cfg.minCatchAgeMs} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), minCatchAgeMs: clampNum(e.target.value, 0, 60000) }))} />
               </div>
+            </div>
+          </section>
+
+          <section style={card}>
+            <label htmlFor="cat-drop-log-channel" style={{ display: "block", marginBottom: 6 }}>
+              Cat Spawn Log Channel
+            </label>
+            <select
+              id="cat-drop-log-channel"
+              style={input}
+              value={cfg.logChannelId || ""}
+              onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), logChannelId: e.target.value }))}
+            >
+              <option value="">Use moderator log channel</option>
+              {textChannels.map((channel) => (
+                <option key={channel.id} value={channel.id}>#{channel.name}</option>
+              ))}
+            </select>
+            <div style={{ color: "#ff9c9c", fontSize: 12, marginTop: 6 }}>
+              Successful scheduled and manual cat spawns are logged here. Leave blank to use the server&apos;s moderator log channel.
             </div>
           </section>
 

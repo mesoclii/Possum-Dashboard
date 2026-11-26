@@ -6,7 +6,7 @@ type Edition = { cardKey: string; finish: string; quantity: number; cardSnapshot
 type Stack = { cardKey: string; editions: Edition[] };
 type TradeItem = { cardId: string; offeredBy: string; card: { cardKey: string; finish: string; cardSnapshot: { name: string } } };
 type Trade = { id: string; initiatorId: string; recipientId: string; status: string; items: TradeItem[] };
-type TradeResponse = { success?: boolean; error?: string; verificationUrl?: string; userId?: string; trades?: Trade[] };
+type TradeResponse = { success?: boolean; error?: string; userId?: string; trades?: Trade[] };
 type Selection = { cardKey: string; finish: string; quantity: number };
 
 function describeItems(trade: Trade, userId: string) {
@@ -27,7 +27,6 @@ export default function TradePanel({ stacks, refreshCollection }: { stacks: Stac
   const [respondTo, setRespondTo] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("Loading trades...");
-  const [verificationUrl, setVerificationUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
 
@@ -51,17 +50,13 @@ export default function TradePanel({ stacks, refreshCollection }: { stacks: Stac
     inFlight.current = true;
     setBusy(true);
     setMessage("");
-    setVerificationUrl("");
     let committed = false;
     try {
       const response = await fetch(`/api/tcg?action=${action}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       const data: TradeResponse = await response.json();
-      if (!response.ok || !data.success) {
-        setVerificationUrl(typeof data.verificationUrl === "string" ? data.verificationUrl : "");
-        throw new Error(data.error || "Trade request failed.");
-      }
+      if (!response.ok || !data.success) throw new Error(data.error || "Trade request failed.");
       committed = true;
       await loadTrades();
       if (refresh) await refreshCollection();
@@ -140,7 +135,6 @@ export default function TradePanel({ stacks, refreshCollection }: { stacks: Stac
     <div className="tcg-section-heading"><div><p className="tcg-eyebrow">PRIVATE TEST · PLAYER EXCHANGE</p><h2>Trade cards</h2></div><span>Latest 50 trades</span></div>
     <p>Offer cards to another approved tester using their Discord user ID. They choose their cards, then you confirm the exchange. Cards remain yours until confirmation.</p>
     <p className="tcg-trade-status" role="status">{message}</p>
-    {verificationUrl ? <p><a className="tcg-trade-link" href={verificationUrl} target="_blank" rel="noreferrer">Complete the k-ID card-trading check</a></p> : null}
     <div className="tcg-trade-layout">
       <div className="tcg-trade-compose">
         <h3>{respondTo ? "Respond to a trade" : "Create an offer"}</h3>

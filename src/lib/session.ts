@@ -170,13 +170,3 @@ export function sanitizeDashboardReturnTo(rawValue: string | undefined | null) {
 export function shouldUseSecureCookies() {
   return String(process.env.DISCORD_REDIRECT_URI || "").trim().startsWith("https://");
 }
-
-export function dashboardSessionCookieDomain() {
-  try {
-    const callbackHost = new URL(String(process.env.DISCORD_REDIRECT_URI || "")).hostname.toLowerCase();
-    if (callbackHost === "dashboard.possumbot.com") {
-      return ".possumbot.com";
-    }
-  } catch {}
-  return undefined;
-}

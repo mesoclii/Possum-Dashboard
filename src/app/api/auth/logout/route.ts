@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { buildDashboardUrl } from "@/lib/dashboardUrl";
-import { dashboardSessionCookieDomain, DASHBOARD_OAUTH_STATE_COOKIE, DASHBOARD_SESSION_COOKIE, destroyDashboardSession, readDashboardSessionValue, shouldUseSecureCookies } from "@/lib/session";
+import { DASHBOARD_OAUTH_STATE_COOKIE, DASHBOARD_SESSION_COOKIE, destroyDashboardSession, readDashboardSessionValue } from "@/lib/session";
 
 export async function GET(request: NextRequest) {
   const rawSession = request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value;
@@ -10,17 +10,6 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.redirect(buildDashboardUrl("/", request));
   response.cookies.delete(DASHBOARD_SESSION_COOKIE);
-  const cookieDomain = dashboardSessionCookieDomain();
-  if (cookieDomain) {
-    response.cookies.set(DASHBOARD_SESSION_COOKIE, "", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: shouldUseSecureCookies(),
-      path: "/",
-      domain: cookieDomain,
-      maxAge: 0,
-    });
-  }
   response.cookies.delete(DASHBOARD_OAUTH_STATE_COOKIE);
 
   if (session?.user?.id) {

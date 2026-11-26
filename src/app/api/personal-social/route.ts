@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
 import { readPersonalSocialGuestId } from "@/lib/personalSocialGuest";
@@ -34,7 +33,7 @@ export async function GET(request: NextRequest) {
     }
     const [guilds, { accounts, visibility }] = await Promise.all([
       session ? memberGuilds(session.accessToken).catch(() => null) : Promise.resolve(null),
-      prisma.$transaction(async (tx: Prisma.TransactionClient) => ({
+      prisma.$transaction(async (tx) => ({
         accounts: await tx.$queryRaw<{ provider: string; providerId: string; revision: string | null; label: string; url: string }[]>`SELECT a."provider", a."providerId", r."revision", a."label", a."url" FROM "PersonalSocialAccount" a LEFT JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider" WHERE a."userId" = ${userId}`,
         visibility: await tx.$queryRaw<{ provider: string; guildId: string }[]>`SELECT "provider", "guildId" FROM "PersonalSocialVisibility" WHERE "userId" = ${userId}`,
       })),
@@ -45,7 +44,7 @@ export async function GET(request: NextRequest) {
       identityType: session ? "discord" : "browser",
     });
   } catch {
-    return reply({ error: "Could not load provider profiles. Please retry." }, 503);
+    return reply({ error: "Could not verify Discord membership. Please sign in again or retry." }, 503);
   }
 }
 

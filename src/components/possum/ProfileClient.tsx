@@ -245,7 +245,7 @@ export default function ProfileClient() {
                   <option value="">Select background</option>
                   {backgroundOptions.map((row) => (
                     <option key={row.id} value={row.id}>
-                      {row.label} ({row.id})
+                      {row.label}
                     </option>
                   ))}
                 </select>
@@ -256,7 +256,7 @@ export default function ProfileClient() {
                   <option value="">Select frame</option>
                   {frameOptions.map((row) => (
                     <option key={row.id} value={row.id}>
-                      {row.label} ({row.id})
+                      {row.label}
                     </option>
                   ))}
                 </select>

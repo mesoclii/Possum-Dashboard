@@ -50,6 +50,16 @@ export function getDashboardNavSections(
 ): DashboardNavSection[] {
   const sections: DashboardNavSection[] = [
     {
+      label: "Possum Admin",
+      items: [
+        { href: "/dashboard/system-health", label: "System Health", creatorOnly: true },
+        { href: "/dashboard/operations", label: "Operations", creatorOnly: true },
+        { href: "/dashboard/master", label: "Master Control", creatorOnly: true },
+        { href: "/dashboard/switchboard", label: "My Quick Switchboard", primaryOwnerOnly: true },
+        { href: "/dashboard/ai/openai-platform", label: "Creator AI Platform", creatorOnly: true },
+      ],
+    },
+    {
       label: "Guild Control",
       defaultOpen: true,
       items: [
@@ -86,22 +96,16 @@ export function getDashboardNavSections(
       ],
     },
     {
-      label: "Member Entry & Age",
-      defaultOpen: true,
-      items: [
-        { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
-        { href: "/dashboard/security/onboarding", label: "Onboarding" },
-        { href: "/dashboard/security/verification", label: "Verification" },
-        { href: "/dashboard/security/age-assurance", label: "Age Assurance" },
-      ],
-    },
-    {
       label: "Security",
       items: [
         { href: "/dashboard/security", label: "Security" },
         { href: "/dashboard/moderator", label: "Moderator" },
         { href: "/dashboard/security/audit-trail", label: "Audit Trail" },
         { href: "/dashboard/governance", label: "Governance" },
+        { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
+        { href: "/dashboard/security/onboarding", label: "Onboarding" },
+        { href: "/dashboard/security/verification", label: "Verification" },
+        { href: "/dashboard/security/age-assurance", label: "Age Assurance" },
         { href: "/dashboard/security/account-integrity", label: "Account Integrity" },
         { href: "/dashboard/security/link-intel", label: "Link Intel" },
         { href: "/dashboard/security/threat-intel", label: "Threat Intel" },

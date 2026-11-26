@@ -29,7 +29,6 @@ const ENGINE_LOG_FIELDS: EngineLogField[] = [
   { engine: "eventReactor", path: "deadLetter.channelId", label: "Automation failures" },
   { engine: "giveaways", path: "logChannelId", label: "Giveaways" },
   { engine: "heist", path: "logChannelId", label: "Heist" },
-  { engine: "catdrop", path: "logChannelId", label: "Cat drops" },
   { engine: "jed", path: "auditChannelId", label: "JED" },
   { engine: "selfroles", path: "logChannelId", label: "Self roles" },
   { engine: "store", path: "policies.logChannelId", label: "Store" },

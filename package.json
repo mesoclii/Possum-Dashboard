@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "deploy:vm": "node scripts/deploy-vm.js",
     "catalog:sync": "node scripts/sync-catalog.js",
-    "prebuild": "prisma generate && node scripts/sync-catalog.js",
+    "prebuild": "node scripts/sync-catalog.js",
     "predev": "node scripts/sync-catalog.js"
   },
   "dependencies": {

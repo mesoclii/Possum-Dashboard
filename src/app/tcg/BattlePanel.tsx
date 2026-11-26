@@ -13,7 +13,7 @@ type Battle = {
   deck: Card[]; used: string[]; yourWager: Card[]; theirWager: Card[]; round: number;
   turn: string | null; rounds: Round[]; winner: string | null; endReason: string | null; yourChoiceLocked: boolean;
 };
-type Response = { success?: boolean; error?: string; verificationUrl?: string; userId?: string; battles?: Battle[]; battle?: Battle };
+type Response = { success?: boolean; error?: string; userId?: string; battles?: Battle[]; battle?: Battle };
 type Selection = { cardKey: string; finish: string; quantity: number };
 type Action = (action: string, body: object, success: string) => Promise<boolean>;
 
@@ -105,7 +105,6 @@ export default function BattlePanel({ stacks, refreshCollection, artwork, loadAr
   const [deck, setDeck] = useState<Record<string, string>>({});
   const [wagers, setWagers] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("Loading battles...");
-  const [verificationUrl, setVerificationUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
 
@@ -129,15 +128,11 @@ export default function BattlePanel({ stacks, refreshCollection, artwork, loadAr
     inFlight.current = true;
     setBusy(true);
     setMessage("");
-    setVerificationUrl("");
     let committed = false;
     try {
       const response = await fetch(`/api/tcg?action=${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data: Response = await response.json();
-      if (!response.ok || !data.success || !data.battle) {
-        setVerificationUrl(typeof data.verificationUrl === "string" ? data.verificationUrl : "");
-        throw new Error(data.error || "Battle request failed.");
-      }
+      if (!response.ok || !data.success || !data.battle) throw new Error(data.error || "Battle request failed.");
       committed = true;
       await loadBattles();
       if (data.battle.status === "completed") await refreshCollection();
@@ -200,7 +195,6 @@ export default function BattlePanel({ stacks, refreshCollection, artwork, loadAr
     <p>Bring 10 cards, including at least five non-support cards. Each round, secretly lock in one unused lead and optional support; support adds one-third of its power, rounded down. Most round wins takes the battle; ties return wagers. Printed abilities are story text in this preview.</p>
     <p>Deck and wager cards are reserved until the battle ends or is cancelled. Either player may forfeit; after 48 hours of inactivity, the waiting player may end the battle as a draw.</p>
     <p className="tcg-trade-status" role="status">{message}</p>
-    {verificationUrl ? <p><a className="tcg-trade-link" href={verificationUrl} target="_blank" rel="noreferrer">Complete the k-ID multiplayer check</a></p> : null}
     <div className="tcg-trade-layout">
       <div className="tcg-trade-compose">
         <h3>{respondTo ? "Accept a challenge" : "Build your deck"}</h3>

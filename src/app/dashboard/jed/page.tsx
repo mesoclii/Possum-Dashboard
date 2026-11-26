@@ -114,7 +114,6 @@ export default function JedPage() {
         {" "}<Link href={buildDashboardHref("/emotes")} style={{ color: "#ffd0d0" }}>Open My Private Emoji &amp; Sticker Collection</Link>
         {" · "}<Link href={buildDashboardHref("/emotes")} style={{ color: "#ffd0d0" }}>Browse Existing Public Library</Link>
         {" "}<Link href={buildDashboardHref("/dashboard/jed/adult-emotes")} style={{ color: "#ffd0d0" }}>Open Adult Emote Studio</Link>
-        {" · "}<Link href={buildDashboardHref("/dashboard/security/age-assurance")} style={{ color: "#ffd0d0" }}>Configure k-ID AgeKey</Link>
         {" · "}<Link href={buildDashboardHref("/dashboard/jed/private-media")} style={{ color: "#ffd0d0" }}>Private media status</Link>
       </div>
 
@@ -190,7 +189,7 @@ export default function JedPage() {
                 Allow 18+ catalog submissions for this server
               </label>
               <div style={{ color: "#ffcc86", lineHeight: 1.6, gridColumn: "1 / -1" }}>
-                This enables the separate 18+ library for server managers so you can build and test it now. Member AgeKey checks are configured separately under Security → Age Assurance.
+                Off by default. This records the server&apos;s NSFW preference only; it does not verify a user&apos;s age or unlock adult catalog items. Public 18+ browsing/export stays unavailable until an age-assurance provider and age-gated access checks are configured.
               </div>
               <div>
                 <div style={label}>Items Per Grab</div>

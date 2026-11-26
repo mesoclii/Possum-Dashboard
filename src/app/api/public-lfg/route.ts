@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
-import { readPublicGamingGuestId } from "@/lib/publicGamingGuest";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store, private" };
@@ -19,26 +18,10 @@ function unavailableError(value: unknown, fallback: string) {
   return typeof value === "string" && known.includes(value) ? value : fallback;
 }
 
-async function hasOwnListings(userId: string) {
-  if (!userId) return false;
-  const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/public-lfg?me=1`, {
-    headers: buildServerBotApiHeaders(userId), cache: "no-store",
-  }).catch(() => null);
-  if (!upstream?.ok) return false;
-  const data = await readServerBotApiJson(upstream).catch(() => null);
-  return data?.success === true && Array.isArray(data.listings) && data.listings.length > 0;
-}
-
 async function actor(request: NextRequest) {
   const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
-  const sessionDiscordId = String(session?.user?.id || "");
-  const discordId = /^\d{16,20}$/.test(sessionDiscordId) ? sessionDiscordId : "";
-  const guestId = readPublicGamingGuestId(request);
-  if (guestId && discordId) {
-    if (await hasOwnListings(guestId)) return guestId;
-    if (await hasOwnListings(discordId)) return discordId;
-  }
-  return guestId || discordId;
+  const id = String(session?.user?.id || "").trim();
+  return /^\d{16,20}$/.test(id) ? id : "";
 }
 
 function listing(value: any, own = false) {

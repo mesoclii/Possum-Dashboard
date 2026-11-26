@@ -38,6 +38,22 @@ test("Security navigation exposes the audit trail without replacing Moderator", 
   }
 });
 
+test("Possum Admin navigation is owner-only and includes primary-owner switchboard", () => {
+  const memberSections = nav.getDashboardNavSections(false, {});
+  assert.equal(memberSections.some((section) => section.label === "Possum Admin"), false);
+
+  const ownerAdmin = nav.getDashboardNavSections(true, {}).find((section) => section.label === "Possum Admin");
+  assert.ok(ownerAdmin);
+  assert.deepEqual(ownerAdmin.items.map((item) => item.href), [
+    "/dashboard/system-health",
+    "/dashboard/operations",
+    "/dashboard/master",
+    "/dashboard/ai/openai-platform",
+  ]);
+  const primaryOwnerAdmin = nav.getDashboardNavSections(true, {}, true).find((section) => section.label === "Possum Admin");
+  assert.ok(primaryOwnerAdmin.items.some((item) => item.href === "/dashboard/switchboard"));
+});
+
 test("moderator tab links select valid tabs and preserve the original default", () => {
   assert.equal(moderator.readModeratorTab(null), "automod");
   assert.equal(moderator.readModeratorTab("invalid"), "automod");

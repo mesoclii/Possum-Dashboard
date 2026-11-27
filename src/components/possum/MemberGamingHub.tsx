@@ -374,7 +374,7 @@ export default function MemberGamingHub({
           {[
             ["Playing now", String(livePlayers.length)],
             ["Open squads", String(squads.length)],
-            ["Tracked hours", totalHours],
+            ["Community profiles", String(visiblePlayers.length)],
             ["Linked accounts", String(ownIdentities.length)],
           ].map(([label, value]) => (
             <Card key={label} style={{ padding: 16, background: colors.panelSoft }}>
@@ -418,7 +418,6 @@ export default function MemberGamingHub({
           ) : <Empty>{presenceDetails ? "No members are currently visible as gaming. Activity only appears when Discord reports it and privacy allows sharing." : "Live gaming activity is temporarily unavailable."}</Empty>}
         </Card>
         {renderPlayerDirectory()}
-        {renderStats()}
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <Heading detail="Find active listings and join a community squad.">Looking for a group</Heading>
@@ -650,6 +649,7 @@ export default function MemberGamingHub({
             <button type="button" style={button} disabled={saving} onClick={() => void onAction("privacyConsent", "clearNotifications", {}, "Cleared your personal alerts.")}>Clear my alerts</button>
           </div>
         </Card>
+        {renderStats()}
       </div>
     );
   }

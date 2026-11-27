@@ -1064,7 +1064,7 @@ export default function InfrastructureSetupWizard() {
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Completed</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length}</p></div>
+            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Resolved</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length}</p></div>
             <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Remaining</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => !["completed", "skipped"].includes(action.status)).length}</p></div>
             <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Total checkpoints</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.length}</p></div>
           </div>

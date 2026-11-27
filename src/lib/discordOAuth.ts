@@ -14,6 +14,18 @@ export type DiscordUser = {
   avatar?: string | null;
 };
 
+export class DiscordApiError extends Error {
+  readonly status: number;
+  readonly retryAfterSeconds: number | null;
+
+  constructor(status: number, message: string, retryAfterSeconds: number | null = null) {
+    super(message);
+    this.name = "DiscordApiError";
+    this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 const DISCORD_API_BASE = "https://discord.com/api";
 const DISCORD_AUTH_BASE = "https://discord.com/oauth2/authorize";
 const DEFAULT_DISCORD_CLIENT_ID = "1472526506201841695";
@@ -60,10 +72,18 @@ async function readDiscordJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const code = String(parsed?.error || "").trim();
     const description = String(parsed?.error_description || parsed?.message || "").trim();
-    throw new Error(
+    const retryHeader = Number(response.headers.get("retry-after"));
+    const retryBody = Number(parsed?.retry_after);
+    const retryValue = Number.isFinite(retryBody) && retryBody > 0 ? retryBody : retryHeader;
+    const retryAfterSeconds = response.status === 429
+      ? Number.isFinite(retryValue) && retryValue > 0 ? Math.max(1, Math.ceil(retryValue)) : 5
+      : null;
+    throw new DiscordApiError(
+      response.status,
       [code ? `Discord OAuth error: ${code}` : `Discord request failed (${response.status})`, description]
         .filter(Boolean)
-        .join(" | ")
+        .join(" | "),
+      retryAfterSeconds
     );
   }
 
@@ -211,6 +231,7 @@ export async function fetchDiscordGuilds(accessToken: string) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+    signal: AbortSignal.timeout(15_000),
     cache: "no-store",
   });
 

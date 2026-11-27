@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import {
+  DiscordApiError,
   fetchDiscordGuilds,
   getDiscordGuildIconUrl,
   hasGuildManageAccess,
@@ -9,6 +11,32 @@ import {
 import { readGuildDiscoveryCache, writeGuildDiscoveryCache } from "@/lib/guildDiscoveryCache";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
+
+const pendingGuildFetches = new Map<string, Promise<any[]>>();
+const guildFetchRetryUntil = new Map<string, number>();
+
+function fetchDiscordGuildsOnce(accessToken: string, userId: string) {
+  const requestKey = createHash("sha256").update(`${userId}:${accessToken}`).digest("hex");
+  const retryUntil = guildFetchRetryUntil.get(userId) || 0;
+  if (retryUntil > Date.now()) {
+    throw new DiscordApiError(429, "Discord temporarily rate limited guild discovery.", Math.max(1, Math.ceil((retryUntil - Date.now()) / 1000)));
+  }
+  if (retryUntil) guildFetchRetryUntil.delete(userId);
+
+  const pending = pendingGuildFetches.get(requestKey);
+  if (pending) return pending;
+
+  const request = fetchDiscordGuilds(accessToken)
+    .catch((error: unknown) => {
+      if (error instanceof DiscordApiError && error.status === 429) {
+        guildFetchRetryUntil.set(userId, Date.now() + (error.retryAfterSeconds || 5) * 1000);
+      }
+      throw error;
+    })
+    .finally(() => pendingGuildFetches.delete(requestKey));
+  pendingGuildFetches.set(requestKey, request);
+  return request;
+}
 
 export async function GET(request: NextRequest) {
   const includeAll = request.nextUrl.searchParams.get("includeAll") === "1";
@@ -42,26 +70,25 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const cacheNamespace = includeAll ? "discord_user_guilds" : "discord_admin_guilds";
     const cached = await readGuildDiscoveryCache<{
       guilds: any[];
       user: typeof session.user;
-    }>(cacheNamespace, session.user.id);
+    }>("discord_user_guilds", session.user.id);
 
     if (cached) {
+      const listedGuilds = includeAll ? cached.guilds : cached.guilds.filter((guild) => guild.manageable === true);
       return NextResponse.json({
         success: true,
         oauthConfigured: true,
         loggedIn: true,
         user: cached.user,
-        guilds: cached.guilds,
+        guilds: listedGuilds,
         cached: true,
       });
     }
 
-    const guilds = await fetchDiscordGuilds(session.accessToken);
-    const listedGuilds = guilds
-      .filter((guild) => includeAll || hasGuildManageAccess(guild))
+    const guilds = await fetchDiscordGuildsOnce(session.accessToken, session.user.id);
+    const allGuilds = guilds
       .map((guild) => ({
         id: String(guild.id),
         name: String(guild.name || guild.id),
@@ -72,15 +99,16 @@ export async function GET(request: NextRequest) {
         manageable: hasGuildManageAccess(guild),
         botPresent: false,
       }));
+    const listedGuilds = includeAll ? allGuilds : allGuilds.filter((guild) => guild.manageable);
 
     await writeGuildDiscoveryCache(
-      cacheNamespace,
+      "discord_user_guilds",
       session.user.id,
       {
         user: session.user,
-        guilds: listedGuilds,
+        guilds: allGuilds,
       },
-      45
+      120
     );
 
     void auditDashboardEvent({
@@ -114,6 +142,22 @@ export async function GET(request: NextRequest) {
         error: error?.message || "Failed to load Discord guilds.",
       },
     });
+
+    if (error instanceof DiscordApiError && error.status === 429) {
+      const retryAfterSeconds = error.retryAfterSeconds || 5;
+      return NextResponse.json(
+        {
+          success: false,
+          oauthConfigured: true,
+          loggedIn: true,
+          user: session.user,
+          guilds: [],
+          error: error.message,
+          retryAfterSeconds,
+        },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds), "Cache-Control": "no-store" } }
+      );
+    }
 
     return NextResponse.json(
       {

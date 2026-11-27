@@ -949,6 +949,24 @@ export default function InfrastructureClient() {
               {activePlan.canCompensate ? <ActionButton label="Preview restore" tip="Review which previous settings and mappings can be restored. This never deletes Discord resources." busy={busyAction === "plan-compensation-preview"} busyLabel="Checking…" locked={locked} onClick={() => post("plan-compensation-preview", { action: "plan-compensation-preview", planId: activePlan.plan.id })} /> : null}
             </div>
           </div>
+          <div className="mt-4" aria-label="Deployment checkpoint progress">
+            <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-wider text-pink-100/65">
+              <span>Verified deployment progress</span>
+              <span>{activePlan.plan.actions.length ? Math.round((activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length / activePlan.plan.actions.length) * 100) : 100}%</span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={activePlan.plan.actions.length ? Math.round((activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length / activePlan.plan.actions.length) * 100) : 100}
+            >
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-[width]"
+                style={{ width: `${activePlan.plan.actions.length ? (activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length / activePlan.plan.actions.length) * 100 : 100}%` }}
+              />
+            </div>
+          </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {activePlan.plan.actions.map((action) => (
               <div key={action.id} className="rounded-lg border border-red-900/40 px-3 py-2">

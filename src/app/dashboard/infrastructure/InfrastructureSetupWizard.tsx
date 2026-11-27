@@ -31,7 +31,7 @@ type Proposal = {
   intendedName?: string;
   suggestedName?: string;
   suggestedId?: string;
-  matches?: { id: string; name: string }[];
+  matches?: { id: string; name: string; kind?: string; parentId?: string; parentName?: string }[];
   currentValue?: unknown;
 };
 
@@ -62,6 +62,15 @@ type DirectoryResource = {
   name: string;
   kind: string;
   parentId?: string;
+};
+
+type CategoryDestination = {
+  group: string;
+  name: string;
+  status: "reuse" | "create" | "review";
+  categoryId?: string;
+  categoryName?: string;
+  candidates?: { id: string; name: string; score?: number }[];
 };
 
 type SetupCreatedResource = {
@@ -137,6 +146,7 @@ type SetupReport = {
   directory?: {
     categories?: DirectoryResource[];
     channels?: DirectoryResource[];
+    roles?: DirectoryResource[];
   };
   setupTuning?: SetupTuning[];
   createdResources?: SetupCreatedResource[];
@@ -156,6 +166,7 @@ type SetupReport = {
     customChannelNames?: string[];
   };
   setupCategories?: { group: string; name: string }[];
+  categoryDestinations?: CategoryDestination[];
 };
 
 type ApiResponse = {
@@ -213,6 +224,9 @@ type PreviewSnapshot = {
   vipPrivateResourceKeys: string[];
   flowChoices: FlowChoices;
   setupTuning: Record<string, number>;
+  resourceMappings: Record<string, string>;
+  allowSharedResourceIds: string[];
+  categorySelections: Record<string, string>;
   report: SetupReport;
   mappings: AdaptRow[];
   skippedMappings: { id: string; reason: string }[];
@@ -314,6 +328,17 @@ function targetRoleCount(proposal: Proposal, counts: Record<string, number>) {
   return Math.max(Number(counts[proposal.id] || 1), existingRoleCount(proposal));
 }
 
+function compatibleResources(proposal: Proposal, report: SetupReport | null): DirectoryResource[] {
+  const directory = report?.directory;
+  if (proposal.resourceType === "role") return [...(directory?.roles || [])].sort((a, b) => a.name.localeCompare(b.name));
+  if (proposal.resourceType === "category") return [...(directory?.categories || [])].sort((a, b) => a.name.localeCompare(b.name));
+  const key = `${proposal.field} ${proposal.id}`;
+  const kinds = /voice/i.test(key) ? ["voice"] : /forum/i.test(key) ? ["forum"] : ["text", "announcement"];
+  return [...(directory?.channels || [])]
+    .filter((channel) => kinds.includes(channel.kind))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export default function InfrastructureSetupWizard() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
@@ -327,6 +352,9 @@ export default function InfrastructureSetupWizard() {
   const [flowChoices, setFlowChoices] = useState<FlowChoices>(DEFAULT_FLOW_CHOICES);
   const [names, setNames] = useState<Record<string, string>>({});
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
+  const [resourceMappings, setResourceMappings] = useState<Record<string, string>>({});
+  const [allowSharedResourceIds, setAllowSharedResourceIds] = useState<string[]>([]);
+  const [categorySelections, setCategorySelections] = useState<Record<string, string>>({});
   const [resourceCounts, setResourceCounts] = useState<Record<string, number>>({});
   const [setupTuning, setSetupTuning] = useState<Record<string, number>>({});
   const [autopilotEnabled, setAutopilotEnabled] = useState(false);
@@ -394,10 +422,12 @@ export default function InfrastructureSetupWizard() {
   useEffect(() => {
     const nextGuild = readDashboardGuildId();
     const nextUser = readDashboardUserId();
-    setGuildId(nextGuild);
-    setUserId(nextUser);
+    queueMicrotask(() => {
+      setGuildId(nextGuild);
+      setUserId(nextUser);
+      if (!nextGuild) setLoading(false);
+    });
     if (!nextGuild) {
-      setLoading(false);
       return;
     }
     const params = new URLSearchParams({ guildId: nextGuild, userId: nextUser });
@@ -455,6 +485,16 @@ export default function InfrastructureSetupWizard() {
   const roleProposals = editableCreateProposals.filter((proposal) => proposal.resourceType === "role");
   const channelProposals = editableCreateProposals.filter((proposal) => proposal.resourceType === "channel");
   const explicitCategoryProposals = editableCreateProposals.filter((proposal) => proposal.resourceType === "category");
+  const resourceReviewProposals = useMemo(() => proposals.filter((proposal) =>
+    selected.includes(proposal.engine) &&
+    !proposal.protectedFlow &&
+    !(Array.isArray(proposal.currentValue)
+      ? proposal.currentValue.some((value) => String(value || "").trim())
+      : String(proposal.currentValue || "").trim()) &&
+    ["ambiguous", "duplicate"].includes(proposal.status)
+  ), [proposals, selected]);
+  const categoryDestinations = previewSnapshot?.report.categoryDestinations || [];
+  const categoryReviewRequired = categoryDestinations.some((destination) => destination.status === "review");
   const blockedCreations = planActions.filter((action) =>
     action.type === "create_resource" && action.permissionStatus !== "verified");
   const skippedMappingCount = previewSnapshot?.skippedMappings.length || 0;
@@ -467,6 +507,10 @@ export default function InfrastructureSetupWizard() {
   const customRoleNamesDirty = Boolean(previewSnapshot && normalizedCustomRoleNames.join("\n") !== previewSnapshot.customRoleNames.join("\n"));
   const customChannelNamesDirty = Boolean(previewSnapshot && normalizedCustomChannelNames.join("\n") !== previewSnapshot.customChannelNames.join("\n"));
   const vipSetupSelectionsDirty = Boolean(previewSnapshot && vipPrivateSetupKeysSorted.join("\n") !== previewSnapshot.vipPrivateResourceKeys.join("\n"));
+  const resourceMappingsDirty = Boolean(previewSnapshot && !sameNames(resourceMappings, previewSnapshot.resourceMappings));
+  const sharedResourcesDirty = Boolean(previewSnapshot && sorted(allowSharedResourceIds).join("\n") !== previewSnapshot.allowSharedResourceIds.join("\n"));
+  const categorySelectionsDirty = Boolean(previewSnapshot && !sameNames(categorySelections, previewSnapshot.categorySelections));
+  const setupReviewBlocked = skippedMappingCount > 0 || categoryReviewRequired;
   const vipResources = useMemo(() => [
     ...(report?.directory?.categories || []).map((resource) => ({ ...resource, kind: "category" })),
     ...(report?.directory?.channels || []).filter((resource) =>
@@ -486,6 +530,9 @@ export default function InfrastructureSetupWizard() {
     customRoleNamesDirty ||
     customChannelNamesDirty ||
     vipSetupSelectionsDirty ||
+    resourceMappingsDirty ||
+    sharedResourcesDirty ||
+    categorySelectionsDirty ||
     JSON.stringify(flowChoices) !== JSON.stringify(previewSnapshot.flowChoices)
   ));
   const selectedProtected = features.filter((feature) => selected.includes(feature.id) && feature.protected);
@@ -501,7 +548,6 @@ export default function InfrastructureSetupWizard() {
   const activeFeatures = displayFeatures.filter((feature) => feature.group === activeFeatureGroup.id);
   const activeSelectable = activeFeatures.filter((feature) => feature.selectable);
   const activeGroupAllOn = activeSelectable.length > 0 && activeSelectable.every((feature) => featureSelected(feature.id));
-
   function setFeatureEnabled(id: string, enabled: boolean) {
     setError("");
     setMessage("");
@@ -575,6 +621,9 @@ export default function InfrastructureSetupWizard() {
         customChannelNames: normalizedCustomChannelNames,
         vipPrivateResourceKeys: vipPrivateSetupKeysSorted,
         setupTuning,
+        resourceMappings,
+        allowSharedResourceIds: sorted(allowSharedResourceIds),
+        categorySelections,
         flowChoices,
         autopilotEnabled,
         automaticProvisioningEnabled,
@@ -596,6 +645,9 @@ export default function InfrastructureSetupWizard() {
           automaticProvisioningEnabled: draft.automaticProvisioningEnabled,
         },
         flowChoices: draft.flowChoices,
+        resourceMappings: draft.resourceMappings,
+        allowSharedResourceIds: draft.allowSharedResourceIds,
+        categorySelections: draft.categorySelections,
       });
       if (!data.report || !data.plan) throw new Error("The bot did not return a setup plan.");
       if (data.report.panelSetupPolicy !== "channel-destinations-v2" || data.report.channelCreationPolicy !== "single-post-v1") {
@@ -609,9 +661,11 @@ export default function InfrastructureSetupWizard() {
         mappings: data.preview?.planned || [],
         skippedMappings: data.preview?.skipped || [],
       });
-      setMessage(summarizeSetupPlan(data.plan.actions).total
-        ? "Plan ready for review. Approve it below to apply the listed changes."
-        : "The plan has no changes to apply. Review any unresolved destinations below.");
+      setMessage(data.preview?.skipped?.length
+        ? `${data.preview.skipped.length} setup decision(s) still need your review before the plan can be approved.`
+        : summarizeSetupPlan(data.plan.actions).total
+          ? "Plan ready for review. Approve it below to apply the listed changes."
+          : "The plan has no changes to apply. Review any unresolved destinations below.");
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Could not prepare the setup preview.");
     } finally {
@@ -1228,27 +1282,129 @@ export default function InfrastructureSetupWizard() {
             <p className="rounded-lg border border-pink-900/40 p-3 text-sm text-pink-100/75">No eligible missing resources need creation for this selection.</p>
           )}
 
-          {previewSnapshot.report.setupCategories?.length ? (
+          {resourceReviewProposals.length ? (
+            <section className="space-y-3 rounded-lg border border-amber-700/40 p-3">
+              <div>
+                <h3 className="text-sm font-black uppercase text-amber-100">Review existing roles and channels</h3>
+                <p className="mt-1 text-xs text-pink-100/70">Similar names are suggestions only. Choose the exact resource and inspect its Discord ID before linking it. These choices stay in this setup plan until you approve it.</p>
+              </div>
+              {resourceReviewProposals.map((proposal) => {
+                const resources = compatibleResources(proposal, previewSnapshot.report);
+                const groupName = proposal.engineLabel || featureById.get(proposal.engine)?.name || proposal.engine;
+                const selectedResource = resourceMappings[proposal.id] || "";
+                return <div key={proposal.id} className="grid gap-2 rounded-lg border border-amber-700/30 p-3">
+                  <div>
+                    <strong>{groupName} · {proposal.field}</strong>
+                    <p className="text-xs text-pink-100/65">{proposal.reason}</p>
+                    {proposal.matches?.length ? (
+                      <ul className="mt-1 space-y-0.5 text-xs text-pink-100/65">
+                        {proposal.matches.slice(0, 5).map((match) => (
+                          <li key={match.id}>
+                            {match.kind || proposal.resourceType}: <strong>{match.name}</strong>
+                            {match.parentName ? ` · ${match.parentName}` : ""} · ID <code>{match.id}</code>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                  <label className="grid gap-1 text-xs">
+                    <span>Link an existing {proposal.resourceType || "channel"}</span>
+                    <select
+                      value={selectedResource}
+                      onChange={(event) => setResourceMappings((current) => {
+                        const next = { ...current };
+                        if (event.target.value) next[proposal.id] = event.target.value;
+                        else delete next[proposal.id];
+                        return next;
+                      })}
+                      className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                    >
+                      <option value="">Leave this destination unresolved</option>
+                      {resources.map((resource) => {
+                        const parent = resource.parentId
+                          ? previewSnapshot.report.directory?.categories?.find((category) => category.id === resource.parentId)
+                          : null;
+                        return <option key={resource.id} value={resource.id}>
+                          {resource.name}{parent ? ` · ${parent.name}` : ""} · ID ${resource.id}
+                        </option>;
+                      })}
+                    </select>
+                  </label>
+                  {selectedResource ? (
+                    <label className="flex items-start gap-2 text-xs text-pink-100/75">
+                      <input
+                        type="checkbox"
+                        checked={allowSharedResourceIds.includes(proposal.id)}
+                        onChange={(event) => setAllowSharedResourceIds((current) => event.target.checked
+                          ? sorted([...current, proposal.id])
+                          : current.filter((id) => id !== proposal.id))}
+                        className="mt-0.5 accent-pink-500"
+                      />
+                      Allow this resource to serve another setup field too
+                    </label>
+                  ) : null}
+                  <label className="grid gap-1 text-xs">
+                    <span>Or choose a new resource name, then refresh the plan</span>
+                    <input
+                      value={names[proposal.id] ?? proposal.proposedName ?? ""}
+                      onChange={(event) => updateResourceName(proposal.id, event.target.value)}
+                      maxLength={100}
+                      className="min-h-10 rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                    />
+                  </label>
+                </div>;
+              })}
+            </section>
+          ) : null}
+
+          {categoryDestinations.length ? (
             <div className="space-y-3 rounded-lg border border-pink-900/40 p-3">
               <div>
                 <h3 className="text-sm font-black uppercase text-pink-100">Categories for these systems</h3>
-                <p className="mt-1 text-xs text-pink-100/65">Panel-like category names are excluded from setup.</p>
+                <p className="mt-1 text-xs text-pink-100/65">Existing category names and IDs are shown below. Choose a category when the scan cannot safely pick one; every created channel will be placed under its selected group category.</p>
               </div>
-              {previewSnapshot.report.setupCategories.map((category) => {
+              {categoryDestinations.map((category) => {
                 const label = category.group === "logging"
                   ? "Logging"
                   : GROUPS.find((group) => group.id === category.group)?.label || category.group;
                 const privacyKey = `group-category:${category.group}`;
+                const categoryValue = categorySelections[category.group] ??
+                  (category.status === "reuse" ? category.categoryId || "" : category.status === "create" ? "create" : "");
+                const selectedCategoryName = previewSnapshot.report.directory?.categories?.find((existing) => existing.id === categoryValue)?.name;
+                const categoryName = selectedCategoryName || category.categoryName || category.name;
                 return <div key={category.group} className="grid gap-1 rounded-md sm:grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)] sm:items-center sm:gap-4">
                   <span className="text-sm font-bold">{label}</span>
-                  <input
-                    value={categoryNames[category.group] || category.name}
-                    onChange={(event) => updateCategoryName(category.group, event.target.value)}
-                    maxLength={100}
-                    aria-label={`Name for ${label} category`}
-                    className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
-                  />
-                  {report?.vipRole ? (
+                  <div className="grid gap-1">
+                    <select
+                      value={categoryValue}
+                      onChange={(event) => setCategorySelections((current) => ({ ...current, [category.group]: event.target.value }))}
+                      aria-label={`${label} category destination`}
+                      className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                    >
+                      <option value="">Choose a category</option>
+                      {(previewSnapshot.report.directory?.categories || []).map((existing) => (
+                        <option key={existing.id} value={existing.id}>{existing.name} · ID {existing.id}</option>
+                      ))}
+                      <option value="create">Create a new category</option>
+                    </select>
+                    {categoryValue === "create" ? (
+                      <input
+                        value={categoryNames[category.group] || category.name}
+                        onChange={(event) => updateCategoryName(category.group, event.target.value)}
+                        maxLength={100}
+                        aria-label={`Name for ${label} category`}
+                        className="min-h-10 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                      />
+                    ) : categoryValue ? (
+                      <span className="text-xs text-emerald-200">Reuse {categoryName} · ID {categoryValue}</span>
+                    ) : category.status === "review" ? (
+                      <span className="text-xs text-amber-200">Choose an existing category or create one before approving.</span>
+                    ) : null}
+                    {category.status === "review" && category.candidates?.length ? (
+                      <span className="text-xs text-pink-100/65">Suggested categories: {category.candidates.map((candidate) => `${candidate.name} (${candidate.id})`).join(", ")}</span>
+                    ) : null}
+                  </div>
+                  {report?.vipRole && categoryValue === "create" ? (
                     <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
                       <input type="checkbox" checked={vipPrivateSetupKeysSorted.includes(privacyKey)}
                         onChange={(event) => setVipSetupKeySelected(privacyKey, event.target.checked)} className="accent-pink-500" />
@@ -1292,7 +1448,7 @@ export default function InfrastructureSetupWizard() {
             <div className="rounded-lg border border-pink-900/40 p-3">
               <h3 className="text-sm font-black uppercase text-pink-100">Existing resources to connect</h3>
               <ul className="mt-2 space-y-1 text-sm">
-                {previewSnapshot.mappings.map((row) => <li key={row.id}>{row.engine}.{row.field} → <strong>{row.resourceName}</strong></li>)}
+                {previewSnapshot.mappings.map((row) => <li key={row.id}>{row.engine}.{row.field} → <strong>{row.resourceName}</strong> · ID <code>{row.resourceId}</code></li>)}
               </ul>
             </div>
           ) : null}
@@ -1300,25 +1456,18 @@ export default function InfrastructureSetupWizard() {
           {skippedMappingCount ? (
             <details className="rounded-lg border border-amber-700/50 p-3 text-sm">
               <summary className="cursor-pointer font-bold">{skippedMappingCount} destinations need review</summary>
-              <p className="mt-2 text-xs text-pink-100/75">Choose an existing match in Infrastructure or edit the destination name and refresh the plan.</p>
+              <p className="mt-2 text-xs text-pink-100/75">Resolve each destination here and refresh the plan. Possum will not approve a plan with unresolved choices.</p>
               <ul className="mt-2 space-y-1 text-xs text-amber-100/80">
                 {previewSnapshot.skippedMappings.map((row) => {
                   const proposal = proposals.find((entry) => entry.id === row.id);
                   return <li key={row.id} className="rounded-lg border border-amber-700/30 p-2">
                     <strong>{proposal?.intendedName || proposal?.engineLabel || row.id}</strong> · {row.reason}
-                    {proposal?.matches?.length ? <span className="block">Possible matches: {proposal.matches.map((match) => match.name).join(", ")}</span> : null}
-                    {proposal && ["ambiguous", "duplicate"].includes(proposal.status) ? (
-                      <label className="mt-2 block">
-                        Use a different destination name
-                        <input className="mt-1 block min-h-9 rounded border possum-divider bg-black px-2" value={names[proposal.id] ?? proposal.proposedName ?? ""}
-                          onChange={(event) => updateResourceName(proposal.id, event.target.value)} maxLength={100} />
-                      </label>
-                    ) : null}
                   </li>;
                 })}
               </ul>
             </details>
           ) : null}
+          {setupReviewBlocked ? <p className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Resolve the channel, role, and category choices above, then refresh the plan. Approval stays disabled until those choices are reflected in the reviewed plan.</p> : null}
           {blockedCreations.length ? <p className="text-sm text-amber-200">Discord permissions block {blockedCreations.length} resource actions. Review the bot permissions and refresh the preview.</p> : null}
           {previewDirty ? (
             <p className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Your feature or name edits changed after this preview. Refresh the preview before approving.</p>
@@ -1328,7 +1477,7 @@ export default function InfrastructureSetupWizard() {
           ) : null}
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
-            <button type="button" disabled={busy || previewDirty || !hasChanges || blockedCreations.length > 0} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
+              <button type="button" disabled={busy || previewDirty || !hasChanges || blockedCreations.length > 0 || setupReviewBlocked} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
           </div>
         </section>
       ) : null}
@@ -1342,15 +1491,27 @@ export default function InfrastructureSetupWizard() {
             <details className="mt-3 rounded-lg border border-pink-900/40 p-3">
               <summary className="cursor-pointer text-sm font-bold">Show the full creation and mapping list</summary>
               <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-sm">
-                {planActions.filter((action) => action.type === "create_resource" || action.type === "map_existing_resource").map((action) => (
-                  <li key={action.id}>{action.type === "create_resource" ? `Create ${action.resourceType}` : `Connect ${proposals.find((proposal) => `mapping:${proposal.id}` === action.id)?.intendedName || action.engine}`} · <strong>{action.name || action.resourceName}</strong></li>
-                ))}
+                {planActions.filter((action) => action.type === "create_resource" || action.type === "map_existing_resource").map((action) => {
+                  const parentAction = action.group && action.resourceType !== "category"
+                    ? planActions.find((candidate) => candidate.id === `resource:group-category:${action.group}`)
+                    : null;
+                  const parentCategoryId = action.groupCategoryId || parentAction?.result?.resourceId || "";
+                  const resourceId = action.resourceId || action.result?.resourceId || "";
+                  const parentCategoryName = action.groupCategoryName || parentAction?.name || "category";
+                  return <li key={action.id}>
+                    {action.type === "create_resource" ? `Create ${action.resourceType}` : `Connect ${proposals.find((proposal) => `mapping:${proposal.id}` === action.id)?.intendedName || action.engine}`}
+                    · <strong>{action.name || action.resourceName}</strong>
+                    {resourceId ? <> · ID <code>{resourceId}</code></> : null}
+                    {parentCategoryId ? <> · under {parentCategoryName} · ID <code>{parentCategoryId}</code></> : null}
+                    {!parentCategoryId && action.resourceType !== "category" && action.groupCategorySelection === "create" ? <> · under new {parentCategoryName} category</> : null}
+                  </li>;
+                })}
               </ul>
             </details>
             <p className="mt-3 text-xs text-amber-100/80">Heist resources remain suggestion-only. Protected-flow switches change only when explicitly selected above and approved; other runtime feature flags are left unchanged.</p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" disabled={busy} onClick={() => setPreviewOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
-              <button type="button" disabled={busy || previewDirty} onClick={() => void approveSetup()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Yes, build selected setup</button>
+              <button type="button" disabled={busy || previewDirty || setupReviewBlocked} onClick={() => void approveSetup()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Yes, build selected setup</button>
             </div>
           </section>
         </div>

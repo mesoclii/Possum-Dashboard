@@ -13,9 +13,9 @@ function load(file, mocks = {}) {
   const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const module = { exports: {} };
-  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports);
-  return module.exports;
+  const compiledModule = { exports: {} };
+  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), compiledModule, compiledModule.exports);
+  return compiledModule.exports;
 }
 
 test("adult emote studio fails closed behind its feature-level age check", () => {
@@ -39,6 +39,6 @@ test("adult emote studio fails closed behind its feature-level age check", () =>
   assert.match(html, /Adult Emote Studio/);
   assert.match(html, /Feature-level age check/);
   assert.match(html, /Start k-ID AgeKey check/);
-  assert.match(html, /Pending, failed, or unknown results never grant access/);
+  assert.match(html, /Pending, failed, or unknown results never unlock adult assets/);
   assert.doesNotMatch(html, /Publish to gallery/);
 });

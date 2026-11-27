@@ -6,6 +6,11 @@ export type SetupPlanAction = {
   field?: string;
   resourceType?: string;
   name?: string;
+  group?: string;
+  groupCategoryId?: string;
+  groupCategoryName?: string;
+  groupCategorySelection?: string;
+  resourceId?: string;
   resourceName?: string;
   flow?: string;
   choice?: string;

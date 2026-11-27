@@ -22,7 +22,7 @@ function render(customChannels) {
     if (name === "react") return {
       useState: (initial) => {
         const index = stateIndex++;
-        const value = index === 0 ? "123456789012345678" : index === 7 ? customChannels : index === 23 || index === 24 ? false : initial;
+        const value = index === 0 ? "123456789012345678" : index === 7 ? customChannels : index === 26 || index === 27 ? false : initial;
         return [value, () => {}];
       },
       useCallback: (callback) => callback,

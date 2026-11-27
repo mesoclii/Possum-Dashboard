@@ -9,7 +9,7 @@ const ts = require("typescript");
 function load(file, mocks) {
   const filename = path.join(__dirname, "..", "src", ...file.split("/"));
   const js = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-    compilerOptions: { testModule: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const testModule = { exports: {} };
   new Function("require", "module", "exports", js)(

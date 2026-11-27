@@ -10,6 +10,44 @@ type Feature = {
   description: string;
   protected: boolean;
   selectable: boolean;
+  registryVersion?: number;
+  lifecycleStates?: string[];
+  dependencies?: string[];
+  selectionStatus?: string;
+  selectionIssues?: string[];
+  implementationDependencies?: {
+    services: string[];
+    packages: string[];
+    envVars: string[];
+    runtimeFlags: string[];
+  };
+  featureDependencies?: { state: string; engineIds: string[] };
+  featureConflicts?: { state: string; engineIds: string[] };
+  featureRelationships?: {
+    state: string;
+    connections: {
+      engineId: string;
+      direction: "incoming" | "outgoing";
+      type: string;
+      channel: string;
+      description: string;
+      evidence: string[];
+    }[];
+  };
+  resources?: {
+    id: string;
+    field: string;
+    key: string;
+    kind: string;
+    many: boolean;
+    setupManaged: boolean;
+    protectedFlow: boolean;
+    writePolicy: string;
+    expectedPermissions: string[];
+    permissionStatus: string;
+    requirementStatus: string;
+    dependencies: string[];
+  }[];
 };
 
 type ProtectedFlow = "onboarding" | "verification" | "preOnboarding";
@@ -113,6 +151,8 @@ type SetupReport = {
   ready?: boolean;
   reason?: string;
   featureCatalog?: Feature[];
+  featureSelection?: { valid: boolean; issues: { type: string; featureId: string; relatedFeatureId: string; message: string }[] };
+  setupProfiles?: { id: string; name: string; description: string; featureIds: string[] }[];
   panelGuides?: { id: string; label: string; href: string; page: string; resourceType: string; suggestedName?: string; destination: string; configured: boolean }[];
   proposals?: Proposal[];
   rewardRoleOptions?: RewardRoleOption[];
@@ -129,6 +169,7 @@ type SetupReport = {
     automaticProvisioningEnabled?: boolean;
     trackedEngines?: string[] | null;
     trackedEnginesConfigured?: boolean;
+    setupProfile?: string;
     selectedRoleMappings?: string[];
     vipPrivateResourceKeys?: string[];
     resourceNameOverrides?: Record<string, string>;
@@ -145,9 +186,26 @@ type ApiResponse = {
   success?: boolean;
   error?: string;
   report?: SetupReport;
+  activePlan?: { plan: SetupPlan; canResume: boolean; canCancel: boolean; canCompensate: boolean } | null;
+  plan?: SetupPlan;
   preview?: { planned?: AdaptRow[]; skipped?: { id: string; reason: string }[] };
   undoPreview?: UndoPreview;
   result?: {
+    plan?: SetupPlan;
+    action?: { id: string; status: string; result?: { error?: string; resourceId?: string } | null };
+    actionResult?: { created?: boolean; resourceId?: string; error?: string };
+    completed?: boolean;
+    resumable?: boolean;
+    error?: string;
+    resourcesComplete?: boolean;
+    result?: {
+      created?: { id?: string; name?: string; engine?: string; field?: string }[];
+      failed?: { id?: string; engine?: string; field?: string; name?: string; error?: string; reason?: string }[];
+      loggingWarnings?: string[];
+      deferred?: number;
+      channelCreationDisabled?: boolean;
+      message?: string;
+    };
     wrote?: boolean;
     stale?: boolean;
     duplicate?: boolean;
@@ -168,7 +226,71 @@ type ApiResponse = {
     complete?: boolean;
     unverifiedCount?: number;
     removed?: UndoResource[];
+    planState?: string;
+    previewToken?: string;
+    deletesResources?: boolean;
+    items?: CompensationPreviewItem[];
+    compensation?: {
+      completed: number;
+      alreadyCompensated: number;
+      noChange: number;
+      retainedResources: number;
+      conflicts: number;
+      manualReview: number;
+      failed: number;
+    };
   };
+};
+
+type SetupPlan = {
+  id: string;
+  digest: string;
+  state: string;
+  createdAt: string;
+  expiresAt: string;
+  actions: {
+    id: string;
+    type: string;
+    status: string;
+    dependencies: string[];
+    requiredPermissions?: string[];
+    engine?: string;
+    field?: string;
+    resourceType?: string;
+    resourceKey?: string;
+    name?: string;
+    resourceId?: string;
+    resourceName?: string;
+    flow?: string;
+    choice?: string;
+    changes?: { key: string; before: unknown; after: unknown }[];
+    before?: unknown;
+    after?: unknown;
+    permissionCheck?: string;
+    permissionStatus?: string;
+    missingPermissions?: string[];
+    permissionReason?: string;
+    result?: { resourceId?: string; error?: string } | null;
+    compensation?: { status: string; reason?: string; resourceId?: string } | null;
+  }[];
+};
+
+type CompensationPreviewItem = {
+  actionId: string;
+  actionType: string;
+  name: string;
+  engine?: string;
+  field?: string;
+  status: string;
+  reason: string;
+  resourceId?: string;
+};
+
+type ActiveSetupPlan = {
+  plan: SetupPlan;
+  canResume: boolean;
+  canCancel: boolean;
+  canCompensate: boolean;
 };
 
 type CreationFailure = {
@@ -179,6 +301,7 @@ type CreationFailure = {
 
 type PreviewSnapshot = {
   features: string[];
+  setupProfile: string;
   names: Record<string, string>;
   categoryNames: Record<string, string>;
   resourceCounts: Record<string, number>;
@@ -189,6 +312,7 @@ type PreviewSnapshot = {
   vipPrivateResourceKeys: string[];
   flowChoices: FlowChoices;
   setupTuning: Record<string, number>;
+  plan: SetupPlan;
   report: SetupReport;
   mappings: AdaptRow[];
   skippedMappings: { id: string; reason: string }[];
@@ -200,6 +324,7 @@ const GROUPS = [
   { id: "moderation", label: "Moderation & Security" },
   { id: "economy", label: "Economy" },
   { id: "fun", label: "Fun & Games" },
+  { id: "gaming", label: "Gaming Hub" },
   { id: "social", label: "Social Alerts" },
   { id: "automation", label: "Automation" },
   { id: "support", label: "Support & Administration" },
@@ -294,8 +419,17 @@ export default function InfrastructureSetupWizard() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<SetupReport | null>(null);
+  const [activePlan, setActivePlan] = useState<ActiveSetupPlan | null>(null);
+  const [compensationPreview, setCompensationPreview] = useState<{
+    planId: string;
+    previewToken: string;
+    items: CompensationPreviewItem[];
+    deletesResources: boolean;
+  } | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [savedSelection, setSavedSelection] = useState<string[]>([]);
+  const [setupProfile, setSetupProfile] = useState("custom");
+  const [savedSetupProfile, setSavedSetupProfile] = useState("custom");
   const [selectedRoleMappings, setSelectedRoleMappings] = useState<string[]>([]);
   const [rewardRoleSelections, setRewardRoleSelections] = useState<string[]>([]);
   const [customRoleText, setCustomRoleText] = useState("");
@@ -348,12 +482,18 @@ export default function InfrastructureSetupWizard() {
       { cache: "no-store" }
     );
     const data = await readJson(response);
+    setActivePlan(data.activePlan || null);
+    setCompensationPreview((current) =>
+      current && current.planId === data.activePlan?.plan.id ? current : null
+    );
     const next = data.report || null;
     if (next) {
       setReport(next);
       const saved = savedFeatureSelection(next);
       setSelected(saved);
       setSavedSelection(saved);
+      setSetupProfile(next.settings?.setupProfile || "custom");
+      setSavedSetupProfile(next.settings?.setupProfile || "custom");
       setSelectedRoleMappings(roleSelectionsForFeatures(saved, sorted(next.settings?.selectedRoleMappings || [])));
       setRewardRoleSelections(sorted(next.settings?.rewardRoleSelections || []));
       setCustomRoleText((next.settings?.customRoleNames || []).join("\n"));
@@ -383,10 +523,13 @@ export default function InfrastructureSetupWizard() {
       .then(readJson)
       .then((data) => {
         const next = data.report || null;
+        setActivePlan(data.activePlan || null);
         setReport(next);
         const saved = savedFeatureSelection(next);
         setSelected(saved);
         setSavedSelection(saved);
+        setSetupProfile(next?.settings?.setupProfile || "custom");
+        setSavedSetupProfile(next?.settings?.setupProfile || "custom");
         setSelectedRoleMappings(roleSelectionsForFeatures(saved, sorted(next?.settings?.selectedRoleMappings || [])));
         setRewardRoleSelections(sorted(next?.settings?.rewardRoleSelections || []));
         setCustomRoleText((next?.settings?.customRoleNames || []).join("\n"));
@@ -406,7 +549,32 @@ export default function InfrastructureSetupWizard() {
   const features = useMemo(() => report?.featureCatalog || [], [report?.featureCatalog]);
   const featureById = useMemo(() => new Map(features.map((feature) => [feature.id, feature])), [features]);
   const selectedFeatures = useMemo(() => sorted(selected), [selected]);
-  const selectionDirty = selectedFeatures.join("\n") !== savedSelection.join("\n");
+  const featureSelectionIssues = useMemo(() => {
+    const selectedIds = new Set(selectedFeatures);
+    const issues = new Set<string>();
+    for (const feature of features) {
+      if (!selectedIds.has(feature.id)) continue;
+      if (feature.featureDependencies?.state === "declared") {
+        for (const dependencyId of feature.featureDependencies.engineIds) {
+          if (!featureById.has(dependencyId)) {
+            issues.add(`${feature.name} requires ${featureById.get(dependencyId)?.name || dependencyId}, which is unavailable for this server.`);
+          } else if (!selectedIds.has(dependencyId)) {
+            issues.add(`${feature.name} requires ${featureById.get(dependencyId)?.name || dependencyId}. Select both systems before setup.`);
+          }
+        }
+      }
+      if (feature.featureConflicts?.state === "declared") {
+        for (const conflictId of feature.featureConflicts.engineIds) {
+          if (selectedIds.has(conflictId)) {
+            issues.add(`${feature.name} conflicts with ${featureById.get(conflictId)?.name || conflictId}. Choose only one before setup.`);
+          }
+        }
+      }
+    }
+    return [...issues];
+  }, [features, featureById, selectedFeatures]);
+  const selectionDirty = selectedFeatures.join("\n") !== savedSelection.join("\n") ||
+    setupProfile !== savedSetupProfile;
   const proposals = useMemo(() => report?.proposals || [], [report?.proposals]);
   const roleCandidates = useMemo(
     () => proposals.filter((proposal) =>
@@ -501,6 +669,7 @@ export default function InfrastructureSetupWizard() {
   ], [report?.directory]);
   const previewDirty = Boolean(previewSnapshot && (
     selectionDirty ||
+    setupProfile !== previewSnapshot.setupProfile ||
     selectedFeatures.join("\n") !== previewSnapshot.features.join("\n") ||
     namesDirty ||
     categoryNamesDirty ||
@@ -515,13 +684,15 @@ export default function InfrastructureSetupWizard() {
   ));
   const selectedProtected = features.filter((feature) => selected.includes(feature.id) && feature.protected);
   const activeFeatureGroup = GROUPS.find((group) => group.id === activeGroup) || GROUPS[0];
-  const hasCrewGame = features.some((feature) => feature.id === "crew") && features.some((feature) => feature.id === "dominion");
-  const displayFeatures = features.filter((feature) => !hasCrewGame || feature.id !== "dominion").map((feature) =>
+  const hasCrewGame = ["crew", "dominion", "contracts"].every((id) => features.some((feature) => feature.id === id));
+  const displayFeatures = features.filter((feature) =>
+    !hasCrewGame || !["dominion", "contracts"].includes(feature.id)
+  ).map((feature) =>
     hasCrewGame && feature.id === "crew"
       ? { ...feature, name: "Crew, Dominion & Contracts", description: "One connected game: crews, territory and contracts. Configure game panels separately." }
       : feature
   );
-  const featureSelectionIds = (id: string) => hasCrewGame && id === "crew" ? ["crew", "dominion"] : [id];
+  const featureSelectionIds = (id: string) => hasCrewGame && id === "crew" ? ["crew", "dominion", "contracts"] : [id];
   const featureSelected = (id: string) => featureSelectionIds(id).every((entry) => selected.includes(entry));
   const activeFeatures = displayFeatures.filter((feature) => feature.group === activeFeatureGroup.id);
   const activeSelectable = activeFeatures.filter((feature) => feature.selectable);
@@ -540,7 +711,20 @@ export default function InfrastructureSetupWizard() {
       ? sorted([...selected, ...ids])
       : selected.filter((entry) => !ids.includes(entry));
     setSelected(next);
+    setSetupProfile("custom");
     setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
+  }
+
+  function chooseSetupProfile(profileId: string) {
+    const profile = report?.setupProfiles?.find((item) => item.id === profileId);
+    if (!profile) return;
+    setSetupProfile(profile.id);
+    if (profile.id !== "custom") {
+      setSelected(profile.featureIds);
+      setSelectedRoleMappings((current) => roleSelectionsForFeatures(profile.featureIds, current));
+    }
+    setError("");
+    setMessage("");
   }
 
   function setVipResourceSelected(id: string, enabled: boolean) {
@@ -601,25 +785,31 @@ export default function InfrastructureSetupWizard() {
       if (scan.report?.channelCreationPolicy !== "single-post-v1") {
         throw new Error("The bot does not confirm the single-request creation policy. Update the bot before running setup.");
       }
-      await callApi({
-        action: "settings",
-        mode: "discovery",
-        trackedEngines: selectedFeatures,
-        resourceNameOverrides: names,
-        categoryNameOverrides: categoryNames,
-        resourceCounts,
-        selectedRoleMappings: previewRoleSelections,
-        rewardRoleSelections: previewRewardRoleSelections,
-        customRoleNames: normalizedCustomRoleNames,
-        customChannelNames: normalizedCustomChannelNames,
-        vipPrivateResourceKeys: vipPrivateSetupKeysSorted,
-        setupTuning,
+      const planPreview = await callApi({
+        action: "plan-preview",
+        settings: {
+          mode: "discovery",
+          trackedEngines: selectedFeatures,
+          setupProfile,
+          resourceNameOverrides: names,
+          categoryNameOverrides: categoryNames,
+          resourceCounts,
+          selectedRoleMappings: previewRoleSelections,
+          rewardRoleSelections: previewRewardRoleSelections,
+          customRoleNames: normalizedCustomRoleNames,
+          customChannelNames: normalizedCustomChannelNames,
+          vipPrivateResourceKeys: vipPrivateSetupKeysSorted,
+          setupTuning,
+        },
+        flowChoices,
       });
-      const adapt = await callApi({ action: "adapt" });
-      if ((adapt.preview?.planned || []).some((row) => /deploy/i.test(`${row.engine}:${row.field}`))) {
+      if (!planPreview.plan?.id || !planPreview.plan.digest) {
+        throw new Error("The bot did not save a versioned setup plan. Update the bot before running setup.");
+      }
+      if ((planPreview.preview?.planned || []).some((row) => /deploy/i.test(`${row.engine}:${row.field}`))) {
         throw new Error("The bot returned a panel deployment action in its setup preview. Update the bot before running setup.");
       }
-      const next = adapt.report || await loadReport();
+      const next = planPreview.report || await loadReport();
       if (!next) throw new Error("The scan completed without returning a setup report.");
       const normalizedNames = next.settings?.resourceNameOverrides || names;
       const normalizedCategoryNames = next.settings?.categoryNameOverrides || categoryNames;
@@ -629,6 +819,8 @@ export default function InfrastructureSetupWizard() {
       setReport(next);
       setSelected(sorted(next.settings?.trackedEngines || selectedFeatures));
       setSavedSelection(sorted(next.settings?.trackedEngines || selectedFeatures));
+      setSetupProfile(next.settings?.setupProfile || setupProfile);
+      setSavedSetupProfile(next.settings?.setupProfile || setupProfile);
       setNames(normalizedNames);
       setCategoryNames(normalizedCategoryNames);
       setResourceCounts(normalizedResourceCounts);
@@ -644,6 +836,7 @@ export default function InfrastructureSetupWizard() {
       setSetupTuning(normalizedSetupTuning);
       setPreviewSnapshot({
         features: sorted(next.settings?.trackedEngines || selectedFeatures),
+        setupProfile: next.settings?.setupProfile || setupProfile,
         names: normalizedNames,
         categoryNames: normalizedCategoryNames,
         resourceCounts: normalizedResourceCounts,
@@ -654,9 +847,10 @@ export default function InfrastructureSetupWizard() {
         vipPrivateResourceKeys: normalizedVipPrivateKeys,
         flowChoices: { ...flowChoices },
         setupTuning: normalizedSetupTuning,
+        plan: planPreview.plan,
         report: next,
-        mappings: adapt.preview?.planned || [],
-        skippedMappings: adapt.preview?.skipped || [],
+        mappings: planPreview.preview?.planned || [],
+        skippedMappings: planPreview.preview?.skipped || [],
       });
       setMessage("Read-only preview ready. Nothing has been created or changed on Discord.");
     } catch (cause: unknown) {
@@ -681,6 +875,53 @@ export default function InfrastructureSetupWizard() {
     }
   }
 
+  async function runApprovedPlan(plan: SetupPlan) {
+    const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
+    let completed = false;
+    for (let index = 0; index < plan.actions.length + 1; index += 1) {
+      setBatchProgress(`Applying approved action ${index + 1} of ${plan.actions.length}…`);
+      const data = await callApi({ action: "plan-run", planId: plan.id });
+      const run = data.result;
+      if (!run?.plan) throw new Error("The bot did not return the saved setup-plan checkpoint.");
+      setActivePlan({
+        plan: run.plan,
+        canResume: ["approved", "running", "partial", "failed"].includes(run.plan.state),
+        canCancel: ["approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(run.plan.state),
+        canCompensate: run.plan.actions.some((action) => action.status === "completed"),
+      });
+      if (data.report) setReport(data.report);
+      if (run.actionResult?.created && run.actionResult.resourceId) {
+        allCreated.push({ id: run.actionResult.resourceId, name: run.action?.id || "Created resource" });
+        setCreated([...allCreated]);
+      }
+      if (run.action?.status === "failed" || run.error) {
+        const failedAction = run.action;
+        if (failedAction) {
+          setCreationFailures([{
+            id: failedAction.id,
+            name: failedAction.id,
+            error: failedAction.result?.error || run.error || "The action failed and needs attention.",
+          }]);
+        }
+        throw new Error(run.error || failedAction?.result?.error || "The setup plan paused and requires attention.");
+      }
+      if (run.completed || run.plan.state === "succeeded") {
+        completed = true;
+        break;
+      }
+      if (run.action?.status !== "completed") {
+        throw new Error("The latest setup action has no successful checkpoint. The saved plan was left unchanged for review.");
+      }
+    }
+    if (!completed) throw new Error("The setup plan did not reach a completed state. Resume it from the saved plan status.");
+    const refreshed = await loadReport();
+    setPreviewSnapshot(null);
+    setCreationFailures([]);
+    setMessage(`Setup finished. ${allCreated.length} resource(s) were created; existing mappings were filled only when empty. Protected-flow and automation settings were applied and verified by the bot.`);
+    setBatchProgress("");
+    if (!refreshed) throw new Error("Setup finished, but the refreshed infrastructure report could not be loaded.");
+  }
+
   async function approveSetup() {
     if (!previewSnapshot || previewDirty) return;
     if (previewSnapshot.report.panelSetupPolicy !== "channel-destinations-v2") {
@@ -697,136 +938,128 @@ export default function InfrastructureSetupWizard() {
     setMessage("");
     setCreated([]);
     setCreationFailures([]);
-    setBatchProgress("Saving the selected setup systems, roles, and destination choices…");
+    setBatchProgress("Approving the saved, versioned setup plan…");
     try {
-      await callApi({
-        action: "settings",
-        mode: "discovery",
-        trackedEngines: previewSnapshot.features,
-        resourceNameOverrides: previewSnapshot.names,
-        categoryNameOverrides: previewSnapshot.categoryNames,
-        resourceCounts: previewSnapshot.resourceCounts,
-        selectedRoleMappings: previewSnapshot.selectedRoleMappings,
-        rewardRoleSelections: previewSnapshot.rewardRoleSelections,
-        customRoleNames: previewSnapshot.customRoleNames,
-        customChannelNames: previewSnapshot.customChannelNames,
-        vipPrivateResourceKeys: previewSnapshot.vipPrivateResourceKeys,
-        setupTuning: previewSnapshot.setupTuning,
+      const approval = await callApi({
+        action: "plan-approve",
+        planId: previewSnapshot.plan.id,
+        digest: previewSnapshot.plan.digest,
       });
-
-      if (previewSnapshot.mappings.length) {
-        setBatchProgress("Applying approved matches to existing empty configuration fields…");
-        const adapted = await callApi({
-          action: "adapt",
-          confirmed: true,
-          planned: previewSnapshot.mappings,
-        });
-        if (adapted.result?.stale || adapted.result?.duplicate) {
-          throw new Error("The server changed after preview. Nothing else was created; refresh the preview before retrying.");
-        }
-      }
-
-      await callApi({
-        action: "settings",
-        mode: "full-setup",
-        trackedEngines: previewSnapshot.features,
-        resourceNameOverrides: previewSnapshot.names,
-        categoryNameOverrides: previewSnapshot.categoryNames,
-        resourceCounts: previewSnapshot.resourceCounts,
-        rewardRoleSelections: previewSnapshot.rewardRoleSelections,
-        customRoleNames: previewSnapshot.customRoleNames,
-        customChannelNames: previewSnapshot.customChannelNames,
-        vipPrivateResourceKeys: previewSnapshot.vipPrivateResourceKeys,
-        setupTuning: previewSnapshot.setupTuning,
-      });
-
-      const allCreated: { id?: string; name?: string; engine?: string; field?: string }[] = [];
-      const failuresById = new Map<string, CreationFailure>();
-      const loggingWarnings = new Set<string>();
-      const maxBatches = 100;
-      let completed = false;
-      for (let batch = 1; batch <= maxBatches; batch += 1) {
-        setBatchProgress(`Creating approved resources (batch ${batch}; ${allCreated.length} created so far)…`);
-        const data = await callApi({ action: "provision", confirmed: true });
-        const result = data.result || {};
-        if (result.channelCreationDisabled === true) {
-          throw new Error(String(result.message || "Resource creation is disabled for this setup mode. Nothing was created."));
-        }
-        const batchCreated = result.created || [];
-        allCreated.push(...batchCreated);
-        for (const warning of result.loggingWarnings || []) loggingWarnings.add(warning);
-        setCreated([...allCreated]);
-
-        const failures = result.failed || [];
-        for (const failure of failures) {
-          const id = failure.id || `${failure.engine || "resource"}:${failure.field || failure.name || failuresById.size}`;
-          failuresById.set(id, {
-            id,
-            name: failure.name || failure.field || id,
-            error: failure.error || failure.reason || "Discord refused this resource operation.",
-          });
-        }
-        const deferred = Number(result.deferred || 0);
-        if (deferred <= 0) {
-          completed = true;
-          break;
-        }
-        if (!batchCreated.length) {
-          setCreationFailures([...failuresById.values()]);
-          const firstFailure = failuresById.values().next().value as CreationFailure | undefined;
-          const detail = firstFailure ? ` ${firstFailure.name}: ${firstFailure.error}` : "";
-          throw new Error(`${deferred} resource(s) remain, but the latest batch made no progress.${detail} Review pending operations and Discord before retrying.`);
-        }
-      }
-      if (!completed) {
-        throw new Error("Setup reached the safety limit of 100 batches. Review the created resources and run another preview for anything remaining.");
-      }
-
-      const featurePatch: Record<string, boolean> = {};
-      const securityPatch: Record<string, { enabled: boolean }> = {};
-      for (const flow of Object.keys(previewSnapshot.flowChoices) as ProtectedFlow[]) {
-        const choice = previewSnapshot.flowChoices[flow];
-        if (choice === "keep") continue;
-        const enabled = choice === "enable";
-        const featureKey = flow === "onboarding"
-          ? "onboardingEnabled"
-          : flow === "verification"
-            ? "verificationEnabled"
-            : null;
-        if (featureKey) featurePatch[featureKey] = enabled;
-        securityPatch[flow] = { enabled };
-      }
-      if (Object.keys(featurePatch).length || Object.keys(securityPatch).length) {
-        setBatchProgress("Applying only the protected-flow switches you explicitly selected…");
-        const response = await fetch("/api/bot/dashboard-config", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            guildId,
-            patch: {
-              ...(Object.keys(featurePatch).length ? { features: featurePatch } : {}),
-              ...(Object.keys(securityPatch).length ? { security: securityPatch } : {}),
-            },
-          }),
-          cache: "no-store",
-        });
-        await readJson(response);
-      }
-
-      await callApi({ action: "settings", autopilotEnabled, automaticProvisioningEnabled });
-      const refreshed = await loadReport();
-      setPreviewSnapshot(null);
-      const finalFailures = [...failuresById.values()];
-      setCreationFailures(finalFailures);
-      setMessage(finalFailures.length
-        ? `Setup created ${allCreated.length} resource(s), but ${finalFailures.length} resource(s) still need attention. See the failed resources below.`
-        : `Setup finished. Created ${allCreated.length} resource(s); existing mappings were filled only when they were empty. Panels are configured separately. Autopilot is ${autopilotEnabled ? "on" : "off"}; automatic resource creation is ${automaticProvisioningEnabled ? "on" : "off"}.${loggingWarnings.size ? ` Setup logs need attention: ${[...loggingWarnings].join("; ")}` : ""}`);
-      setBatchProgress("");
-      if (!refreshed) throw new Error("Setup finished, but the refreshed infrastructure report could not be loaded.");
+      const approvedPlan = approval.result?.plan || previewSnapshot.plan;
+      setActivePlan({ plan: approvedPlan, canResume: true, canCancel: true, canCompensate: false });
+      await runApprovedPlan(approvedPlan);
     } catch (cause: unknown) {
       setBatchProgress("");
       setError(cause instanceof Error ? cause.message : "Setup stopped before all approved actions completed.");
       await loadReport().catch(() => null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resumeActiveSetup() {
+    if (!activePlan?.canResume) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setBatchProgress("Resuming the saved setup plan…");
+    try {
+      let plan = activePlan.plan;
+      if (plan.state === "draft") {
+        const approval = await callApi({ action: "plan-approve", planId: plan.id, digest: plan.digest });
+        if (!approval.result?.plan) throw new Error("The bot did not approve the saved setup preview.");
+        plan = approval.result.plan;
+      } else if (!["approved", "running"].includes(plan.state)) {
+        const resumed = await callApi({ action: "plan-resume", planId: plan.id });
+        if (!resumed.result?.plan) throw new Error("The bot did not return a resumable setup plan.");
+        plan = resumed.result.plan;
+      }
+      await runApprovedPlan(plan);
+    } catch (cause: unknown) {
+      setBatchProgress("");
+      setError(cause instanceof Error ? cause.message : "The saved setup plan could not be resumed.");
+      await loadReport().catch(() => null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelActiveSetup() {
+    if (!activePlan?.canCancel) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await callApi({ action: "plan-cancel", planId: activePlan.plan.id });
+      setCompensationPreview(null);
+      await loadReport();
+      setMessage("The setup plan was cancelled. Completed actions and created resources were not rolled back.");
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "The setup plan could not be cancelled.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function preparePlanCompensation() {
+    if (!activePlan?.canCompensate) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await callApi({
+        action: "plan-rollback-preview",
+        planId: activePlan.plan.id,
+      });
+      if (!data.result?.previewToken || !Array.isArray(data.result.items)) {
+        throw new Error("The server did not return a versioned compensation preview.");
+      }
+      setCompensationPreview({
+        planId: activePlan.plan.id,
+        previewToken: data.result.previewToken,
+        items: data.result.items,
+        deletesResources: data.result.deletesResources === true,
+      });
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Could not prepare plan compensation.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function compensateActivePlan() {
+    if (!compensationPreview) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await callApi({
+        action: "plan-rollback",
+        planId: compensationPreview.planId,
+        previewToken: compensationPreview.previewToken,
+      });
+      const summary = data.result?.compensation;
+      const plan = data.result?.plan;
+      if (!summary || !plan) throw new Error("The server did not return the saved compensation checkpoint.");
+      setCompensationPreview(null);
+      setActivePlan({
+        plan,
+        canResume: false,
+        canCancel: false,
+        canCompensate: plan.state === "rollback_incomplete",
+      });
+      setMessage(
+        `Compensation recorded: ${summary.completed} restored, ${summary.retainedResources} created resource(s) retained for separate review, ${summary.conflicts} drift conflict(s), ${summary.manualReview} manual review item(s), ${summary.failed} failure(s). No Discord resources were deleted.`
+      );
+      try {
+        await loadReport();
+      } catch (refreshError: unknown) {
+        setError(`Compensation was saved, but the infrastructure report could not be refreshed: ${
+          refreshError instanceof Error ? refreshError.message : "unknown refresh error"
+        }`);
+      }
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "The setup plan could not be compensated.");
     } finally {
       setBusy(false);
     }
@@ -933,6 +1166,7 @@ export default function InfrastructureSetupWizard() {
       ? sorted([...selected, ...ids])
       : selected.filter((id) => !ids.includes(id));
     setSelected(next);
+    setSetupProfile("custom");
     setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
     setError("");
     setMessage("");
@@ -976,7 +1210,7 @@ export default function InfrastructureSetupWizard() {
           Start with the panel checklist, then choose features, connect existing resources, and create the missing roles, channels, and categories you approve.
         </p>
         <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup reuses clear existing channel matches and can create only the missing destinations you approve. It never posts panel messages, and it leaves protected onboarding, pre-onboarding, and verification settings unchanged.
+          Setup reuses clear existing channel matches and can create only the missing destinations you approve. It never posts panel messages, and protected-flow settings change only through explicit, backend-applied choices in the saved plan.
         </p>
       </section>
 
@@ -1065,7 +1299,7 @@ export default function InfrastructureSetupWizard() {
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <h2 className="text-lg font-black uppercase">Protected flow decisions</h2>
-        <p className="mt-1 text-sm text-pink-100/70">These three switches stay unchanged by default. Only an explicit Enable or Disable choice is applied after you approve and finish setup. TTS and all other feature switches are not changed here.</p>
+        <p className="mt-1 text-sm text-pink-100/70">These three switches stay unchanged by default. An explicit Enable or Disable choice is applied and verified by the bot as its own saved-plan action. TTS and all other feature switches are not changed here.</p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
           {([
             ["onboarding", "Onboarding"],
@@ -1083,6 +1317,113 @@ export default function InfrastructureSetupWizard() {
           ))}
         </div>
       </section>
+
+      {activePlan ? (
+        <section className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-black uppercase">Saved setup plan: {activePlan.plan.state.replace(/_/g, " ")}</h2>
+              <p className="mt-1 text-sm text-amber-100/80">
+                {activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length}
+                {" of "}
+                {activePlan.plan.actions.length} actions checkpointed. Resuming continues from the first safely pending action; cancelling does not undo completed changes.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activePlan.canResume ? (
+                <button type="button" disabled={busy} onClick={() => void resumeActiveSetup()} className="possum-btn min-h-10 rounded-lg px-4 text-sm font-bold disabled:opacity-50">
+                  {busy ? "Working…" : activePlan.plan.state === "draft" ? "Approve saved plan and continue" : activePlan.plan.state === "approved" ? "Continue approved setup" : "Resume setup"}
+                </button>
+              ) : null}
+              {activePlan.canCancel ? (
+                <button type="button" disabled={busy} onClick={() => void cancelActiveSetup()} className="min-h-10 rounded-lg border possum-divider px-4 text-sm font-bold disabled:opacity-50">
+                  Cancel plan
+                </button>
+              ) : null}
+              {activePlan.canCompensate ? (
+                <button type="button" disabled={busy} onClick={() => void preparePlanCompensation()} className="min-h-10 rounded-lg border border-amber-500/60 px-4 text-sm font-bold text-amber-100 disabled:opacity-50">
+                  Preview compensation
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <details className="mt-3 rounded-lg border border-amber-800/40 p-3">
+            <summary className="cursor-pointer text-sm font-bold">Review the saved actions and permissions</summary>
+            <ol className="mt-3 space-y-2 text-sm">
+              {activePlan.plan.actions.map((action, index) => (
+                <li key={action.id} className="rounded border border-amber-900/40 p-2">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <strong>{index + 1}. {action.name || action.resourceName || action.flow || action.engine || action.id}</strong>
+                    <span>{action.status.replace(/_/g, " ")}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-100/70">
+                    {action.type.replace(/_/g, " ")}
+                    {action.resourceType ? ` · ${action.resourceType}` : ""}
+                    {action.field ? ` · ${action.field}` : ""}
+                    {action.choice ? ` · ${action.choice}` : ""}
+                    {action.resourceId ? ` · existing resource ${action.resourceId}` : ""}
+                  </p>
+                  {action.requiredPermissions?.length ? <p className="mt-1 text-xs">Bot permissions: {action.requiredPermissions.join(", ")}</p> : null}
+                  {action.permissionCheck ? <p className="mt-1 text-xs">Permission check: refreshed immediately before mutation.</p> : null}
+                  {action.permissionStatus ? (
+                    <p className={`mt-1 text-xs ${action.permissionStatus === "verified" ? "text-emerald-200" : "text-amber-100"}`}>
+                      Permissions at preview: {action.permissionStatus}
+                      {action.missingPermissions?.length ? ` · missing ${action.missingPermissions.join(", ")}` : ""}
+                      {action.permissionReason ? ` · ${action.permissionReason}` : ""}
+                    </p>
+                  ) : null}
+                  {action.compensation ? (
+                    <p className="mt-1 text-xs text-amber-100/80">
+                      Compensation: {action.compensation.status.replace(/_/g, " ")}
+                      {action.compensation.reason ? ` · ${action.compensation.reason}` : ""}
+                    </p>
+                  ) : null}
+                  {action.before !== null || action.after !== null ? (
+                    <p className="mt-1 text-xs text-amber-100/70">
+                      Before: {JSON.stringify(action.before)} → After: {JSON.stringify(action.after)}
+                    </p>
+                  ) : null}
+                  {action.dependencies.length ? <p className="mt-1 text-xs text-amber-100/60">Depends on: {action.dependencies.join(", ")}</p> : null}
+                  {action.changes?.length ? (
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {action.changes.map((change) => (
+                        <li key={change.key}>
+                          <strong>{change.key}:</strong> {JSON.stringify(change.before)} → {JSON.stringify(change.after)}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </details>
+          {compensationPreview?.planId === activePlan.plan.id ? (
+            <section aria-label="Setup plan compensation preview" className="mt-3 rounded-lg border border-amber-500/50 bg-black/40 p-3">
+              <h3 className="font-black uppercase">Review compensation</h3>
+              <p className="mt-1 text-sm text-amber-100/80">
+                Only settings and mappings that still match this plan will be restored. Created Discord resources are retained; this action does not delete anything.
+              </p>
+              <ul className="mt-3 space-y-2 text-sm">
+                {compensationPreview.items.map((item) => (
+                  <li key={item.actionId} className="rounded border border-amber-900/40 p-2">
+                    <strong>{item.name} — {item.status.replace(/_/g, " ")}</strong>
+                    <p className="mt-1 text-xs text-amber-100/70">{item.reason}</p>
+                    {item.resourceId ? <p className="mt-1 text-xs">Retained resource ID: {item.resourceId}</p> : null}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" disabled={busy} onClick={() => void compensateActivePlan()} className="min-h-10 rounded-lg border border-amber-500/60 px-4 text-sm font-bold text-amber-100 disabled:opacity-50">
+                  Apply reviewed compensation
+                </button>
+                <button type="button" disabled={busy} onClick={() => setCompensationPreview(null)} className="min-h-10 rounded-lg border possum-divider px-4 text-sm font-bold disabled:opacity-50">
+                  Keep plan unchanged
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </section>
+      ) : null}
 
       {error ? <div role="alert" className="rounded-lg border border-red-700/60 bg-red-950/50 p-3 text-sm text-red-100">{error}</div> : null}
       {message ? <div role="status" className="rounded-lg border border-pink-700/60 bg-pink-950/40 p-3 text-sm text-pink-100">{message}</div> : null}
@@ -1104,11 +1445,37 @@ export default function InfrastructureSetupWizard() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
-            <button type="button" disabled={busy || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" disabled={busy || featureSelectionIssues.length > 0 || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
               {busy ? "Preparing…" : "Preview selected setup"}
             </button>
           </div>
         </div>
+        <div className="mt-4 max-w-2xl">
+          <label htmlFor="community-setup-profile" className="block text-sm font-black uppercase text-pink-100">
+            Community profile
+          </label>
+          <select
+            id="community-setup-profile"
+            value={setupProfile}
+            disabled={busy || !report?.setupProfiles?.length}
+            onChange={(event) => chooseSetupProfile(event.target.value)}
+            className="mt-2 min-h-11 w-full rounded-md border possum-divider bg-black px-3 text-sm text-pink-100"
+          >
+            {(report?.setupProfiles || []).map((profile) => (
+              <option key={profile.id} value={profile.id}>{profile.name}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-pink-100/60">
+            {report?.setupProfiles?.find((profile) => profile.id === setupProfile)?.description ||
+              "Choose a profile to stage a feature selection. It does not create resources or change runtime switches."}
+          </p>
+        </div>
+        {featureSelectionIssues.length ? (
+          <div role="alert" className="mt-3 rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-100">
+            <strong>Resolve feature dependencies before previewing setup.</strong>
+            <ul className="mt-1 list-disc pl-5">{featureSelectionIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul>
+          </div>
+        ) : null}
         <div role="tablist" aria-label="Setup feature categories" className="mt-4 flex flex-wrap gap-2">
           {GROUPS.map((group) => {
             const count = displayFeatures.filter((feature) => feature.group === group.id).length;
@@ -1147,8 +1514,34 @@ export default function InfrastructureSetupWizard() {
                 <span className="min-w-0 flex-1">
                   <span className="block font-bold">{feature.name}{feature.protected ? <span className="ml-2 text-[10px] uppercase text-amber-200">Manual setup</span> : null}</span>
                   <span className="block text-xs leading-relaxed text-pink-100/60">{feature.description}</span>
-                  {hasCrewGame && feature.id === "crew" && selected.includes("crew") !== selected.includes("dominion")
-                    ? <span className="block text-xs text-amber-200">Only part of this game is currently selected; select it to track both systems.</span>
+                  {feature.implementationDependencies ? (
+                    <span className="mt-1 block text-[11px] leading-relaxed text-pink-100/50">
+                      Declared runtime dependencies: {[
+                        ...feature.implementationDependencies.services,
+                        ...feature.implementationDependencies.packages,
+                        ...feature.implementationDependencies.envVars.map((name) => `env:${name}`),
+                        ...feature.implementationDependencies.runtimeFlags.map((name) => `flag:${name}`),
+                      ].join(", ") || "none listed"}
+                    </span>
+                  ) : null}
+                  {feature.featureRelationships?.connections.length ? (
+                    <details className="mt-1 text-[11px] text-pink-100/60">
+                      <summary className="cursor-pointer">Verified runtime connections (informational)</summary>
+                      <ul className="mt-1 list-disc space-y-1 pl-5">
+                        {feature.featureRelationships.connections.map((connection) => (
+                          <li key={`${connection.direction}:${connection.engineId}:${connection.type}`}>
+                            {connection.direction === "outgoing" ? "Connects to" : "Receives from"}{" "}
+                            {featureById.get(connection.engineId)?.name || connection.engineId}
+                            {connection.description ? ` — ${connection.description}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                      <span className="mt-1 block">These links describe runtime integrations; they do not enable or require the connected feature.</span>
+                    </details>
+                  ) : null}
+                  {hasCrewGame && feature.id === "crew" &&
+                    ["crew", "dominion", "contracts"].some((id) => selected.includes(id) !== selected.includes("crew"))
+                    ? <span className="block text-xs text-amber-200">Crew, Dominion &amp; Contracts must be selected together.</span>
                     : null}
                 </span>
               </label>
@@ -1157,7 +1550,7 @@ export default function InfrastructureSetupWizard() {
           </div>
         </fieldset>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={busy || featureSelectionIssues.length > 0 || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? "Preparing…" : "Preview selected setup"}
           </button>
           <span className="text-xs text-pink-100/60">Scanning is read-only. Feature selection saves setup scope; resources and mappings change only after approval. Protected flows change only if explicitly selected above. Other runtime feature switches are left unchanged.</span>
@@ -1412,6 +1805,30 @@ export default function InfrastructureSetupWizard() {
             </section>
           ) : null}
 
+          <section className="rounded-lg border border-pink-900/40 p-3">
+            <h3 className="text-sm font-black uppercase text-pink-100">Saved deployment plan</h3>
+            <p className="mt-1 text-xs text-pink-100/70">
+              Versioned plan {previewSnapshot.plan.id} · {previewSnapshot.plan.actions.length} actions · expires {new Date(previewSnapshot.plan.expiresAt).toLocaleString()}
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-bold">Review action order and dependencies</summary>
+              <ol className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs">
+                {previewSnapshot.plan.actions.map((action) => (
+                  <li key={action.id}>
+                    <strong>{action.id}</strong> — {action.type.replace(/_/g, " ")}
+                    {action.before !== null || action.after !== null
+                      ? ` · ${JSON.stringify(action.before)} → ${JSON.stringify(action.after)}`
+                      : ""}
+                    {action.dependencies.length ? ` · depends on ${action.dependencies.join(", ")}` : ""}
+                    {action.requiredPermissions?.length ? ` · requires ${action.requiredPermissions.join(", ")}` : ""}
+                    {action.permissionStatus ? ` · permissions ${action.permissionStatus}` : ""}
+                    {action.permissionReason ? ` (${action.permissionReason})` : ""}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </section>
+
           {previewSnapshot.mappings.length ? (
             <div className="rounded-lg border border-pink-900/40 p-3">
               <h3 className="text-sm font-black uppercase text-pink-100">Existing resources to connect</h3>
@@ -1463,6 +1880,13 @@ export default function InfrastructureSetupWizard() {
               </ul>
             </details>
             <p className="mt-3 text-xs text-amber-100/80">Heist resources remain suggestion-only. Protected-flow switches change only when explicitly selected above and approved; other runtime feature flags are left unchanged.</p>
+            {previewSnapshot.plan.actions.some((action) =>
+              action.type === "create_resource" && action.permissionStatus !== "verified"
+            ) ? (
+              <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
+                The bot&apos;s required permissions are not verified for every planned resource. Grant the listed permissions and refresh the preview before approval.
+              </p>
+            ) : null}
             <label className="mt-3 flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
               <input
                 type="checkbox"
@@ -1490,7 +1914,16 @@ export default function InfrastructureSetupWizard() {
             {previewSnapshot.report.setupTuning?.length ? <p className="mt-2 text-xs text-pink-100/70">Approved game and reward values are saved only after confirmation; existing customized settings are not overwritten.</p> : null}
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button type="button" disabled={busy} onClick={() => setPreviewOpen(false)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold">Cancel</button>
-              <button type="button" disabled={busy || previewDirty} onClick={() => void approveSetup()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">Yes, build selected setup</button>
+              <button
+                type="button"
+                disabled={busy || previewDirty || previewSnapshot.plan.actions.some((action) =>
+                  action.type === "create_resource" && action.permissionStatus !== "verified"
+                )}
+                onClick={() => void approveSetup()}
+                className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Yes, build selected setup
+              </button>
             </div>
           </section>
         </div>

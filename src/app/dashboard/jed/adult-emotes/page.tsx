@@ -108,41 +108,51 @@ export default function AdultEmotesPage() {
 
   useEffect(() => {
     if (!guildId || typeof window === "undefined") return;
-    const savedToken = window.sessionStorage.getItem(ageTokenStorageKey(guildId)) || "";
+    let savedToken = window.sessionStorage.getItem(ageTokenStorageKey(guildId)) || "";
     setAgeToken(savedToken);
     setAgeAllowed(false);
     setAgeMessage("");
-    if (!savedToken) {
+    if (savedToken) {
+      const verification = new URL("/age-assurance/verify", window.location.origin);
+      verification.searchParams.set("token", savedToken);
+      setVerificationUrl(verification.toString());
+    } else {
       setVerificationUrl("");
-      return;
     }
-    const verification = new URL("/age-assurance/verify", window.location.origin);
-    verification.searchParams.set("token", savedToken);
-    setVerificationUrl(verification.toString());
 
     const controller = new AbortController();
     async function checkAccess() {
       try {
-        const response = await fetch("/api/age-assurance/access", {
+        const postAccess = (token: string) => fetch("/api/age-assurance/access", {
           method: "POST",
           headers: { "content-type": "application/json" },
           cache: "no-store",
           signal: controller.signal,
-          body: JSON.stringify({ token: savedToken, guildId }),
+          body: JSON.stringify({ ...(token ? { token } : {}), guildId }),
         });
-        const result = await response.json();
-        if (response.status === 404) {
+        let response = await postAccess(savedToken);
+        if (response.status === 404 && savedToken) {
           window.sessionStorage.removeItem(ageTokenStorageKey(guildId));
+          savedToken = "";
           setAgeToken("");
           setVerificationUrl("");
+          response = await postAccess("");
         }
+        const result = await response.json();
         if (!response.ok || result?.success !== true) {
           throw new Error(result?.error || "Could not confirm Adult Emote Studio access.");
         }
         setAgeAllowed(result.allowed === true);
-        setAgeMessage(result.allowed === true
-          ? "The server confirmed k-ID adult age and the mature-language permission."
-          : "Complete both the k-ID permission check and civil adult-age check, return here, and select Check AgeKey access.");
+        if (result.allowed === true) {
+          window.sessionStorage.removeItem(ageTokenStorageKey(guildId));
+          setAgeToken("");
+          setVerificationUrl("");
+          setAgeMessage("Your saved k-ID session has the mature-language permission and verified adult age.");
+        } else {
+          setAgeMessage(result.status === "needs-session"
+            ? "No k-ID session is linked to this account yet. Start the feature check once; the result will be reused when you return."
+            : "Your saved k-ID session is active, but mature-language and verified adult access are not both enabled yet.");
+        }
       } catch (reason) {
         if (!controller.signal.aborted) {
           setAgeMessage(reason instanceof Error ? reason.message : "Could not confirm Adult Emote Studio access.");
@@ -182,29 +192,38 @@ export default function AdultEmotesPage() {
   }
 
   async function checkAgeAccess() {
-    if (!guildId || !ageToken) return;
+    if (!guildId) return;
     setAgeBusy(true);
     setAgeMessage("");
     try {
-      const response = await fetch("/api/age-assurance/access", {
+      const postAccess = (token: string) => fetch("/api/age-assurance/access", {
         method: "POST",
         headers: { "content-type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify({ token: ageToken, guildId }),
+        body: JSON.stringify({ ...(token ? { token } : {}), guildId }),
       });
-      const result = await response.json();
-      if (response.status === 404) {
+      let response = await postAccess(ageToken);
+      if (response.status === 404 && ageToken) {
         window.sessionStorage.removeItem(ageTokenStorageKey(guildId));
         setAgeToken("");
         setVerificationUrl("");
+        response = await postAccess("");
       }
+      const result = await response.json();
       if (!response.ok || result?.success !== true) {
         throw new Error(result?.error || "Could not confirm Adult Emote Studio access.");
       }
       setAgeAllowed(result.allowed === true);
-      setAgeMessage(result.allowed === true
-        ? "The server confirmed k-ID adult age and the mature-language permission."
-        : "k-ID has not confirmed both adult age and the mature-language permission. Finish or retry the check first.");
+      if (result.allowed === true) {
+        window.sessionStorage.removeItem(ageTokenStorageKey(guildId));
+        setAgeToken("");
+        setVerificationUrl("");
+        setAgeMessage("Your saved k-ID session has the mature-language permission and verified adult age.");
+      } else {
+        setAgeMessage(result.status === "needs-session"
+          ? "No k-ID session is linked to this account yet. Start the feature check once; the result will be reused when you return."
+          : "k-ID has not confirmed both mature-language and verified adult access for this feature.");
+      }
     } catch (reason) {
       setAgeMessage(reason instanceof Error ? reason.message : "Could not confirm Adult Emote Studio access.");
     } finally {
@@ -272,6 +291,10 @@ export default function AdultEmotesPage() {
           18+ / PRIVATE / NOT PUBLISHED
         </div>
       </div>
+      <div style={{ ...panel, marginTop: 14, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div><strong>Need the server-wide emoji and sticker collection?</strong><div style={muted}>The JED Asset Library lists assets from all your servers where Possum Bot is installed.</div></div>
+        <Link href={buildDashboardHref("/emotes")} style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open JED Asset Library</Link>
+      </div>
 
       <section style={{ ...panel, marginTop: 16, borderColor: ageAllowed ? "#386c48" : "#a52a47" }} aria-label="Adult Emote Studio age access">
         <div style={{ color: ageAllowed ? "#8ee0a8" : "#ff718e", fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" }}>
@@ -285,15 +308,12 @@ export default function AdultEmotesPage() {
         {ageMessage ? <p role="status" style={{ color: "#ffc1ce", margin: "0 0 10px" }}>{ageMessage}</p> : null}
         {!ageAllowed ? (
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {!ageToken ? (
-              <button type="button" style={button} disabled={ageBusy} onClick={() => void startAgeCheck()}>
-                {ageBusy ? "Starting…" : "Start k-ID AgeKey check"}
-              </button>
-            ) : (
-              <button type="button" style={button} disabled={ageBusy} onClick={() => void checkAgeAccess()}>
-                {ageBusy ? "Checking…" : "Check AgeKey access"}
-              </button>
-            )}
+            <button type="button" style={button} disabled={ageBusy} onClick={() => void checkAgeAccess()}>
+              {ageBusy ? "Checking…" : "Check saved k-ID access"}
+            </button>
+            {!ageToken ? <button type="button" style={button} disabled={ageBusy} onClick={() => void startAgeCheck()}>
+              {ageBusy ? "Starting…" : "Start a k-ID feature check"}
+            </button> : null}
             {verificationUrl ? <a href={verificationUrl} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Open k-ID check</a> : null}
           </div>
         ) : null}

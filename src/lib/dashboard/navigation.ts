@@ -29,6 +29,7 @@ export function getSectionHref(label: string): string {
 
 export function getDashboardNavTopLinks(isMasterOwner = false, isPrimaryOwner = false, isPokemonOperator = false): DashboardNavTopLink[] {
   const topLinks: DashboardNavTopLink[] = [
+    { href: "/dashboard/motd", label: "Message of the Day" },
     { href: "/dashboard/system-health", label: "System Health" },
     { href: "/dashboard/switchboard", label: "My Quick Switchboard", primaryOwnerOnly: true },
     { href: "/dashboard/operations", label: "Operations", creatorOnly: true },
@@ -151,6 +152,7 @@ export function getDashboardNavSections(
     {
       label: "Socials",
       items: [
+        { href: "/dashboard/motd", label: "Server Message of the Day" },
         { href: "/dashboard/games", label: "Gaming Hub" },
         { href: "/dashboard/wow", label: "WoW Groups" },
         { href: "/tcg", label: "Possum Underworld TCG" },

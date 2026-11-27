@@ -658,7 +658,7 @@ export default function InfrastructureSetupWizard() {
       const approved = await callApi({ action: "plan-approve", planId: draft.id, digest: draft.digest });
       let plan = approved.result?.plan;
       if (!plan) throw new Error("The bot did not return an approved setup plan.");
-      setActivePlan({ plan, canResume: true, canCancel: true });
+      setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
       running = true;
       for (let index = 0; index <= draft.actions.length; index += 1) {
         const completed = plan.actions.filter((action) => action.status === "completed").length;
@@ -667,7 +667,7 @@ export default function InfrastructureSetupWizard() {
         const updated = step.result?.plan;
         if (!updated) throw new Error("The bot did not return the next setup checkpoint.");
         plan = updated;
-        setActivePlan({ plan, canResume: !["succeeded", "cancelled"].includes(plan.state), canCancel: !["succeeded", "cancelled"].includes(plan.state) });
+        setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
         const summary = summarizeSetupPlan(plan.actions, true);
         setCreated(plan.actions.filter((action) =>
           action.type === "create_resource" && action.status === "completed").map((action) => ({
@@ -719,7 +719,7 @@ export default function InfrastructureSetupWizard() {
       } else if (plan.state !== "approved") {
         throw new Error(`This setup plan cannot resume while it is ${plan.state}.`);
       }
-      setActivePlan({ plan, canResume: true, canCancel: true });
+      setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
       for (let index = 0; index <= plan.actions.length; index += 1) {
         const completed = plan.actions.filter((action) => action.status === "completed").length;
         setBatchProgress(`Resuming setup · ${completed} of ${plan.actions.length} checkpoints complete…`);
@@ -727,7 +727,7 @@ export default function InfrastructureSetupWizard() {
         const updated = step.result?.plan;
         if (!updated) throw new Error("The bot did not return the next recovered checkpoint.");
         plan = updated;
-        setActivePlan({ plan, canResume: !["succeeded", "cancelled"].includes(plan.state), canCancel: !["succeeded", "cancelled"].includes(plan.state) });
+        setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
         setCreated(plan.actions.filter((action) => action.type === "create_resource" && action.status === "completed").map((action) => ({
           id: action.result?.resourceId || action.id, name: action.name, engine: action.engine, field: action.field,
         })));

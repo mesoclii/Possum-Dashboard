@@ -70,9 +70,8 @@ const button: CSSProperties = {
 
 const tabs = [
   ["overview", "Overview"],
-  ["players", "Players"],
   ["profile", "My Profile"],
-  ["stats", "Statistics"],
+  ["groups", "Find a Squad"],
   ["alerts", "Social Alerts"],
   ["search", "Search Anything"],
 ] as const;
@@ -418,10 +417,12 @@ export default function MemberGamingHub({
             </div>
           ) : <Empty>{presenceDetails ? "No members are currently visible as gaming. Activity only appears when Discord reports it and privacy allows sharing." : "Live gaming activity is temporarily unavailable."}</Empty>}
         </Card>
+        {renderPlayerDirectory()}
+        {renderStats()}
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <Heading detail="Find active listings and join a community squad.">Looking for a group</Heading>
-            <button type="button" style={button} onClick={() => setActiveTab("players")}>Find players</button>
+            <button type="button" style={button} onClick={() => setActiveTab("groups")}>Find a squad</button>
           </div>
           {squads.length ? (
             <div style={{ display: "grid", gap: 8 }}>
@@ -429,54 +430,58 @@ export default function MemberGamingHub({
                 <div key={squad.sessionId} style={{ padding: 12, border: `1px solid ${colors.line}`, borderRadius: 12 }}>
                   <strong>{squad.title}</strong>
                   <div style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>{squad.value}</div>
-                  <button type="button" style={{ ...button, marginTop: 9 }} disabled={saving} onClick={() => setActiveTab("players")}>View squad</button>
+                  <button type="button" style={{ ...button, marginTop: 9 }} disabled={saving} onClick={() => setActiveTab("groups")}>View squad</button>
                 </div>
               ))}
             </div>
-          ) : <Empty>No open squad listings right now. Start one from Players.</Empty>}
+          ) : <Empty>No open squad listings right now. Start one from Find a Squad.</Empty>}
         </Card>
       </div>
     );
   }
 
-  function renderPlayers() {
+  function renderPlayerDirectory() {
+    return (
+      <Card>
+        <Heading detail="See the community in one place. Profiles respect each member&apos;s visibility and playtime consent.">
+          Players in your gaming community
+        </Heading>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,190px),1fr))", gap: 9, marginBottom: 12 }}>
+          <select style={field} value={gameFilter} onChange={(event) => setGameFilter(event.target.value)}>
+            <option value="">All games</option>
+            {gameOptions.map((game) => <option key={game} value={game}>{game}</option>)}
+          </select>
+          <select style={field} value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}>
+            <option value="">All platforms</option>
+            {platformOptions.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
+          </select>
+        </div>
+        {visiblePlayers.length ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,270px),1fr))", gap: 10 }}>
+            {visiblePlayers.map((player) => (
+              <div key={player.userId} style={{ ...panel, padding: 14, background: colors.panelSoft }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  {player.avatarUrl ? <img src={player.avatarUrl} alt="" width={42} height={42} style={{ borderRadius: "50%", objectFit: "cover" }} /> : <div aria-hidden="true" style={{ width: 42, height: 42, borderRadius: "50%", display: "grid", placeItems: "center", background: colors.accentSoft, color: colors.accent, fontWeight: 800 }}>{String(player.name || "?").slice(0, 1).toUpperCase()}</div>}
+                  <div>
+                    <div style={{ fontWeight: 800 }}>{player.name}</div>
+                    {player.isPlaying ? <div style={{ color: colors.accent, fontSize: 12 }}>Playing {player.currentGame}</div> : player.lookingForTeam ? <div style={{ color: colors.warning, fontSize: 12 }}>Looking for teammates</div> : null}
+                  </div>
+                </div>
+                {rows(player.favoriteGames).length ? <div style={{ color: colors.muted, marginTop: 9, fontSize: 13 }}>Games: {player.favoriteGames.join(", ")}</div> : null}
+                {rows(player.platforms).length ? <div style={{ color: colors.muted, marginTop: 5, fontSize: 12 }}>Platforms: {player.platforms.join(", ")}</div> : null}
+                {player.totalHours !== null && player.totalHours !== undefined ? <div style={{ color: colors.muted, marginTop: 5, fontSize: 12 }}>Tracked playtime: {Number(player.totalHours).toFixed(1)}h</div> : null}
+                {player.lastSeenGamingAt && !player.isPlaying ? <div style={{ color: colors.muted, marginTop: 5, fontSize: 12 }}>Last seen gaming: {new Date(player.lastSeenGamingAt).toLocaleString()}</div> : null}
+              </div>
+            ))}
+          </div>
+        ) : <Empty>No discoverable gaming profiles match those filters yet.</Empty>}
+      </Card>
+    );
+  }
+
+  function renderGroups() {
     return (
       <div style={{ display: "grid", gap: 14 }}>
-        <Card>
-          <Heading detail="Discover members by live game, saved interests, and platform. Profiles respect each member&apos;s privacy settings.">
-            Player discovery
-          </Heading>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,190px),1fr))", gap: 9, marginBottom: 12 }}>
-            <select style={field} value={gameFilter} onChange={(event) => setGameFilter(event.target.value)}>
-              <option value="">All games</option>
-              {gameOptions.map((game) => <option key={game} value={game}>{game}</option>)}
-            </select>
-            <select style={field} value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)}>
-              <option value="">All platforms</option>
-              {platformOptions.map((platform) => <option key={platform} value={platform}>{platform}</option>)}
-            </select>
-          </div>
-          {visiblePlayers.length ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,270px),1fr))", gap: 10 }}>
-              {visiblePlayers.map((player) => (
-                <div key={player.userId} style={{ ...panel, padding: 14, background: colors.panelSoft }}>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    {player.avatarUrl ? <img src={player.avatarUrl} alt="" width={42} height={42} style={{ borderRadius: "50%", objectFit: "cover" }} /> : <div aria-hidden="true" style={{ width: 42, height: 42, borderRadius: "50%", display: "grid", placeItems: "center", background: colors.accentSoft, color: colors.accent, fontWeight: 800 }}>{String(player.name || "?").slice(0, 1).toUpperCase()}</div>}
-                    <div>
-                      <div style={{ fontWeight: 800 }}>{player.name}</div>
-                      {player.isPlaying ? <div style={{ color: colors.accent, fontSize: 12 }}>Playing {player.currentGame}</div> : player.lookingForTeam ? <div style={{ color: colors.warning, fontSize: 12 }}>Looking for teammates</div> : null}
-                    </div>
-                  </div>
-                  {rows(player.favoriteGames).length ? <div style={{ color: colors.muted, marginTop: 9, fontSize: 13 }}>Games: {player.favoriteGames.join(", ")}</div> : null}
-                  {rows(player.platforms).length ? <div style={{ color: colors.muted, marginTop: 5, fontSize: 12 }}>Platforms: {player.platforms.join(", ")}</div> : null}
-                  {player.totalHours !== null && player.totalHours !== undefined ? <div style={{ color: colors.muted, marginTop: 5, fontSize: 12 }}>Tracked playtime: {Number(player.totalHours).toFixed(1)}h</div> : null}
-                  {player.lastSeenGamingAt && !player.isPlaying ? <div style={{ color: colors.muted, marginTop: 5, fontSize: 12 }}>Last seen gaming: {new Date(player.lastSeenGamingAt).toLocaleString()}</div> : null}
-                </div>
-              ))}
-            </div>
-          ) : <Empty>No discoverable gaming profiles match those filters yet.</Empty>}
-        </Card>
-
         <Card>
           <Heading detail="Create a listing in the server&apos;s configured Squad Finder channel.">Find teammates</Heading>
           <form onSubmit={(event) => void createSquad(event)} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,190px),1fr))", gap: 9 }}>
@@ -652,6 +657,9 @@ export default function MemberGamingHub({
   function renderStats() {
     return (
       <div style={{ display: "grid", gap: 14 }}>
+        <div style={{ padding: "4px 2px" }}>
+          <Heading detail="Your tracked hours, recent sessions, trends, and provider statistics at a glance.">Your gaming stats</Heading>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,170px),1fr))", gap: 12 }}>
           <Card><div style={{ color: colors.muted, fontSize: 12 }}>Tracked playtime</div><div style={{ color: colors.accent, fontWeight: 900, fontSize: 24, marginTop: 6 }}>{totalHours}h</div></Card>
           <Card><div style={{ color: colors.muted, fontSize: 12 }}>Recorded sessions</div><div style={{ color: colors.accent, fontWeight: 900, fontSize: 24, marginTop: 6 }}>{ownSessions.length}</div></Card>
@@ -722,9 +730,8 @@ export default function MemberGamingHub({
 
   const content = {
     overview: renderOverview,
-    players: renderPlayers,
     profile: renderProfile,
-    stats: renderStats,
+    groups: renderGroups,
     alerts: renderAlerts,
     search: renderSearch,
   }[activeTab];

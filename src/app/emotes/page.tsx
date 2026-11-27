@@ -24,14 +24,13 @@ type JedView = "discover" | "vault" | "public" | "import" | "review";
 type JedFilter = "all" | "favorites" | "animated" | "recent" | "multi-source" | "needs-review";
 const PUBLIC_PAGE_SIZE = 24;
 const PRIVATE_PAGE_SIZE = 60;
+const NIBBLE_BITS = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
 
 function fingerprintDistance(left: string, right: string): number {
   if (!/^[0-9a-f]{16}$/i.test(left) || !/^[0-9a-f]{16}$/i.test(right)) return Number.POSITIVE_INFINITY;
-  let bits = BigInt(`0x${left}`) ^ BigInt(`0x${right}`);
   let distance = 0;
-  while (bits) {
-    distance += Number(bits & 1n);
-    bits >>= 1n;
+  for (let index = 0; index < left.length; index += 1) {
+    distance += NIBBLE_BITS[parseInt(left[index], 16) ^ parseInt(right[index], 16)];
   }
   return distance;
 }

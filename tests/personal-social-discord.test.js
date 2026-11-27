@@ -10,13 +10,13 @@ test("Discord bridge stays unavailable even with configured credentials", async 
   Object.assign(process.env, { PERSONAL_SOCIAL_BRIDGE_SECRET: "ab".repeat(32), PERSONAL_SOCIAL_BRIDGE_BOT_ID: "123" });
   try {
     const source = fs.readFileSync(path.join(__dirname, "..", "src", "app", "api", "personal-social", "discord", "route.ts"), "utf8");
-    const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-    const module = { exports: {} };
+    const js = ts.transpileModule(source, { compilerOptions: { testModule: ts.ModuleKind.CommonJS } }).outputText;
+    const testModule = { exports: {} };
     new Function("require", "module", "exports", js)((name) => {
       if (name === "next/server") return { NextResponse: { json: (body, options) => ({ body, ...options }) } };
       throw new Error(`Unexpected dependency: ${name}`);
-    }, module, module.exports);
-    const response = await module.exports.POST({ headers: new Headers({ "x-social-user": "456" }) });
+    }, testModule, testModule.exports);
+    const response = await testModule.exports.POST({ headers: new Headers({ "x-social-user": "456" }) });
     assert.equal(response.status, 503);
     assert.equal(response.headers["Cache-Control"], "private, no-store");
     assert.deepEqual(response.body, { error: "Personal social bridge unavailable." });

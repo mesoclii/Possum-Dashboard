@@ -10,6 +10,24 @@ import { fetchRuntimeEngine } from "@/lib/liveRuntime";
 type Role = { id: string; name: string };
 type Channel = { id: string; name: string; type?: number | string };
 type StoreImage = { url: string; label?: string };
+type StoreAccess = "everyone" | "vip" | "supporter" | "vip_or_supporter";
+
+const STORE_ACCESS_OPTIONS: Array<{ value: StoreAccess; label: string }> = [
+  { value: "everyone", label: "Everyone" },
+  { value: "vip", label: "VIP role" },
+  { value: "supporter", label: "Supporter role" },
+  { value: "vip_or_supporter", label: "VIP or Supporter role" },
+];
+
+function normalizeStoreAccess(value: unknown, legacyVipOnly = false): StoreAccess {
+  const access = String(value || "").trim().toLowerCase();
+  if (access === "vip" || access === "supporter" || access === "vip_or_supporter") return access;
+  return legacyVipOnly ? "vip_or_supporter" : "everyone";
+}
+
+function storeAccessLabel(access: StoreAccess) {
+  return STORE_ACCESS_OPTIONS.find((option) => option.value === access)?.label || "Everyone";
+}
 
 type StoreItem = {
   id: string;
@@ -24,10 +42,12 @@ type StoreItem = {
   durationDays: number;
   enabled: boolean;
   imageUrl: string;
+  access: StoreAccess;
 };
 
 type StoreConfig = {
   active: boolean;
+  access: StoreAccess;
   panel: {
     enabled: boolean;
     channelId: string;
@@ -50,6 +70,7 @@ type StoreConfig = {
 
 const DEFAULT_CONFIG: StoreConfig = {
   active: true,
+  access: "everyone",
   panel: {
     enabled: true,
     channelId: "",
@@ -81,6 +102,7 @@ const DEFAULT_CONFIG: StoreConfig = {
       durationDays: 0,
       enabled: true,
       imageUrl: "",
+      access: "everyone",
     },
   ],
 };
@@ -99,6 +121,7 @@ function createDraftItem(id = `item-${Date.now()}`): StoreItem {
     durationDays: 0,
     enabled: true,
     imageUrl: "",
+    access: "everyone",
   };
 }
 
@@ -116,9 +139,12 @@ function normalizeItems(raw: unknown): StoreItem[] {
         : rawCurrencyType === "eventpoints" || rawCurrencyType === "event_points" || rawCurrencyType === "event" ? "eventPoints"
           : "coins";
     const rawStock = Number(item.stock);
+    const access = normalizeStoreAccess(item.access ?? meta.access, Boolean(item.vipOnly ?? meta.vipOnly));
     return {
       id: String(item.id || `item-${index + 1}`).trim() || `item-${index + 1}`,
-      name: String(item.name || "").trim(),
+      // Keep spaces while typing. Trimming here makes a trailing space disappear
+      // on every render, so users cannot type a multi-word name.
+      name: String(item.name ?? ""),
       description: String(item.description || "").trim(),
       type,
       roleId: String(item.roleId || "").trim(),
@@ -129,6 +155,7 @@ function normalizeItems(raw: unknown): StoreItem[] {
       durationDays: Math.min(3650, Math.max(0, Math.floor(Number(item.durationDays ?? meta.durationDays ?? 0)) || 0)),
       enabled: item.enabled !== false,
       imageUrl: String(item.imageUrl || meta.imageUrl || "").trim(),
+      access,
     };
   });
 }
@@ -153,6 +180,7 @@ function mergeConfig(raw: Partial<StoreConfig> | null | undefined): StoreConfig 
   return {
     ...DEFAULT_CONFIG,
     ...(raw || {}),
+    access: normalizeStoreAccess(raw?.access),
     panel: {
       ...DEFAULT_CONFIG.panel,
       ...(raw?.panel || {}),
@@ -409,6 +437,22 @@ export default function StorePage() {
               />
             </div>
 
+            <div style={{ marginTop: 10 }}>
+              <label>Who can open this store</label>
+              <select
+                style={input}
+                value={cfg.access}
+                onChange={(e) => setCfg((prev) => ({ ...prev, access: normalizeStoreAccess(e.target.value) }))}
+              >
+                {STORE_ACCESS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
+                VIP and Supporter access uses the role IDs configured in the VIP Engine. The public panel only shows an Open Store button; each member gets a private catalog filtered to their roles.
+              </div>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
               <div>
                 <label>Embed color</label>
@@ -594,7 +638,7 @@ export default function StorePage() {
                         <div style={{ marginTop: 4, color: "#ffb3b3", fontSize: 12 }}>
                           {formatPrice(item)} | {item.type}{item.type === "role" ? (item.durationDays > 0 ? ` | ${item.durationDays}d timed` : " | permanent") : ""}                        </div>
                         <div style={{ marginTop: 4, color: item.enabled ? "#9cffb0" : "#ff9d9d", fontSize: 12 }}>
-                          {item.enabled ? "Live" : "Disabled"}{item.oneTime ? " | one-time" : ""}
+                          {item.enabled ? "Live" : "Disabled"}{item.oneTime ? " | one-time" : ""} | {storeAccessLabel(item.access)}
                         </div>
                       </button>
                     );
@@ -684,6 +728,18 @@ export default function StorePage() {
                               <option value="coins">Server coins</option>
                               <option value="eventPoints">{eventCurrencyLabel}</option>
                               <option value="shards">Wilds shards</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label>Who can see and buy this item</label>
+                            <select
+                              style={input}
+                              value={activeItem.access}
+                              onChange={(e) => updateItem(activeItemIndex, { access: normalizeStoreAccess(e.target.value) })}
+                            >
+                              {STORE_ACCESS_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
                             </select>
                           </div>
                         </div>

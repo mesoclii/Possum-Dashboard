@@ -13,14 +13,7 @@ type ServiceRow = {
   memoryBytes: number | null;
 };
 
-type HttpProbe = {
-  ok?: boolean;
-  status?: number | null;
-  latencyMs?: number | null;
-  error?: string | null;
-  eventLoopDelayP99Ms?: number | null;
-  eventLoopDelayMaxMs?: number | null;
-};
+type HttpProbe = { ok?: boolean; status?: number | null; latencyMs?: number | null; error?: string | null };
 
 type Overview = {
   agent?: { uptimeSec?: number; ticks?: number; lastTickAt?: string | null; lastError?: string | null };
@@ -356,12 +349,6 @@ export default function OperationsClient() {
                     <td style={{ padding: "8px", color: probe?.ok ? "#39c46a" : probe ? "#ff4a4a" : "#888" }}>
                       {probe ? (probe.ok ? `ok ${probe.status ?? ""}` : probe.error || "failing") : "n/a"}
                       {probe?.latencyMs ? ` · ${probe.latencyMs}ms` : ""}
-                      {typeof probe?.eventLoopDelayMaxMs === "number" && Number.isFinite(probe.eventLoopDelayMaxMs)
-                        ? ` · event-loop max ${probe.eventLoopDelayMaxMs.toFixed(1)}ms`
-                        : ""}
-                      {typeof probe?.eventLoopDelayP99Ms === "number" && Number.isFinite(probe.eventLoopDelayP99Ms)
-                        ? ` · event-loop p99 ${probe.eventLoopDelayP99Ms.toFixed(1)}ms`
-                        : ""}
                     </td>
                     <td style={{ padding: "8px" }}>{fmtUptime(service.uptimeMs)}</td>
                     <td style={{ padding: "8px" }}>{service.restarts}</td>

@@ -4,35 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
 
 type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string; botPermissions?: { status?: string; flags?: string[] } };
-type FeatureOption = {
-  id: string;
-  name: string;
-  group: string;
-  description: string;
-  protected: boolean;
-  selectable: boolean;
-  registryVersion?: number;
-  lifecycleStates?: string[];
-  dependencies?: string[];
-  featureDependencies?: { state: string; engineIds: string[] };
-  featureConflicts?: { state: string; engineIds: string[] };
-  selectionStatus?: string;
-  selectionIssues?: string[];
-  resources?: {
-    id: string;
-    field: string;
-    key: string;
-    kind: string;
-    many: boolean;
-    setupManaged: boolean;
-    protectedFlow: boolean;
-    writePolicy: string;
-    expectedPermissions: string[];
-    permissionStatus: string;
-    requirementStatus: string;
-    dependencies: string[];
-  }[];
-};
+type FeatureOption = { id: string; name: string; group: string; description: string; protected: boolean; selectable: boolean };
 type Proposal = {
   id: string;
   engine: string;
@@ -79,7 +51,6 @@ type Report = {
   panelGuides?: { id: string; label: string; href: string; page: string; resourceType?: string; suggestedName?: string; destination: string; configured: boolean }[];
   settings?: { mode: string; repairEnabled: boolean; autopilotEnabled?: boolean; automaticProvisioningEnabled?: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
-  featureSelection?: { valid: boolean; issues: { type: string; featureId: string; relatedFeatureId: string; message: string }[] };
   allEngines?: { engine: string; label: string; requirements: number }[];
   trackedEngineCount?: number;
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };

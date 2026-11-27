@@ -25,19 +25,20 @@ const field: CSSProperties = {
 };
 
 export default function DiscordMemberPicker({ guildId, label, value, onChange, multiple = false, style, disabled = false }: Props) {
-  const [members, setMembers] = useState<GuildMember[]>([]);
+  const [memberState, setMemberState] = useState<{ guildId: string; members: GuildMember[] }>({ guildId: "", members: [] });
+  const members = memberState.guildId === guildId ? memberState.members : [];
   const selectedIds = useMemo(() => multiple ? (Array.isArray(value) ? value : []) : [String(value || "")].filter(Boolean), [multiple, value]);
 
   useEffect(() => {
-    if (!guildId) { setMembers([]); return; }
+    if (!guildId) return;
     let active = true;
     void fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" })
       .then((response) => response.json())
       .then((payload) => {
         if (!active) return;
         const rows = Array.isArray(payload?.members) ? payload.members : [];
-        setMembers(rows.filter((entry: any) => entry?.id && entry?.name));
-      }).catch(() => { if (active) setMembers([]); });
+        setMemberState({ guildId, members: rows.filter((entry: any) => entry?.id && entry?.name) });
+      }).catch(() => { if (active) setMemberState({ guildId, members: [] }); });
     return () => { active = false; };
   }, [guildId]);
 

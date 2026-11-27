@@ -715,7 +715,10 @@ export default function InfrastructureSetupWizard() {
       let plan = saved.plan;
       if (["running", "partial", "failed", "recovery_required"].includes(plan.state)) {
         const recovered = await callApi({ action: "plan-resume", planId: plan.id });
-        plan = recovered.result?.plan || plan;
+        if (recovered.success === false || !recovered.result?.plan) {
+          throw new Error(recovered.error || recovered.result?.error || "The saved setup checkpoint could not be resumed safely.");
+        }
+        plan = recovered.result.plan;
       } else if (plan.state !== "approved") {
         throw new Error(`This setup plan cannot resume while it is ${plan.state}.`);
       }

@@ -78,3 +78,112 @@
   outline: 2px solid #ff9fce;
   outline-offset: 3px;
 }
+
+.possum-store-page {
+  background: transparent;
+}
+
+.possum-store-page > div:not([role="status"]) {
+  border-color: rgba(255, 47, 134, 0.42) !important;
+  background: linear-gradient(180deg, rgba(43, 13, 30, 0.76), rgba(12, 9, 11, 0.96)) !important;
+  box-shadow: 0 0 22px rgba(255, 0, 112, 0.12), inset 0 0 22px rgba(255, 25, 100, 0.04) !important;
+}
+
+.possum-store-page > div:not([role="status"]) > div:first-child > div:first-child > div:first-child {
+  text-shadow: 0 0 14px rgba(255, 0, 112, 0.28) !important;
+}
+
+.possum-store-page > div:not([role="status"]) > div:first-child > div:first-child > div:nth-child(2) {
+  color: #ffadd1 !important;
+}
+
+.possum-store-page .possum-pill {
+  border-color: rgba(255, 47, 134, 0.55);
+  color: #ffadd1;
+  box-shadow: 0 0 14px rgba(255, 0, 112, 0.16), inset 0 0 12px rgba(255, 25, 100, 0.08);
+}
+
+.possum-store-page .possum-btn {
+  box-shadow: 0 0 16px rgba(255, 0, 112, 0.18), inset 0 0 14px rgba(255, 25, 100, 0.08);
+}
+
+.possum-store-page .possum-btn:hover {
+  box-shadow: 0 0 22px rgba(255, 0, 112, 0.32), inset 0 0 18px rgba(255, 25, 100, 0.12);
+}
+
+.possum-store-page > section > div {
+  border-color: rgba(255, 47, 134, 0.32) !important;
+  background: linear-gradient(160deg, rgba(31, 12, 23, 0.9), rgba(12, 9, 11, 0.96)) !important;
+}
+
+.possum-store-page > section > div > div:first-child {
+  color: #ffadd1 !important;
+}
+
+.possum-store-page > section > div > div:nth-child(2) {
+  color: #fff0f6 !important;
+}
+
+.possum-store-page label:not(.store-check) {
+  display: grid;
+  gap: 7px;
+  color: #ffc2d2;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.possum-store-page label.store-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #ffc2d2;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.possum-store-page input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #ff2e91;
+}
+
+.possum-store-page .store-image-add-row {
+  align-items: center;
+}
+
+.possum-store-page .store-edit-grid {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+}
+
+.possum-store-page button:disabled {
+  cursor: not-allowed !important;
+  filter: saturate(0.5);
+}
+
+@media (max-width: 760px) {
+  .possum-store-page .store-image-add-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .possum-store-page .store-library-row {
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+  }
+
+  .possum-store-page .store-library-row > button {
+    width: 100% !important;
+  }
+
+  .possum-store-page .store-edit-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .possum-store-page .store-edit-grid > div:first-child > div {
+    position: static !important;
+  }
+
+  .possum-store-page .store-edit-grid > div:first-child > div > div:first-child {
+    height: 190px !important;
+  }
+}

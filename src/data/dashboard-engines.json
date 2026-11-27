@@ -492,6 +492,10 @@
           "progressionEngine"
         ]
       },
+      "featureDependencies": [
+        "crew",
+        "dominion"
+      ],
       "decisionLogic": "Tracks contract objectives, validates completion conditions, and grants rewards.",
       "stateMutations": [
         "contract progression state"
@@ -949,6 +953,10 @@
           "engineConfigService"
         ]
       },
+      "featureDependencies": [
+        "dominion",
+        "contracts"
+      ],
       "decisionLogic": "Manages crew membership, treasury/deposit workflows, and rankings.",
       "stateMutations": [
         "crew memberships",
@@ -987,6 +995,10 @@
           "engineConfigService"
         ]
       },
+      "featureDependencies": [
+        "crew",
+        "contracts"
+      ],
       "decisionLogic": "Runs raid/alliance/war/season/territory/shop operations with phase transitions and rewards.",
       "stateMutations": [
         "raid phases",

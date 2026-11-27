@@ -89,7 +89,7 @@ const ACTION_LIBRARY: Array<{ type: ActionType; title: string; desc: string }> =
   { type: "REACT", title: "React with Emoji", desc: "Add emoji reaction" },
   { type: "DELAY", title: "Delay Step", desc: "Wait before next step" },
   { type: "CREATE_THREAD", title: "Create Thread", desc: "Create thread from message context" },
-  { type: "RUN_NATIVE_COMMAND", title: "Run Bot Slash Command", desc: "Trigger one of your built-in / commands" }
+    { type: "RUN_NATIVE_COMMAND", title: "Run Native Bot Command", desc: "Run an available command through the bot's built-in handler" }
 ];
 
 function makeId() {

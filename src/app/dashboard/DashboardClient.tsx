@@ -606,25 +606,32 @@ function pillClass(on: boolean | null) {
 export default function DashboardClient({ groupSlug, switchboardOnly = false }: { groupSlug?: string; switchboardOnly?: boolean } = {}) {
   const premiumEnforced = isPremiumEnforcementEnabled();
   const [guildId, setGuildId] = useState("");
+  const [guildName, setGuildName] = useState("");
   const [viewerUserId, setViewerUserId] = useState("");
   const [states, setStates] = useState<Record<string, ToggleState>>({});
   const [loadingStates, setLoadingStates] = useState(false);
   const [subscription, setSubscription] = useState<{ active: boolean; plan: string; developerBypass?: boolean } | null>(null);
   const { isMasterOwner, isPrimaryOwner, isPokemonOperator, loading: sessionLoading } = useDashboardSessionState();
+  const [joinInviteBusy, setJoinInviteBusy] = useState(false);
+  const [joinInviteError, setJoinInviteError] = useState("");
   const featureVisibility = usePublicFeatureVisibility();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     let lastGuildId = "";
     let lastUserId = "";
+    let lastGuildName = "";
     const syncContext = () => {
       const nextGuildId = readDashboardGuildId();
       const nextUserId = readDashboardUserId();
-      if (nextGuildId === lastGuildId && nextUserId === lastUserId) return;
+      const nextGuildName = localStorage.getItem("activeGuildName") || "";
+      if (nextGuildId === lastGuildId && nextUserId === lastUserId && nextGuildName === lastGuildName) return;
       lastGuildId = nextGuildId;
       lastUserId = nextUserId;
+      lastGuildName = nextGuildName;
       setGuildId(nextGuildId);
       setViewerUserId(nextUserId);
+      setGuildName(nextGuildName);
     };
     syncContext();
     window.addEventListener("popstate", syncContext);
@@ -638,6 +645,25 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
       document.removeEventListener("visibilitychange", syncContext);
     };
   }, []);
+
+  async function joinSelectedGuild() {
+    if (!guildId || joinInviteBusy) return;
+    setJoinInviteBusy(true);
+    setJoinInviteError("");
+    try {
+      const result = await fetchJsonOrThrow("/api/guilds/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId }),
+      });
+      if (typeof result?.inviteUrl !== "string") throw new Error("Possum did not return a Discord invite.");
+      window.location.assign(result.inviteUrl);
+    } catch (error: any) {
+      setJoinInviteError(String(error?.message || "Possum could not create a server invite."));
+    } finally {
+      setJoinInviteBusy(false);
+    }
+  }
 
   const loadStates = useCallback(async (targetGuildId: string) => {
     if (!targetGuildId) return;
@@ -847,6 +873,19 @@ export default function DashboardClient({ groupSlug, switchboardOnly = false }: 
         <p className="mt-2 text-xs uppercase tracking-[0.14em] text-red-300/70">
           Possum Pro access: {!premiumEnforced ? "Disabled - all guilds currently run unlocked" : subscription?.developerBypass ? "Developer Override" : subscription?.plan || "Free"}
         </p>
+        {!groupSlug && !switchboardOnly && isMasterOwner && guildId ? (
+          <div className="mt-4 border-t border-pink-900/50 pt-4">
+            <button
+              type="button"
+              onClick={() => void joinSelectedGuild()}
+              disabled={joinInviteBusy}
+              className="rounded-lg border border-pink-400/60 bg-pink-950/50 px-4 py-2 text-sm font-black uppercase tracking-[0.08em] text-pink-100 hover:bg-pink-900/70 disabled:cursor-wait disabled:opacity-60"
+            >
+              {joinInviteBusy ? "Preparing Discord invite…" : `Join ${guildName || "this server"} in Discord`}
+            </button>
+            {joinInviteError ? <p role="alert" className="mt-2 text-sm text-red-200">{joinInviteError}</p> : null}
+          </div>
+        ) : null}
       </header>
 
       {!groupSlug && quickAccessCards.length ? (

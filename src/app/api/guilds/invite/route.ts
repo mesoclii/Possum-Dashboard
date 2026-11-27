@@ -4,6 +4,7 @@ import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERV
 import { auditDashboardEvent } from "@/lib/dashboardAudit";
 import { enforceDashboardRateLimit, isRateLimitError } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
+import { getDashboardPublicOrigin } from "@/lib/dashboardUrl";
 
 function jsonError(error: string, status: number) {
   return NextResponse.json({ success: false, error }, { status, headers: { "Cache-Control": "no-store, private" } });
@@ -11,7 +12,18 @@ function jsonError(error: string, status: number) {
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get("origin");
-  if (!origin || origin !== request.nextUrl.origin) {
+  let originIsAllowed = false;
+  try {
+    originIsAllowed = Boolean(origin) && new URL(String(origin)).origin === getDashboardPublicOrigin(request);
+  } catch {
+    originIsAllowed = false;
+  }
+  if (!originIsAllowed) {
+    return jsonError("This server action must come from the dashboard origin.", 403);
+  }
+
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
     return jsonError("This server action must come from the dashboard origin.", 403);
   }
 

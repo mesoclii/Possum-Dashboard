@@ -27,12 +27,6 @@ type DiscordUser = {
   avatar: string | null;
 };
 
-type InspectionInvite = {
-  inviteUrl: string;
-  channelName: string;
-  expiresAt: string | null;
-};
-
 function badgeStyle(kind: "primary" | "ready" | "missing") {
   if (kind === "primary") {
     return {
@@ -116,9 +110,6 @@ export default function GuildsPage() {
   const [oauthUser, setOauthUser] = useState<DiscordUser | null>(null);
   const [isControlOwner, setIsControlOwner] = useState(false);
   const [focusGuildId, setFocusGuildId] = useState("");
-  const [inviteByGuild, setInviteByGuild] = useState<Record<string, InspectionInvite>>({});
-  const [inviteBusyGuildId, setInviteBusyGuildId] = useState("");
-  const [inviteErrorByGuild, setInviteErrorByGuild] = useState<Record<string, string>>({});
   const [policy, setPolicy] = useState<PolicyState>({
     primaryGuildId: "1431799056211906582",
     gamesBaselineGuildId: "1336178965202599936",
@@ -279,38 +270,6 @@ export default function GuildsPage() {
     if (roleIds) next.set("roleIds", roleIds);
 
     window.location.href = `/dashboard?${next.toString()}`;
-  }
-
-  async function createInspectionInvite(guildId: string) {
-    setInviteBusyGuildId(guildId);
-    setInviteErrorByGuild((current) => ({ ...current, [guildId]: "" }));
-    try {
-      const response = await fetch("/api/guilds/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guildId }),
-        cache: "no-store",
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data?.success !== true || typeof data?.inviteUrl !== "string") {
-        throw new Error(String(data?.error || "Possum could not create an invite for this server."));
-      }
-      setInviteByGuild((current) => ({
-        ...current,
-        [guildId]: {
-          inviteUrl: data.inviteUrl,
-          channelName: String(data.channelName || "server invite"),
-          expiresAt: data.expiresAt ? String(data.expiresAt) : null,
-        },
-      }));
-    } catch (error: any) {
-      setInviteErrorByGuild((current) => ({
-        ...current,
-        [guildId]: String(error?.message || "Could not create a Discord invite."),
-      }));
-    } finally {
-      setInviteBusyGuildId("");
-    }
   }
 
   return (
@@ -491,7 +450,6 @@ export default function GuildsPage() {
             const iconUrl = resolveGuildIcon(guild);
             const inviteHref = buildInviteUrl(baseInviteUrl, guild.id);
             const isFocusedGuild = guild.id === focusGuildId;
-            const inspectionInvite = inviteByGuild[guild.id];
 
             const baselineLabel = isPrimary
               ? "Primary Baseline"
@@ -600,26 +558,8 @@ export default function GuildsPage() {
                           ...actionButtonStyle("secondary"),
                         }}
                       >
-                        Inspect Dashboard
+                        Open
                       </button>
-                      <a
-                        href={`https://discord.com/channels/${encodeURIComponent(guild.id)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ borderRadius: 999, padding: "10px 16px", fontSize: 12, fontWeight: 900, textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.08em", ...actionButtonStyle("secondary") }}
-                      >
-                        Open in Discord
-                      </a>
-                      {isControlOwner ? (
-                        <button
-                          type="button"
-                          onClick={() => void createInspectionInvite(guild.id)}
-                          disabled={inviteBusyGuildId === guild.id}
-                          style={{ borderRadius: 999, padding: "10px 16px", fontSize: 12, fontWeight: 900, cursor: inviteBusyGuildId === guild.id ? "wait" : "pointer", textTransform: "uppercase", letterSpacing: "0.08em", opacity: inviteBusyGuildId === guild.id ? 0.65 : 1, ...actionButtonStyle("oauth") }}
-                        >
-                          {inviteBusyGuildId === guild.id ? "Creating invite…" : "Create join invite"}
-                        </button>
-                      ) : null}
                     </>
                   ) : inviteHref ? (
                     <a
@@ -657,21 +597,6 @@ export default function GuildsPage() {
                     </a>
                   ) : null}
                 </div>
-                {inspectionInvite ? (
-                  <div style={{ marginTop: 12, border: "1px solid rgba(255,43,214,0.45)", borderRadius: 14, padding: 12, background: "rgba(0,0,0,0.35)" }}>
-                    <div style={{ color: "#ffd7d7", fontSize: 13, marginBottom: 8 }}>
-                      One-use invite created through #{inspectionInvite.channelName}{inspectionInvite.expiresAt ? ` · expires ${new Date(inspectionInvite.expiresAt).toLocaleString()}` : " · expires within 24 hours"}.
-                    </div>
-                    <a href={inspectionInvite.inviteUrl} target="_blank" rel="noreferrer" style={{ color: "#ff9ee7", fontWeight: 900, overflowWrap: "anywhere" }}>
-                      Join this server in Discord
-                    </a>
-                  </div>
-                ) : null}
-                {inviteErrorByGuild[guild.id] ? (
-                  <div role="alert" style={{ marginTop: 10, color: "#ffaaaa", fontSize: 13, lineHeight: 1.5 }}>
-                    {inviteErrorByGuild[guild.id]} Open in Discord works if you already belong to the server; otherwise ask a server member for an invite.
-                  </div>
-                ) : null}
               </div>
             );
           })}

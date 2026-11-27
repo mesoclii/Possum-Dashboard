@@ -9,7 +9,9 @@ type AccountLink = { label: string; url: string; verified?: boolean; provider?: 
 type GameStat = { game: string; platform: string; hours: number; progress: string };
 type Profile = { nickname: string; game: string; contactHandle: string; discordTag?: string; accounts: AccountLink[]; gameStats: GameStat[] };
 type VerifiedAccount = { provider: string; label: string; url: string; verified: true };
-const providerNames: Record<string, string> = { twitch: "Twitch", youtube: "YouTube", reddit: "Reddit", x: "X", tiktok: "TikTok" };
+type VerifiedGameAccount = { provider: string; label: string; url: string; verified: true };
+const providerNames: Record<string, string> = { twitch: "Twitch", youtube: "YouTube", reddit: "Reddit", x: "X", tiktok: "TikTok", steam: "Steam", battlenet: "Battle.net", epic: "Epic Games", xbox: "Xbox", bungie: "Bungie" };
+const gameProviders = ["steam", "battlenet", "epic", "xbox", "bungie"];
 const panel: CSSProperties = { border: "1px solid #ff2e75", borderRadius: 16, padding: 20, background: "#21000e" };
 const input: CSSProperties = { width: "100%", padding: 10, border: "1px solid #ff2e75", borderRadius: 8, color: "#fff", background: "#16000b" };
 const button: CSSProperties = { padding: "10px 16px", borderRadius: 8, border: "1px solid #ff2e75", color: "#fff", background: "#a7003e", cursor: "pointer", fontWeight: 700 };
@@ -32,6 +34,8 @@ export default function PublicGamingPage() {
   const [verifiedAccounts, setVerifiedAccounts] = useState<VerifiedAccount[]>([]);
   const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
   const [linkedAccountsConsent, setLinkedAccountsConsent] = useState(false);
+  const [gameAccounts, setGameAccounts] = useState<VerifiedGameAccount[]>([]);
+  const [sharedGameProviders, setSharedGameProviders] = useState<string[]>([]);
   const [gameStats, setGameStats] = useState<GameStat[]>([]);
   const [filter, setFilter] = useState("");
   const [consent, setConsent] = useState(false);
@@ -45,8 +49,33 @@ export default function PublicGamingPage() {
     setProfiles(data.profiles);
   }
 
+  async function loadGameAccounts() {
+    const response = await fetch("/api/public-gaming/game-accounts", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.success || !Array.isArray(data.accounts)) throw new Error(data.error || "Verified game accounts are unavailable.");
+    setGameAccounts(data.accounts.filter((entry: any) => entry?.verified === true && gameProviders.includes(String(entry.provider || "").toLowerCase())));
+  }
+
+  function applyProfileAccounts(value: unknown) {
+    const profileAccounts = Array.isArray(value) ? value as AccountLink[] : [];
+    setSharedGameProviders([...new Set(profileAccounts
+      .filter((entry) => entry.verified === true && gameProviders.includes(String(entry.provider || "").toLowerCase()))
+      .map((entry) => String(entry.provider).toLowerCase()))]);
+    setAccounts(profileAccounts.filter((entry) => !(entry.verified === true && gameProviders.includes(String(entry.provider || "").toLowerCase()))));
+  }
+
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("tab") === "squads") setTab("squads");
+    const returnParams = new URLSearchParams(window.location.search);
+    const authMessage = returnParams.get("authMessage");
+    if (authMessage) {
+      setMessage(authMessage);
+      returnParams.delete("providerAuth");
+      returnParams.delete("provider");
+      returnParams.delete("authMessage");
+      const cleanQuery = returnParams.toString();
+      window.history.replaceState({}, "", `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash}`);
+    }
     void loadProfiles().catch(() => {
       setUnavailable(true);
       setMessage("Public profiles are unavailable. Please try again later.");
@@ -63,6 +92,7 @@ export default function PublicGamingPage() {
           const socialGuest = await fetch("/api/personal-social/guest", { cache: "no-store" });
           if (!socialGuest.ok) throw new Error("Private provider-link session unavailable");
         }
+        await loadGameAccounts();
         const linkedResponse = await fetch("/api/public-gaming/linked-accounts", { cache: "no-store" });
         const linkedData = linkedResponse.ok ? await linkedResponse.json() : { accounts: [] };
         const linked = Array.isArray(linkedData.accounts) ? linkedData.accounts.filter((entry: any) => entry?.verified === true && typeof entry.provider === "string") : [];
@@ -79,7 +109,7 @@ export default function PublicGamingPage() {
         const publishedVerified = (data.profile?.accounts || []).filter((entry: AccountLink) => entry.verified && linked.some((account: VerifiedAccount) => account.provider === entry.provider && account.url === entry.url));
         setLinkedProviders(publishedVerified.map((entry: AccountLink) => entry.provider!));
         setLinkedAccountsConsent(publishedVerified.length > 0);
-        setAccounts((data.profile?.accounts || []).filter((entry: AccountLink) => !entry.verified || !linked.some((account: VerifiedAccount) => account.provider === entry.provider && account.url === entry.url)));
+        applyProfileAccounts((data.profile?.accounts || []).filter((entry: AccountLink) => !entry.verified || !linked.some((account: VerifiedAccount) => account.provider === entry.provider && account.url === entry.url)));
         setGameStats(data.profile?.gameStats || []);
         setShareDiscordTag(Boolean(data.profile?.discordTag));
       } catch {
@@ -89,6 +119,42 @@ export default function PublicGamingPage() {
       }
     })();
   }, []);
+
+  async function startGameProviderLink(providerKey: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/public-gaming/game-accounts/start", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ providerKey }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success || typeof data.authorizeUrl !== "string") throw new Error(data.error || "Could not start provider linking.");
+      window.location.assign(data.authorizeUrl);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not start provider linking.");
+      setBusy(false);
+    }
+  }
+
+  async function unlinkGameProvider(providerKey: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/public-gaming/game-accounts", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "unlink", provider: providerKey }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success || !Array.isArray(data.accounts)) throw new Error(data.error || "Could not unlink provider.");
+      setGameAccounts(data.accounts as VerifiedGameAccount[]);
+      setSharedGameProviders((current) => current.filter((provider) => provider !== providerKey));
+      setAccounts((current) => current.filter((entry) => !(entry.verified && entry.provider === providerKey)));
+      setMessage("Game account unlinked. Its verified tag was removed from your public profile.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not unlink provider.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     const refresh = () => {
@@ -113,7 +179,13 @@ export default function PublicGamingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action, nickname, game, contactHandle, accounts, gameStats, consent, shareDiscordTag,
+          action, nickname, game, contactHandle,
+          accounts: action === "revoke" ? [] : [
+            ...accounts,
+            ...gameAccounts.filter((entry) => sharedGameProviders.includes(entry.provider))
+              .map((entry) => ({ label: entry.label, url: entry.url, provider: entry.provider, verified: true })),
+          ],
+          gameStats, consent, shareDiscordTag,
           linkedProviders: action === "publish" ? linkedProviders : [],
           linkedAccountsConsent: action === "publish" && linkedAccountsConsent,
         }),
@@ -122,6 +194,7 @@ export default function PublicGamingPage() {
       if (!response.ok || !data.success) throw new Error(data.error || "Update failed.");
       setOwn(data.profile);
       setOwnLoaded(true);
+      applyProfileAccounts(data.profile?.accounts || []);
       setShareDiscordTag(Boolean(data.profile?.discordTag));
       setConsent(false);
       if (action === "revoke") setContactHandle("");
@@ -161,7 +234,7 @@ export default function PublicGamingPage() {
           <button type="button" aria-pressed={tab === "squads"} style={{ ...button, background: tab === "squads" ? "#d40050" : "#290016" }} onClick={() => setTab("squads")}>Find a squad</button>
           <button type="button" aria-pressed={tab === "directory"} style={{ ...button, background: tab === "directory" ? "#d40050" : "#290016" }} onClick={() => setTab("directory")}>Public player directory</button>
         </nav>
-        {tab === "squads" && <div style={panel}><PublicSquads loggedIn={sessionLoaded && loggedIn} /></div>}
+        {tab === "squads" && <div style={panel}><PublicSquads /></div>}
         {tab === "directory" && <>
         <section style={panel} aria-labelledby="public-players">
           <h2 id="public-players" style={{ color: "#fff", fontSize: 24, margin: "0 0 8px" }}>Meet the players</h2>
@@ -171,7 +244,7 @@ export default function PublicGamingPage() {
           {!loading && !unavailable ? <p style={{ color: "#ffb1c8", fontSize: 12 }}>{profiles.length} public player{profiles.length === 1 ? "" : "s"}</p> : null}
           {loading ? <p>Loading profiles…</p> : unavailable ? <p>Public profiles are unavailable.</p> : visible.length ? (
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 12, marginTop: 16 }}>
-              {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong>{entry.discordTag ? <div style={{ color: "#ffd0df", fontSize: 13, marginTop: 4 }}>Discord: @{entry.discordTag}</div> : null}<div style={{ color: "#ff81ad", marginTop: 8 }}>Playing: {entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}{entry.accounts?.length ? <div style={{ marginTop: 12 }}><strong>Player accounts</strong><ul>{entry.accounts.map((account) => <li key={account.url}><a href={account.url} target="_blank" rel="noreferrer" style={{ color: "#ffc4d9" }}>{account.label}</a>{account.verified ? <span> · Verified {providerNames[account.provider || ""] || "provider"}</span> : <span> · self-reported</span>}</li>)}</ul></div> : null}{entry.gameStats?.length ? <div style={{ marginTop: 12 }}><strong>Game progress (self-reported)</strong>{entry.gameStats.map((stat, statIndex) => <div key={`${stat.game}-${statIndex}`} style={{ marginTop: 6 }}>{stat.game}{stat.platform ? ` · ${stat.platform}` : ""} · {stat.hours} hours{stat.progress ? ` · ${stat.progress}` : ""}</div>)}</div> : null}</li>)}
+              {visible.map((entry, index) => <li key={`${entry.nickname}-${entry.game}-${index}`} style={{ border: "1px solid #8a2450", borderRadius: 14, padding: 18, background: "linear-gradient(145deg, #39051e, #19000e)" }}><strong style={{ color: "#fff", fontSize: 18 }}>{entry.nickname}</strong>{entry.discordTag ? <div style={{ color: "#ffd0df", fontSize: 13, marginTop: 4 }}>Discord: @{entry.discordTag}</div> : null}<div style={{ color: "#ff81ad", marginTop: 8 }}>Playing: {entry.game}</div>{entry.contactHandle ? <div style={{ color: "#ffd0df", marginTop: 10, overflowWrap: "anywhere" }}>Public contact: {entry.contactHandle}</div> : null}{entry.accounts?.length ? <div style={{ marginTop: 12 }}><strong>Player accounts</strong><ul>{entry.accounts.map((account, accountIndex) => <li key={`${account.provider || account.label}-${accountIndex}`}>{account.url ? <a href={account.url} target="_blank" rel="noreferrer" style={{ color: "#ffc4d9" }}>{account.label}</a> : <span style={{ color: "#ffc4d9" }}>{account.label}</span>}{account.verified ? <span> · Verified {providerNames[account.provider || ""] || "provider"}</span> : <span> · self-reported</span>}</li>)}</ul></div> : null}{entry.gameStats?.length ? <div style={{ marginTop: 12 }}><strong>Game progress (self-reported)</strong>{entry.gameStats.map((stat, statIndex) => <div key={`${stat.game}-${statIndex}`} style={{ marginTop: 6 }}>{stat.game}{stat.platform ? ` · ${stat.platform}` : ""} · {stat.hours} hours{stat.progress ? ` · ${stat.progress}` : ""}</div>)}</div> : null}</li>)}
             </ul>
           ) : <p style={{ ...panel, marginTop: 16, color: "#f4b7ce" }}>{filter ? "No matching public profiles." : "No public profiles yet. Publish an introduction below to get started."}</p>}
           <small>Only profiles with active public consent appear here.</small>
@@ -186,7 +259,19 @@ export default function PublicGamingPage() {
                 <label>Public nickname <input style={input} required maxLength={40} value={nickname} onChange={(event) => setNickname(event.target.value)} /></label>
                 <label>Game <input style={input} required maxLength={80} value={game} onChange={(event) => setGame(event.target.value)} /></label>
                 <label>Public contact handle (optional; visible to everyone) <input style={input} maxLength={80} autoComplete="off" value={contactHandle} onChange={(event) => setContactHandle(event.target.value)} /></label>
-                <fieldset style={{ border: "1px solid #8a2450", borderRadius: 10, padding: 12 }}><legend>Gaming accounts (up to 8 total)</legend><p>Connect supported accounts with OAuth, without Discord, from <a href="/personal-social" style={{ color: "#ffc4d9" }}>verified account connections</a>. Manual profile links remain self-reported.</p>{verifiedAccounts.length ? verifiedAccounts.map((account) => <label key={account.provider} style={{ display: "block", margin: "8px 0" }}><input type="checkbox" checked={linkedProviders.includes(account.provider)} onChange={(event) => { if (event.target.checked && accounts.length + linkedProviders.length >= 8) { setMessage("A public profile can include up to 8 account links total."); return; } setLinkedProviders((current) => event.target.checked ? [...current, account.provider] : current.filter((provider) => provider !== account.provider)); setLinkedAccountsConsent(false); }} /> Publish verified {providerNames[account.provider] || account.provider} account: {account.label}</label>) : <p>No verified provider accounts are linked yet. Connect one from <a href="/personal-social" style={{ color: "#ffc4d9" }}>Personal Social</a>; Discord sign-in is optional.</p>}{accounts.map((account, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "minmax(120px, .4fr) 1fr auto", gap: 8, marginBottom: 8 }}><input aria-label="Platform or account name" style={input} maxLength={40} placeholder="Steam, Epic, Xbox..." value={account.label} onChange={(event) => setAccounts((items) => items.map((item, i) => i === index ? { ...item, label: event.target.value } : item))} /><input aria-label="Public profile URL" style={input} type="url" placeholder="https://... public profile" value={account.url} onChange={(event) => setAccounts((items) => items.map((item, i) => i === index ? { ...item, url: event.target.value } : item))} /><button type="button" style={button} onClick={() => setAccounts((items) => items.filter((_, i) => i !== index))}>Remove</button></div>)}<button type="button" style={button} disabled={accounts.length + linkedProviders.length >= 8} onClick={() => setAccounts((items) => [...items, { label: "", url: "" }])}>Add manual account link</button>{linkedProviders.length > 0 && <label style={{ display: "block", marginTop: 12 }}><input type="checkbox" checked={linkedAccountsConsent} onChange={(event) => setLinkedAccountsConsent(event.target.checked)} /> I specifically agree to publish the selected verified provider profile names and links to everyone online.</label>}</fieldset>
+                <fieldset style={{ border: "1px solid #8a2450", borderRadius: 10, padding: 12 }}><legend>Gaming accounts (up to 8 public links)</legend>
+                  <p>Link Steam, Battle.net, Epic Games, Xbox, or Bungie directly from this page. Discord is not required. Verified account details stay private unless you select them and publish with consent.</p>
+                  {gameAccounts.map((account) => <div key={account.provider} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, margin: "8px 0" }}>
+                    <label><input type="checkbox" checked={sharedGameProviders.includes(account.provider)} disabled={busy || (!sharedGameProviders.includes(account.provider) && accounts.length + linkedProviders.length + sharedGameProviders.length >= 8)} onChange={(event) => setSharedGameProviders((current) => event.target.checked ? [...new Set([...current, account.provider])] : current.filter((provider) => provider !== account.provider))} /> Publish verified {providerNames[account.provider] || account.provider} tag: {account.label}</label>
+                    <button type="button" style={button} disabled={busy} onClick={() => void unlinkGameProvider(account.provider)}>Unlink</button>
+                  </div>)}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "10px 0" }}>{["steam", "battlenet", "epic", "xbox", "bungie"].filter((provider) => !gameAccounts.some((account) => account.provider === provider)).map((provider) => <button key={provider} type="button" style={button} disabled={!ownLoaded || busy} onClick={() => void startGameProviderLink(provider)}>Link {providerNames[provider]}</button>)}</div>
+                  {!gameAccounts.length ? <p>No game providers linked yet. Connect directly above, or add a manual profile URL below.</p> : null}
+                  {accounts.map((account, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "minmax(120px, .4fr) 1fr auto", gap: 8, marginBottom: 8 }}><input aria-label="Platform or account name" style={input} maxLength={40} placeholder="Steam, Epic, Xbox..." value={account.label} onChange={(event) => setAccounts((items) => items.map((item, i) => i === index ? { ...item, label: event.target.value } : item))} /><input aria-label="Public profile URL" style={input} type="url" placeholder="https://... public profile" value={account.url} onChange={(event) => setAccounts((items) => items.map((item, i) => i === index ? { ...item, url: event.target.value } : item))} /><button type="button" style={button} onClick={() => setAccounts((items) => items.filter((_, i) => i !== index))}>Remove</button></div>)}
+                  <button type="button" style={button} disabled={accounts.length + linkedProviders.length + sharedGameProviders.length >= 8} onClick={() => setAccounts((items) => [...items, { label: "", url: "" }])}>Add manual account link</button>
+                  {verifiedAccounts.length ? <div style={{ marginTop: 10 }}><strong>Social profiles</strong>{verifiedAccounts.map((account) => <label key={account.provider} style={{ display: "block", margin: "8px 0" }}><input type="checkbox" checked={linkedProviders.includes(account.provider)} onChange={(event) => { if (event.target.checked && accounts.length + linkedProviders.length + sharedGameProviders.length >= 8) { setMessage("A public profile can include up to 8 account links total."); return; } setLinkedProviders((current) => event.target.checked ? [...new Set([...current, account.provider])] : current.filter((provider) => provider !== account.provider)); setLinkedAccountsConsent(false); }} /> Publish verified {providerNames[account.provider] || account.provider} account: {account.label}</label>)}</div> : null}
+                  {linkedProviders.length > 0 && <label style={{ display: "block", marginTop: 12 }}><input type="checkbox" checked={linkedAccountsConsent} onChange={(event) => setLinkedAccountsConsent(event.target.checked)} /> I specifically agree to publish the selected verified social profile names and links to everyone online.</label>}
+                </fieldset>
                 <fieldset style={{ border: "1px solid #8a2450", borderRadius: 10, padding: 12 }}><legend>Games and progress (optional, up to 20)</legend>{gameStats.map((stat, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 8, marginBottom: 8 }}><input aria-label="Game title" style={input} maxLength={80} placeholder="Game" value={stat.game} onChange={(event) => setGameStats((items) => items.map((item, i) => i === index ? { ...item, game: event.target.value } : item))} /><input aria-label="Platform" style={input} maxLength={40} placeholder="Platform" value={stat.platform} onChange={(event) => setGameStats((items) => items.map((item, i) => i === index ? { ...item, platform: event.target.value } : item))} /><input aria-label="Hours played" style={input} type="number" min={0} max={100000} step="0.1" placeholder="Hours played" value={stat.hours} onChange={(event) => setGameStats((items) => items.map((item, i) => i === index ? { ...item, hours: Number(event.target.value) } : item))} /><input aria-label="Progress" style={input} maxLength={120} placeholder="Progress / rank" value={stat.progress} onChange={(event) => setGameStats((items) => items.map((item, i) => i === index ? { ...item, progress: event.target.value } : item))} /><button type="button" style={button} onClick={() => setGameStats((items) => items.filter((_, i) => i !== index))}>Remove</button></div>)}<button type="button" style={button} disabled={gameStats.length >= 20} onClick={() => setGameStats((items) => [...items, { game: "", platform: "", hours: 0, progress: "" }])}>Add game progress</button></fieldset>
                 <label><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I explicitly agree to publish this nickname, games, account links, progress and any contact handle above to everyone on the internet until I revoke it.</label>
                 {loggedIn ? <label><input type="checkbox" checked={shareDiscordTag} onChange={(event) => setShareDiscordTag(event.target.checked)} /> I separately agree to publish my Discord username {discordTag ? <strong>@{discordTag}</strong> : ""} in the worldwide directory.</label> : <p><a href="/api/auth/discord/login?returnTo=%2Fgaming" style={{ color: "#ff9ebc" }}>Optionally connect Discord to show a verified Discord username</a>. This is not required for a Gaming Hub profile.</p>}

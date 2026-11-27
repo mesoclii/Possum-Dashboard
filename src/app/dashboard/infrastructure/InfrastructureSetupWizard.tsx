@@ -226,6 +226,13 @@ function savedFeatureSelection(report: SetupReport | null) {
   return sorted(Array.isArray(configured) ? configured : (report?.featureCatalog || []).map((feature) => feature.id));
 }
 
+function roleSelectionsForFeatures(features: string[], roles: string[]) {
+  const next = new Set(roles);
+  if (features.includes("rareSpawn")) next.add("rareSpawn:accessRoleId");
+  else next.delete("rareSpawn:accessRoleId");
+  return sorted([...next]);
+}
+
 function sameNames(left: Record<string, string>, right: Record<string, string>) {
   const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
   for (const key of keys) {
@@ -321,10 +328,17 @@ export default function InfrastructureSetupWizard() {
     const response = await fetch("/api/bot/infrastructure", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ guildId, userId, ...body }),
+      body: JSON.stringify({ ...body, guildId, userId }),
       cache: "no-store",
     });
-    return readJson(response);
+    const data = await readJson(response);
+    if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) {
+      throw new Error("The selected server changed while setup was running. Reload this page before continuing.");
+    }
+    if (data.report?.guildId && String(data.report.guildId) !== guildId) {
+      throw new Error("The server returned a setup report for a different server. No result was applied.");
+    }
+    return data;
   }, [guildId, userId]);
 
   const loadReport = useCallback(async () => {
@@ -340,7 +354,7 @@ export default function InfrastructureSetupWizard() {
       const saved = savedFeatureSelection(next);
       setSelected(saved);
       setSavedSelection(saved);
-      setSelectedRoleMappings(sorted(next.settings?.selectedRoleMappings || []));
+      setSelectedRoleMappings(roleSelectionsForFeatures(saved, sorted(next.settings?.selectedRoleMappings || [])));
       setRewardRoleSelections(sorted(next.settings?.rewardRoleSelections || []));
       setCustomRoleText((next.settings?.customRoleNames || []).join("\n"));
       setCustomChannelText((next.settings?.customChannelNames || []).join("\n"));
@@ -373,7 +387,7 @@ export default function InfrastructureSetupWizard() {
         const saved = savedFeatureSelection(next);
         setSelected(saved);
         setSavedSelection(saved);
-        setSelectedRoleMappings(sorted(next?.settings?.selectedRoleMappings || []));
+        setSelectedRoleMappings(roleSelectionsForFeatures(saved, sorted(next?.settings?.selectedRoleMappings || [])));
         setRewardRoleSelections(sorted(next?.settings?.rewardRoleSelections || []));
         setCustomRoleText((next?.settings?.customRoleNames || []).join("\n"));
         setCustomChannelText((next?.settings?.customChannelNames || []).join("\n"));
@@ -522,9 +536,11 @@ export default function InfrastructureSetupWizard() {
     setError("");
     setMessage("");
     const ids = featureSelectionIds(id);
-    setSelected((current) => enabled
-      ? sorted([...current, ...ids])
-      : current.filter((entry) => !ids.includes(entry)));
+    const next = enabled
+      ? sorted([...selected, ...ids])
+      : selected.filter((entry) => !ids.includes(entry));
+    setSelected(next);
+    setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
   }
 
   function setVipResourceSelected(id: string, enabled: boolean) {
@@ -897,6 +913,7 @@ export default function InfrastructureSetupWizard() {
   }
 
   function setRoleSelected(id: string, enabled: boolean) {
+    if (!enabled && selected.includes("rareSpawn") && id === "rareSpawn:accessRoleId") return;
     setSelectedRoleMappings((current) => sorted(enabled
       ? [...current, id]
       : current.filter((entry) => entry !== id)));
@@ -912,9 +929,11 @@ export default function InfrastructureSetupWizard() {
 
   function toggleGroup(group: string, enabled: boolean) {
     const ids = features.filter((feature) => feature.group === group && feature.selectable).map((feature) => feature.id);
-    setSelected((current) => sorted(enabled
-      ? [...current, ...ids]
-      : current.filter((id) => !ids.includes(id))));
+    const next = enabled
+      ? sorted([...selected, ...ids])
+      : selected.filter((id) => !ids.includes(id));
+    setSelected(next);
+    setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
     setError("");
     setMessage("");
   }
@@ -1203,8 +1222,8 @@ export default function InfrastructureSetupWizard() {
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               {roleCandidates.map((proposal) => (
                 <label key={proposal.id} className="flex items-start gap-3 rounded-lg border border-pink-900/40 p-3 text-sm">
-                  <input type="checkbox" checked={previewRoleSelections.includes(proposal.id)} onChange={(event) => setRoleSelected(proposal.id, event.target.checked)} className="mt-1 accent-pink-500" />
-                  <span><strong>{proposal.engineLabel || proposal.engine}</strong><span className="block text-xs text-pink-100/60">{proposal.field}{proposal.many ? " (multiple optional roles)" : ""}</span></span>
+                  <input type="checkbox" checked={previewRoleSelections.includes(proposal.id)} disabled={proposal.engine === "rareSpawn" && proposal.field === "accessRoleId" && selected.includes("rareSpawn")} onChange={(event) => setRoleSelected(proposal.id, event.target.checked)} className="mt-1 accent-pink-500" />
+                  <span><strong>{proposal.engineLabel || proposal.engine}</strong><span className="block text-xs text-pink-100/60">{proposal.engine === "rareSpawn" && proposal.field === "accessRoleId" ? "Required access role for the private Rare Spawn category" : `${proposal.field}${proposal.many ? " (multiple optional roles)" : ""}`}</span></span>
                 </label>
               ))}
             </div>

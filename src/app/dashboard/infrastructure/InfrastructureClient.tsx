@@ -368,6 +368,7 @@ export default function InfrastructureClient() {
   const [query, setQuery] = useState("");
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
+  const [allowSharedResources, setAllowSharedResources] = useState<Record<string, boolean>>({});
   const [busyAction, setBusyAction] = useState("");
   const [notices, setNotices] = useState<Notice[]>([]);
   const [confirm, setConfirm] = useState<DialogKind>("");
@@ -448,6 +449,10 @@ export default function InfrastructureClient() {
       notify("err", "No server selected", "Choose a server in the dashboard before running infrastructure actions.");
       return;
     }
+    if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) {
+      notify("err", "Server selection changed", "Reload the page for the selected server before applying infrastructure changes.");
+      return;
+    }
     const needsPanelPolicy = ["approve", "provision", "repair", "decide"].includes(String(body.action)) ||
       (body.action === "adapt" && body.confirmed === true) ||
       (body.action === "settings" && (body.autopilotEnabled === true || body.automaticProvisioningEnabled === true));
@@ -466,9 +471,10 @@ export default function InfrastructureClient() {
       const response = await fetch("/api/bot/infrastructure", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ guildId, userId, ...body }),
+        body: JSON.stringify({ ...body, guildId, userId }),
       });
       const json = await readJson(response);
+      if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) return;
       if (!response.ok || json.success === false) {
         notify("err", `Request failed (${response.status})`, json.error || "The bot API did not return an error message.");
         return;
@@ -499,6 +505,10 @@ export default function InfrastructureClient() {
       const refreshedResponse = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
+      if (nextReport?.guildId && String(nextReport.guildId) !== guildId) {
+        notify("err", "Response discarded", "The infrastructure response belonged to a different server; no result was shown.");
+        return;
+      }
       setReport(nextReport);
       const described = describeResult(body, json);
       const after = nextReport?.healthScore;
@@ -712,11 +722,16 @@ export default function InfrastructureClient() {
                     <>
                       <select className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={routes[`${finding.engine}:${finding.field}`] || ""} onChange={(event) => setRoutes((current) => ({ ...current, [`${finding.engine}:${finding.field}`]: event.target.value }))}>
                         <option value="">Point at an existing {finding.resourceType || "resource"}</option>
-                        {(finding.resourceType === "role" ? report?.directory?.roles || [] : [...(report?.directory?.categories || []), ...(report?.directory?.channels || [])]).map((row) => (
+                        {(finding.resourceType === "role"
+                          ? report?.directory?.roles || []
+                          : finding.resourceType === "category"
+                            ? report?.directory?.categories || []
+                            : report?.directory?.channels || []).map((row) => (
                           <option key={row.id} value={row.id}>{row.name}</option>
                         ))}
                       </select>
-                      <ActionButton label="Use this" tip="Point this field at the selected existing Discord resource." busy={false} locked={locked} onClick={() => ask({ title: "Use this resource", detail: `${finding.engine}.${finding.field} will use the selected existing resource. Protected fields cannot be written.`, confirmLabel: "Use this", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "reroute", channelId: routes[`${finding.engine}:${finding.field}`] || "" } })} />
+                      <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[`${finding.engine}:${finding.field}`] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [`${finding.engine}:${finding.field}`]: event.target.checked }))} /> Share destination with other features</label>
+                      <ActionButton label="Use this" tip="Point this field at the selected existing Discord resource." busy={false} locked={locked} onClick={() => ask({ title: "Use this resource", detail: `${finding.engine}.${finding.field} will use the selected existing resource. Protected fields cannot be written.`, confirmLabel: "Use this", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "reroute", channelId: routes[`${finding.engine}:${finding.field}`] || "", allowSharedResource: allowSharedResources[`${finding.engine}:${finding.field}`] === true } })} />
                     </>
                   )}
                 </div>
@@ -740,13 +755,14 @@ export default function InfrastructureClient() {
               {proposal.status === "ready" ? (
                 <ActionButton label="Approve empty field" tip="Write the suggested resource into this empty field. A populated id is not overwritten." busy={false} locked={locked} onClick={() => ask({ title: "Approve empty field", detail: `${proposal.engine}.${proposal.field} will be filled only if it is still empty.`, confirmLabel: "Approve", body: { action: "approve", proposalIds: [proposal.id] } })} />
               ) : null}
-              {proposal.status === "ambiguous" && proposal.matches?.length ? (
+              {["ambiguous", "duplicate"].includes(proposal.status) && proposal.matches?.length ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <select className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={choices[proposal.id] || ""} onChange={(event) => setChoices((current) => ({ ...current, [proposal.id]: event.target.value }))}>
                     <option value="">Choose a match</option>
                     {proposal.matches.map((match) => <option key={match.id} value={match.id}>{match.name}</option>)}
                   </select>
-                  <ActionButton label="Use this match" tip="Write the match you picked into this empty field." busy={false} locked={locked} onClick={() => ask({ title: "Use this match", detail: `${proposal.engine}.${proposal.field} will use the match selected in the list.`, confirmLabel: "Use this match", body: { action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] || "" } } })} />
+                  <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[proposal.id] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [proposal.id]: event.target.checked }))} /> Share destination with other features</label>
+                  <ActionButton label="Use this match" tip="Write the match you picked into this empty field." busy={false} locked={locked} onClick={() => ask({ title: "Use this match", detail: `${proposal.engine}.${proposal.field} will use the selected match. Shared destinations are allowed only when explicitly checked.`, confirmLabel: "Use this match", body: { action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] || "" }, allowSharedResource: allowSharedResources[proposal.id] === true } })} />
                 </div>
               ) : null}
             </div>
@@ -768,7 +784,7 @@ export default function InfrastructureClient() {
       <ConfirmDialog
         open={confirm === "adapt" && Boolean(preview)}
         title={`Apply ${preview?.planned?.length || 0} empty mapping${preview?.planned?.length === 1 ? "" : "s"}`}
-        detail="Only these empty mappings are written. Populated values stay. Protected heist, onboarding, verification, and pre-onboarding fields stay out. Ambiguous matches stay unassigned. Each Discord resource is used once."
+        detail="Only these empty mappings are written. Populated values stay. Protected heist, onboarding, verification, and pre-onboarding fields stay out. Ambiguous matches stay unassigned unless you explicitly choose a match; shared destinations are chosen one field at a time."
         confirmLabel="Apply these mappings"
         busy={busyAction === "adapt-apply"}
         locked={locked && busyAction !== "adapt-apply"}

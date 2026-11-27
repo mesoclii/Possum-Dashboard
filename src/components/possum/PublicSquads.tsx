@@ -21,14 +21,16 @@ const field: CSSProperties = { width: "100%", padding: 10, border: "1px solid #d
 const button: CSSProperties = { padding: "10px 15px", borderRadius: 9, border: "1px solid #ff3982", color: "#fff", background: "#a7003e", cursor: "pointer", fontWeight: 700 };
 const card: CSSProperties = { padding: 18, border: "1px solid #802346", borderRadius: 14, background: "#1d0010" };
 
-export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
+export default function PublicSquads() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [mine, setMine] = useState<Listing[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [previousCursors, setPreviousCursors] = useState<(string | null)[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const requestId = useRef(0);
+  const refreshInFlight = useRef(false);
   const [loading, setLoading] = useState(true);
+  const [identityReady, setIdentityReady] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,51 +43,75 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
   const [form, setForm] = useState({ nickname: "", contact: "", game: "", mode: "", platform: "", note: "", capacity: 4 });
 
   const refresh = useCallback(async () => {
+    if (!identityReady || refreshInFlight.current) return;
+    refreshInFlight.current = true;
     const request = ++requestId.current;
-    const [publicResult, ownResult] = await Promise.allSettled([
-      (async () => {
-      const url = cursor ? `/api/public-lfg?cursor=${encodeURIComponent(cursor)}` : "/api/public-lfg";
-      const response = await fetch(url, { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok || !data.success || !Array.isArray(data.listings) || (data.nextCursor !== null && (typeof data.nextCursor !== "string" || !data.nextCursor))) {
-        throw new Error(data.error || "Public squads are unavailable.");
+    try {
+      const [publicResult, ownResult] = await Promise.allSettled([
+        (async () => {
+          const url = cursor ? `/api/public-lfg?cursor=${encodeURIComponent(cursor)}` : "/api/public-lfg";
+          const response = await fetch(url, { cache: "no-store" });
+          const data = await response.json();
+          if (!response.ok || !data.success || !Array.isArray(data.listings) || (data.nextCursor !== null && (typeof data.nextCursor !== "string" || !data.nextCursor))) {
+            throw new Error(data.error || "Public squads are unavailable.");
+          }
+          return { listings: data.listings as Listing[], nextCursor: data.nextCursor as string | null };
+        })(),
+        (async () => {
+          const response = await fetch("/api/public-lfg?me=1", { cache: "no-store" });
+          const data = await response.json();
+          if (!response.ok || !data.success || !Array.isArray(data.listings)) throw new Error(data.error || "Your squad memberships could not be loaded.");
+          return data.listings as Listing[];
+        })(),
+      ]);
+      if (request !== requestId.current) return;
+      if (publicResult.status === "fulfilled") {
+        setListings(publicResult.value.listings);
+        setNextCursor(publicResult.value.nextCursor);
+      } else {
+        setListings([]);
+        setNextCursor(null);
       }
-      return { listings: data.listings as Listing[], nextCursor: data.nextCursor as string | null };
-      })(),
-      (async () => {
-        if (!loggedIn) return [] as Listing[];
-        const response = await fetch("/api/public-lfg?me=1", { cache: "no-store" });
-        const data = await response.json();
-        if (!response.ok || !data.success || !Array.isArray(data.listings)) throw new Error(data.error || "Your squad memberships could not be loaded.");
-        return data.listings as Listing[];
-      })(),
-    ]);
-    if (request !== requestId.current) return;
-    if (publicResult.status === "fulfilled") {
-      setListings(publicResult.value.listings);
-      setNextCursor(publicResult.value.nextCursor);
-    } else {
-      setListings([]);
-      setNextCursor(null);
+      if (ownResult.status === "fulfilled") setMine(ownResult.value);
+      else setMine([]);
+      if (publicResult.status === "rejected") throw publicResult.reason;
+      if (ownResult.status === "rejected") throw ownResult.reason;
+    } finally {
+      refreshInFlight.current = false;
     }
-    if (ownResult.status === "fulfilled") setMine(ownResult.value);
-    else setMine([]);
-    if (publicResult.status === "rejected") throw publicResult.reason;
-    if (ownResult.status === "rejected") throw ownResult.reason;
-  }, [loggedIn, cursor]);
+  }, [identityReady, cursor]);
 
   useEffect(() => {
     let active = true;
+    fetch("/api/public-gaming/guest", { cache: "no-store" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || data?.success !== true) throw new Error(data?.error || "A private Gaming Hub session could not be created.");
+      })
+      .then(() => { if (active) setIdentityReady(true); })
+      .catch((failure) => {
+        if (active) {
+          setError(failure instanceof Error ? failure.message : "A private Gaming Hub session could not be created.");
+          setLoading(false);
+        }
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!identityReady) return;
+    setLoading(true);
     const load = () => void refresh().then(() => { if (active) setError(""); }).catch((failure) => {
       if (active) {
         setError(failure instanceof Error ? failure.message : "Public squads are unavailable.");
       }
     }).finally(() => { if (active) setLoading(false); });
     load();
-    const timer = window.setInterval(load, 15000);
+    const timer = window.setInterval(load, 60000);
     window.addEventListener("focus", load);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener("focus", load); };
-  }, [refresh]);
+  }, [identityReady, refresh]);
 
   async function act(payload: Record<string, unknown>, success: string) {
     setBusy(true);
@@ -132,7 +158,7 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
       </div>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {!loggedIn && <div><a href="/api/auth/discord/login?returnTo=%2Fgaming%3Ftab%3Dsquads" style={{ ...button, display: "inline-block", textDecoration: "none" }}>Sign in to post or join a squad</a></div>}
+      <p>Discord is optional. A private browser session lets you post and join without exposing an account ID.</p>
       <label>Search this page of squads <input style={field} value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Try Fortnite, duos or PC" /></label>
       {loading ? <p role="status">Loading squads…</p> : visible.length ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 270px), 1fr))", gap: 12 }}>
@@ -144,10 +170,9 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
               {listing.mode && <p>{listing.mode}</p>}
               {listing.note && <p>{listing.note}</p>}
               <ul style={{ paddingLeft: 20 }}>{listing.members.map((member, index) => <li key={`${member.nickname}-${index}`}>{member.nickname}{member.contact ? ` — ${member.contact}` : ""}</li>)}</ul>
-              {loggedIn && membership?.isHost ? <button style={button} disabled={busy} onClick={() => void act({ action: "close", id: listing.id }, "Squad closed.")}>Close squad</button>
-                : loggedIn && membership?.isMember ? <button style={button} disabled={busy} onClick={() => void act({ action: "leave", id: listing.id }, "You left the squad.")}>Leave squad</button>
-                  : loggedIn ? <button style={button} disabled={busy || listing.members.length >= listing.capacity} onClick={() => { setJoinId(listing.id); setJoinConsent(false); }}>Join squad</button>
-                    : <a href="/api/auth/discord/login?returnTo=%2Fgaming%3Ftab%3Dsquads" style={{ color: "#ff9ebc" }}>Sign in to join</a>}
+              {membership?.isHost ? <button style={button} disabled={busy} onClick={() => void act({ action: "close", id: listing.id }, "Squad closed.")}>Close squad</button>
+                : membership?.isMember ? <button style={button} disabled={busy} onClick={() => void act({ action: "leave", id: listing.id }, "You left the squad.")}>Leave squad</button>
+                  : <button style={button} disabled={busy || listing.members.length >= listing.capacity} onClick={() => { setJoinId(listing.id); setJoinConsent(false); }}>Join squad</button>}
             </article>;
           })}
         </div>
@@ -156,17 +181,19 @@ export default function PublicSquads({ loggedIn }: { loggedIn: boolean }) {
         {previousCursors.length > 0 && <button type="button" style={button} onClick={() => { setCursor(previousCursors[previousCursors.length - 1]); setPreviousCursors(previousCursors.slice(0, -1)); }}>Previous squads</button>}
         {nextCursor && <button type="button" style={button} onClick={() => { setPreviousCursors([...previousCursors, cursor]); setCursor(nextCursor); }}>More squads</button>}
       </div>}
-      {loggedIn && joinId && <form onSubmit={join} style={{ ...card, display: "grid", gap: 12 }}>
+      {identityReady && joinId && <form onSubmit={join} style={{ ...card, display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Join this squad</h3>
         <label>Public nickname <input style={field} required maxLength={40} value={joinName} onChange={(event) => setJoinName(event.target.value)} /></label>
         <label>Public contact handle (optional) <input style={field} maxLength={80} value={joinContact} onChange={(event) => setJoinContact(event.target.value)} /></label>
         <label><input type="checkbox" checked={joinConsent} onChange={(event) => setJoinConsent(event.target.checked)} /> I agree to publish these details with this squad to everyone online.</label>
         <div style={{ display: "flex", gap: 10 }}><button style={button} disabled={busy || !joinConsent}>Confirm join</button><button type="button" style={button} onClick={() => setJoinId("")}>Cancel</button></div>
       </form>}
-      {loggedIn && <form onSubmit={post} style={{ ...card, display: "grid", gap: 12 }}>
+      {identityReady && <form onSubmit={post} style={{ ...card, display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Start a public squad</h3>
-        <label>Game <input style={field} required maxLength={80} value={form.game} onChange={(event) => setForm({ ...form, game: event.target.value })} /></label>
-        <label>Mode or queue <input style={field} maxLength={60} value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value })} /></label>
+        <label>Game <input style={field} list="public-game-suggestions" required maxLength={80} value={form.game} onChange={(event) => setForm({ ...form, game: event.target.value })} /></label>
+        <datalist id="public-game-suggestions"><option value="World of Warcraft" /><option value="Fortnite" /><option value="Minecraft" /><option value="Final Fantasy XIV" /><option value="Apex Legends" /><option value="Overwatch 2" /></datalist>
+        <label>Mode or queue <input style={field} list="public-mode-suggestions" maxLength={60} value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value })} /></label>
+        <datalist id="public-mode-suggestions"><option value="Mythic+" /><option value="Raid" /><option value="Delves" /><option value="PvP" /><option value="Leveling" /><option value="Casual" /></datalist>
         <label>Platform <input style={field} maxLength={40} value={form.platform} onChange={(event) => setForm({ ...form, platform: event.target.value })} /></label>
         <label>Short note <input style={field} maxLength={240} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
         <label>Squad size <input style={field} type="number" min={2} max={20} required value={form.capacity} onChange={(event) => setForm({ ...form, capacity: Number(event.target.value) })} /></label>

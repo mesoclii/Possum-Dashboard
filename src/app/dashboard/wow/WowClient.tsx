@@ -20,6 +20,7 @@ type MotdConfig = {
   channelId: string;
   panelChannelId: string;
   mentionRoleId: string;
+  mentionRoleIds: string[];
   keepLatestOnly: boolean;
   pinLatest: boolean;
   autoDeleteMinutes: number;
@@ -120,6 +121,7 @@ const DEFAULTS: Config = {
     channelId: "",
     panelChannelId: "",
     mentionRoleId: "",
+    mentionRoleIds: [],
     keepLatestOnly: true,
     pinLatest: false,
     autoDeleteMinutes: 1440,
@@ -136,6 +138,10 @@ const DEFAULTS: Config = {
   },
   notes: "",
 };
+
+function localDateTimeValue(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 const box: CSSProperties = {
   border: "1px solid #5f0000",
@@ -196,6 +202,7 @@ export default function WowClient() {
   const activeSessions = useMemo(() => (Array.isArray((details as any)?.activeSessions) ? ((details as any).activeSessions as RuntimeRow[]) : []), [details]);
   const recentSessions = useMemo(() => (Array.isArray((details as any)?.recentSessions) ? ((details as any).recentSessions as RuntimeRow[]) : []), [details]);
   const motdHistory = useMemo(() => (Array.isArray((details as any)?.motdHistory) ? ((details as any).motdHistory as RuntimeRow[]) : []), [details]);
+  const queuedMotds = useMemo(() => (Array.isArray((details as any)?.queuedMotds) ? ((details as any).queuedMotds as RuntimeRow[]) : []), [details]);
 
   const [createForm, setCreateForm] = useState({
     presetKey: "mythic5",
@@ -209,6 +216,7 @@ export default function WowClient() {
     message: "Be online 15 minutes early with consumables ready.",
     channelId: "",
     expiresMinutes: String(cfg.motd.autoDeleteMinutes || 0),
+    scheduledAt: localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000)),
   });
 
   function updatePreset(index: number, patch: Partial<PresetConfig>) {
@@ -232,6 +240,20 @@ export default function WowClient() {
       message: motdForm.message,
       channelId: motdForm.channelId,
       expiresMinutes: Number(motdForm.expiresMinutes || 0),
+      mentionRoleIds: cfg.motd.mentionRoleIds,
+    });
+  }
+
+  async function scheduleMotd() {
+    const scheduledAt = new Date(motdForm.scheduledAt);
+    if (!Number.isFinite(scheduledAt.getTime())) return;
+    await runAction("scheduleMotd", {
+      title: motdForm.title,
+      message: motdForm.message,
+      channelId: motdForm.channelId,
+      expiresMinutes: Number(motdForm.expiresMinutes || 0),
+      mentionRoleIds: cfg.motd.mentionRoleIds,
+      scheduledAt: scheduledAt.toISOString(),
     });
   }
 
@@ -412,7 +434,24 @@ export default function WowClient() {
         <label><input type="checkbox" checked={cfg.motd.keepLatestOnly} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, keepLatestOnly: e.target.checked } })} /> Keep latest only</label><br />
         <label><input type="checkbox" checked={cfg.motd.pinLatest} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, pinLatest: e.target.checked } })} /> Pin latest</label>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(180px, 1fr))", gap: 10, marginTop: 10 }}>
-          <div><label>Mention role</label><select style={input} value={cfg.motd.mentionRoleId} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, mentionRoleId: e.target.value } })}><option value="">None</option>{roles.map((r) => <option key={r.id} value={r.id}>@{r.name}</option>)}</select></div>
+          <div style={{ gridColumn: "span 2" }}>
+            <label>MOTD mention roles</label>
+            <div style={{ ...input, maxHeight: 130, overflowY: "auto", marginTop: 4 }}>
+              {roles.map((role) => (
+                <label key={role.id} style={{ display: "block", margin: "3px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={(cfg.motd.mentionRoleIds || []).includes(role.id)}
+                    onChange={() => {
+                      const next = toggle(cfg.motd.mentionRoleIds || [], role.id);
+                      setCfg({ ...cfg, motd: { ...cfg.motd, mentionRoleIds: next, mentionRoleId: next[0] || "" } });
+                    }}
+                  /> @{role.name}
+                </label>
+              ))}
+            </div>
+            <small>Only selected roles can be pinged. Leave all unchecked for no role mention.</small>
+          </div>
           <div><label>Auto-delete minutes</label><input style={input} type="number" value={cfg.motd.autoDeleteMinutes} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, autoDeleteMinutes: Number(e.target.value || 0) } })} /></div>
           <div><label>Accent color</label><input style={input} value={cfg.motd.colorHex} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, colorHex: e.target.value } })} /></div>
           <div><label>Footer text</label><input style={input} value={cfg.motd.footerTemplate} onChange={(e) => setCfg({ ...cfg, motd: { ...cfg.motd, footerTemplate: e.target.value } })} /></div>
@@ -431,12 +470,23 @@ export default function WowClient() {
           <div><label>MOTD title</label><input style={input} value={motdForm.title} onChange={(e) => setMotdForm({ ...motdForm, title: e.target.value })} /></div>
           <div><label>Channel</label><select style={input} value={motdForm.channelId} onChange={(e) => setMotdForm({ ...motdForm, channelId: e.target.value })}><option value="">Use default</option>{textChannels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}</select></div>
           <div><label>Expires minutes</label><input style={input} type="number" value={motdForm.expiresMinutes} onChange={(e) => setMotdForm({ ...motdForm, expiresMinutes: e.target.value })} /></div>
+          <div><label>Schedule publish time (your local time)</label><input style={input} type="datetime-local" value={motdForm.scheduledAt} onChange={(e) => setMotdForm({ ...motdForm, scheduledAt: e.target.value })} /></div>
         </div>
         <div style={{ marginTop: 10 }}><label>MOTD message</label><textarea style={{ ...input, minHeight: 120 }} value={motdForm.message} onChange={(e) => setMotdForm({ ...motdForm, message: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
           <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving} onClick={postMotd}>Post MOTD</button>
+          <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving} onClick={scheduleMotd}>Queue for scheduled time</button>
           <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving} onClick={() => runAction("deployMotdPanel", { channelId: cfg.motd.panelChannelId })}>Deploy MOTD Panel</button>
           <button style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 900 }} disabled={saving} onClick={() => runAction("clearMotd")}>Clear Live MOTD</button>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <h4 style={{ marginTop: 0, color: "#ff6b6b" }}>Scheduled MOTDs</h4>
+          {queuedMotds.length ? queuedMotds.map((row) => (
+            <div key={String(row.id)} style={{ padding: "10px 0", borderTop: "1px solid #330000", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div><div style={{ fontWeight: 800 }}>{row.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{row.value}</div></div>
+              {["queued", "failed", "uncertain"].includes(String(row.status)) ? <button style={{ ...input, width: "auto", cursor: "pointer" }} disabled={saving} onClick={() => runAction("cancelScheduledMotd", { id: row.id })}>{row.status === "queued" ? "Cancel" : "Remove"}</button> : null}
+            </div>
+          )) : <div style={{ color: "#ffb3b3" }}>No scheduled MOTDs.</div>}
         </div>
         <div style={{ marginTop: 14 }}>
           <h4 style={{ marginTop: 0, color: "#ff6b6b" }}>Recent MOTD History</h4>

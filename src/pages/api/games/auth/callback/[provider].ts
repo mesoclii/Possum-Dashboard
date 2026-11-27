@@ -8,6 +8,8 @@ import {
 import { readActorUserId } from "@/lib/botApi";
 import { getConfiguredGameAuthOrigin } from "@/lib/gameAuthOrigin";
 import { deleteServerCachePrefix } from "@/lib/serverCache";
+import { PUBLIC_GAMING_GUEST_COOKIE, readPublicGamingGuestIdFromValue } from "@/lib/publicGamingGuest";
+import { resolvePublicGamingOwner } from "@/lib/publicGamingOwner";
 
 function readFirst(value: string | string[] | undefined): string {
   return String(Array.isArray(value) ? value[0] : value || "").trim();
@@ -33,6 +35,15 @@ function appendError(pathname: string, providerKey: string, message: string) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+function safeReturnPath(value: unknown, fallback: string) {
+  const candidate = String(value || "").trim();
+  if (!candidate.startsWith("/") || candidate.startsWith("//")) return fallback;
+  try {
+    const parsed = new URL(candidate, "http://dashboard.local");
+    return parsed.origin === "http://dashboard.local" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : fallback;
+  } catch { return fallback; }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -41,8 +52,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const providerKey = readFirst((req.query.provider as string | string[] | undefined) || (req.query.providerKey as string | string[] | undefined));
   const origin = getRequestOrigin(req);
-  const actorUserId = await readActorUserId(req);
-  const fallback = fallbackPath(req, actorUserId);
+  const guestId = readPublicGamingGuestIdFromValue(req.cookies[PUBLIC_GAMING_GUEST_COOKIE]);
+  const discordId = await readActorUserId(req);
+  const actorUserId = await resolvePublicGamingOwner(guestId, discordId);
+  const fallback = guestId ? "/gaming" : fallbackPath(req, actorUserId);
 
   // The single-use OAuth state is the credential here. Requiring a dashboard
   // session too broke every login started from Discord, because the provider
@@ -53,7 +66,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const response = await fetchServerBotApi(`${SERVER_BOT_API}/api/game-provider-auth/callback`, {
+    const callbackEndpoint = guestId && actorUserId === guestId
+      ? `${SERVER_BOT_API}/internal/public-gaming/provider-auth/callback/${encodeURIComponent(providerKey)}`
+      : `${SERVER_BOT_API}/api/game-provider-auth/callback`;
+    const response = await fetchServerBotApi(callbackEndpoint, {
       method: "POST",
       headers: {
         ...buildServerBotApiHeaders(actorUserId, { allowFallback: false }),
@@ -66,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }),
     });
     const json = await readServerBotApiJson(response);
-    const redirectPath = String(json?.redirectPath || fallback).trim() || fallback;
+    const redirectPath = safeReturnPath(json?.redirectPath, fallback);
     if (!response.ok || json?.success === false) {
       return res.redirect(302, appendError(redirectPath || fallback, providerKey, json?.error || `Failed to finish ${providerKey} login.`));
     }

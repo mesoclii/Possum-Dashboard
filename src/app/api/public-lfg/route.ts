@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildServerBotApiHeaders, fetchServerBotApi, readServerBotApiJson, SERVER_BOT_API } from "@/lib/botApiServer";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
 import { DASHBOARD_SESSION_COOKIE, readDashboardSessionValue } from "@/lib/session";
+import { readPublicGamingGuestId } from "@/lib/publicGamingGuest";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store, private" };
@@ -21,7 +22,7 @@ function unavailableError(value: unknown, fallback: string) {
 async function actor(request: NextRequest) {
   const session = await readDashboardSessionValue(request.cookies.get(DASHBOARD_SESSION_COOKIE)?.value);
   const id = String(session?.user?.id || "").trim();
-  return /^\d{16,20}$/.test(id) ? id : "";
+  return readPublicGamingGuestId(request) || (/^\d{16,20}$/.test(id) ? id : "");
 }
 
 function listing(value: any, own = false) {
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
       return reply({ success: false, error: "Same-origin request required." }, 403);
     }
     const user = await actor(request);
-    if (!user) return reply({ success: false, error: "Sign in to manage your listings." }, 401);
+    if (!user) return reply({ success: false, error: "Create a private Gaming Hub profile session first." }, 401);
     if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) return reply({ success: false, error: "JSON required." }, 415);
     let body;
     try { body = await readBody(request); } catch { return reply({ success: false, error: "Request is too large." }, 413); }

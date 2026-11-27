@@ -40,6 +40,8 @@ async function actor(request: NextRequest) {
 
 function profile(value: any) {
   if (!value || typeof value.nickname !== "string" || typeof value.game !== "string") return null;
+  const verifiedProviders = new Set(["twitch", "youtube", "reddit", "x", "tiktok", "steam", "battlenet", "epic", "xbox", "bungie"]);
+  const verifiedGameProviders = new Set(["steam", "battlenet", "epic", "xbox", "bungie"]);
   return {
     nickname: value.nickname,
     game: value.game,
@@ -47,7 +49,8 @@ function profile(value: any) {
     discordTag: typeof value.discordTag === "string" ? value.discordTag : "",
     accounts: Array.isArray(value.accounts) ? value.accounts.filter((item: any) => item && typeof item.label === "string" && typeof item.url === "string").slice(0, 8).map((item: any) => ({
       label: item.label, url: item.url,
-      ...(item.verified === true && ["twitch", "youtube", "reddit", "x", "tiktok"].includes(item.provider) ? { verified: true, provider: item.provider } : {}),
+      ...(item.verified === true && verifiedProviders.has(item.provider) &&
+        (item.url || verifiedGameProviders.has(item.provider)) ? { verified: true, provider: item.provider } : {}),
     })) : [],
     gameStats: Array.isArray(value.gameStats) ? value.gameStats.filter((item: any) => item && typeof item.game === "string" && typeof item.platform === "string" && typeof item.progress === "string" && typeof item.hours === "number").slice(0, 20) : [],
   };

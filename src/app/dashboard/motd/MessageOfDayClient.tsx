@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import GuildEmojiField from "@/components/possum/GuildEmojiField";
 import { PossumCard } from "@/components/possum/PossumCard";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";

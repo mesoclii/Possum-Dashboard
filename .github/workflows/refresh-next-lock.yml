@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - codex/unified-infrastructure-implementation
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write

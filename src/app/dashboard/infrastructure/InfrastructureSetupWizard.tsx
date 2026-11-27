@@ -1049,6 +1049,11 @@ export default function InfrastructureSetupWizard() {
               <p className="text-[11px] font-black uppercase tracking-wider text-amber-200">{activePlan.plan.state === "succeeded" ? "Deployment report" : "Saved deployment checkpoint"}</p>
               <h2 id="active-setup-plan-title" className="mt-1 text-lg font-black uppercase text-white">Setup {activePlan.plan.state.replace(/_/g, " ")}</h2>
               <p className="mt-1 text-xs text-amber-100/75">{activePlan.plan.state === "succeeded" ? "The approved plan completed. Its verified checkpoint history is retained here." : "This plan is saved on the bot. You can leave this page and return without losing its checkpoint."}</p>
+              {activePlan.plan.state === "recovery_required" && !activePlan.canResume ? (
+                <p role="alert" className="mt-2 max-w-3xl rounded-md border border-amber-500/40 bg-black/30 p-2 text-xs text-amber-100">
+                  Setup paused because an action could not be safely retried. Review the failed checkpoint below. If the server resources or settings changed, cancel this plan and refresh the setup preview before approving a new plan. Completed checkpoints are retained and will be recognized during the new inventory scan.
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               {activePlan.canResume ? <button type="button" disabled={busy} onClick={() => void resumeActiveSetup()} className="possum-btn min-h-10 rounded-lg px-4 text-sm font-black uppercase disabled:opacity-50">{busy ? "Working…" : "Resume setup"}</button> : null}

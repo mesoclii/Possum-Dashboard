@@ -1046,9 +1046,9 @@ export default function InfrastructureSetupWizard() {
         <section className="rounded-xl border border-amber-600/40 bg-amber-950/20 p-4 possum-border sm:p-5" aria-labelledby="active-setup-plan-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-wider text-amber-200">Saved deployment checkpoint</p>
+              <p className="text-[11px] font-black uppercase tracking-wider text-amber-200">{activePlan.plan.state === "succeeded" ? "Deployment report" : "Saved deployment checkpoint"}</p>
               <h2 id="active-setup-plan-title" className="mt-1 text-lg font-black uppercase text-white">Setup {activePlan.plan.state.replace(/_/g, " ")}</h2>
-              <p className="mt-1 text-xs text-amber-100/75">This plan is saved on the bot. You can leave this page and return without losing its checkpoint.</p>
+              <p className="mt-1 text-xs text-amber-100/75">{activePlan.plan.state === "succeeded" ? "The approved plan completed. Its verified checkpoint history is retained here." : "This plan is saved on the bot. You can leave this page and return without losing its checkpoint."}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {activePlan.canResume ? <button type="button" disabled={busy} onClick={() => void resumeActiveSetup()} className="possum-btn min-h-10 rounded-lg px-4 text-sm font-black uppercase disabled:opacity-50">{busy ? "Working…" : "Resume setup"}</button> : null}

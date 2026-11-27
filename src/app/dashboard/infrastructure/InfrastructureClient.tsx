@@ -99,7 +99,17 @@ type ApiJson = {
 
 type Notice = { id: number; tone: "ok" | "err"; title: string; detail?: string };
 type PendingWrite = { title: string; detail: string; confirmLabel: string; body: Record<string, unknown> };
-type DialogKind = "repair" | "adapt" | "setup-plan" | "";
+type CompensationItem = { actionId: string; status: string; reason?: string; resourceId?: string };
+type CompensationPreview = {
+  ok: boolean;
+  planId: string;
+  planState: string;
+  previewToken: string;
+  items: CompensationItem[];
+  canExecute: boolean;
+  deletesResources: false;
+};
+type DialogKind = "repair" | "adapt" | "setup-plan" | "compensation" | "";
 
 function isPanelField(row: { engine: string; field: string }) {
   return /deploy/i.test(`${row.engine}:${row.field}`);
@@ -241,7 +251,19 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     const names = nameList(result.repaired);
     return {
       title: `Repair recreated ${countOf(result.repaired)} resource${countOf(result.repaired) === 1 ? "" : "s"}`,
-      lines: [...(names.length ? [`Recreated: ${names.join(", ")}`] : []), ...(result.message ? [String(result.message)] : [])],
+      lines: [...(names.length ? [`Recreated: ${names.join(", ")}`] : []), ...(result.message ? [String(result.message)] : []), ...rowsOf(result.failed).slice(0, 4).map((row) => String(row.error || row.reason || "Manual review required."))],
+    };
+  }
+  if (action === "plan-compensate") {
+    const summary = (result.compensation || {}) as Record<string, number>;
+    return {
+      title: result.completed === true ? "Previous setup state restored" : "Restore finished with items for review",
+      lines: [
+        `${summary.completed || 0} changes restored`,
+        `${summary.alreadyCompensated || 0} already restored`,
+        `${summary.retainedResources || 0} created resources retained (not deleted)`,
+        `${(summary.conflicts || 0) + (summary.manualReview || 0) + (summary.failed || 0)} items need review`,
+      ],
     };
   }
   if (action === "approve") {
@@ -426,6 +448,7 @@ export default function InfrastructureClient() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [confirm, setConfirm] = useState<DialogKind>("");
   const [preview, setPreview] = useState<AdaptPreview | null>(null);
+  const [compensationPreview, setCompensationPreview] = useState<CompensationPreview | null>(null);
   const [pending, setPending] = useState<PendingWrite | null>(null);
   const inFlight = useRef(false);
   const loadSequence = useRef(0);
@@ -544,6 +567,18 @@ export default function InfrastructureClient() {
       if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) return;
       if (!response.ok || json.success === false) {
         notify("err", `Request failed (${response.status})`, json.error || "The bot API did not return an error message.");
+        return;
+      }
+      if (body.action === "plan-compensation-preview") {
+        const next = json.result as unknown as CompensationPreview | undefined;
+        if (!next?.ok || !next.previewToken) {
+          notify("err", "Compensation preview unavailable", json.error || "The saved plan cannot be safely restored.");
+          return;
+        }
+        setCompensationPreview(next);
+        setConfirm("compensation");
+        notify("ok", "Restore preview ready",
+          `${next.items.filter((item) => item.status === "ready").length} changes can be restored. Discord resources will not be deleted.`);
         return;
       }
       if (body.action === "plan-preview") {
@@ -907,6 +942,7 @@ export default function InfrastructureClient() {
               {activePlan.plan.state === "draft" && activePlan.canResume && activePlanSummary.total > 0 ? <ActionButton label="Review and apply" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
               {activePlan.canResume && activePlan.plan.state !== "draft" ? <ActionButton label="Resume plan" tip="Continue the saved plan from its next safe checkpoint." busy={busyAction === "setup-plan"} busyLabel="Running…" locked={locked} onClick={() => void executeSetupPlan()} /> : null}
               {activePlan.canCancel ? <ActionButton label="Cancel plan" tip="Cancel pending actions. Anything already created stays and remains recorded." busy={false} locked={locked} onClick={() => ask({ title: "Cancel this saved plan?", detail: "Pending actions will stop. Anything already created stays in the server and is listed in the saved plan.", confirmLabel: "Cancel plan", body: { action: "plan-cancel", planId: activePlan.plan.id } })} /> : null}
+              {activePlan.canCompensate ? <ActionButton label="Preview restore" tip="Review which previous settings and mappings can be restored. This never deletes Discord resources." busy={busyAction === "plan-compensation-preview"} busyLabel="Checking…" locked={locked} onClick={() => post("plan-compensation-preview", { action: "plan-compensation-preview", planId: activePlan.plan.id })} /> : null}
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1114,6 +1150,35 @@ export default function InfrastructureClient() {
             <p key={row.id} className="text-xs text-red-100">{row.engine}.{row.field} → {row.resourceName} ({row.resourceId})</p>
           ))}
           {(preview?.planned?.length || 0) > 40 ? <p className="text-xs text-pink-100/70">+{(preview?.planned?.length || 0) - 40} more.</p> : null}
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm === "compensation" && Boolean(compensationPreview)}
+        title="Restore the previous setup state?"
+        detail="This restores only settings and mappings that still match the saved plan's safety checks. Discord resources created by the plan are retained; this operation does not delete channels or roles. Conflicts and uncertain changes remain for manual review."
+        confirmLabel="Restore previous settings"
+        busy={busyAction === "plan-compensate"}
+        locked={locked && busyAction !== "plan-compensate"}
+        confirmDisabled={!compensationPreview?.canExecute || !compensationPreview.items.some((item) => item.status === "ready")}
+        onConfirm={() => {
+          if (!compensationPreview) return;
+          void post("plan-compensate", {
+            action: "plan-compensate",
+            planId: compensationPreview.planId,
+            previewToken: compensationPreview.previewToken,
+          });
+        }}
+        onCancel={() => { setConfirm(""); setCompensationPreview(null); }}
+      >
+        <div className="max-h-64 space-y-2 overflow-y-auto">
+          {(compensationPreview?.items || []).map((item) => (
+            <div key={item.actionId} className="rounded-lg border border-red-900/40 px-3 py-2">
+              <p className="text-xs font-black uppercase text-pink-200">{item.status.replace(/_/g, " ")}</p>
+              <p className="text-sm text-red-100">{item.actionId}</p>
+              {item.reason ? <p className="mt-1 text-xs text-pink-100/70">{item.reason}</p> : null}
+            </div>
+          ))}
         </div>
       </ConfirmDialog>
 

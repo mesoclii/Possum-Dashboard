@@ -8,7 +8,7 @@ export type DashboardCommandEntry = {
 };
 
 function normalize(value: string): string {
-  return value.toLocaleLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").trim();
+  return value.toLocaleLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
 }
 
 export function createDashboardCommandEntries(

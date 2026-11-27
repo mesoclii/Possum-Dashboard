@@ -39,3 +39,10 @@ test("duplicate navigation routes appear once and retain their alternate labels 
   assert.equal(entries[0].aliases.includes("Server Message of the Day"), true);
   assert.equal(palette.searchDashboardCommands(entries, "server message").length, 1);
 });
+
+test("command palette search ignores repeated whitespace and letter case", () => {
+  const entries = palette.createDashboardCommandEntries([], [
+    { label: "Socials", items: [{ href: "/tcg", label: "Possum Underworld TCG" }] },
+  ]);
+  assert.deepEqual(palette.searchDashboardCommands(entries, "  UNDERWORLD   tcg ").map((entry) => entry.href), ["/tcg"]);
+});

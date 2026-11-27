@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useDashboardSessionState } from "@/components/possum/useDashboardSessionState";
 import { usePublicFeatureVisibility } from "@/components/possum/usePublicFeatureVisibility";
@@ -10,6 +10,7 @@ import { createDashboardCommandEntries, searchDashboardCommands } from "@/lib/da
 
 export default function DashboardCommandPalette() {
   const router = useRouter();
+  const paletteId = useId();
   const { isMasterOwner, isPrimaryOwner, isPokemonOperator } = useDashboardSessionState();
   const featureVisibility = usePublicFeatureVisibility();
   const [open, setOpen] = useState(false);
@@ -110,6 +111,11 @@ export default function DashboardCommandPalette() {
               <input
                 ref={inputRef}
                 id="dashboard-command-search"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="true"
+                aria-controls={`${paletteId}-results`}
+                aria-activedescendant={results[activeIndex] ? `${paletteId}-option-${activeIndex}` : undefined}
                 autoComplete="off"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -131,10 +137,11 @@ export default function DashboardCommandPalette() {
               <p className="mt-2 text-xs text-pink-100/55">Searches pages available to your current role and selected feature access.</p>
             </div>
 
-            <div role="listbox" aria-label="Dashboard pages" className="max-h-[55vh] overflow-y-auto p-2">
+            <div id={`${paletteId}-results`} role="listbox" aria-label="Dashboard pages" className="max-h-[55vh] overflow-y-auto p-2">
               {results.length ? results.map((entry, index) => (
                 <button
                   key={entry.href}
+                  id={`${paletteId}-option-${index}`}
                   type="button"
                   role="option"
                   aria-selected={index === activeIndex}

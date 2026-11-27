@@ -567,6 +567,20 @@ export default function InfrastructureClient() {
       const json = await readJson(response);
       if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) return;
       if (!response.ok || json.success === false) {
+        if (["plan-run", "plan-resume", "plan-cancel", "plan-compensate"].includes(String(body.action))) {
+          const refreshedResponse = await fetch(
+            `/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`,
+            { cache: "no-store" },
+          ).catch(() => null);
+          if (refreshedResponse?.ok) {
+            const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
+            if (readDashboardGuildId() === guildId && readDashboardUserId() === userId) {
+              if (refreshed.activePlan?.plan) setActivePlan(refreshed.activePlan);
+              else setActivePlan(null);
+              if (refreshed.report?.guildId === guildId) setReport(refreshed.report);
+            }
+          }
+        }
         notify("err", `Request failed (${response.status})`, json.error || "The bot API did not return an error message.");
         return;
       }

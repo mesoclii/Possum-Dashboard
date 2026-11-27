@@ -41,9 +41,9 @@ for (const initial of [undefined, true]) {
     try {
       const file = path.join(__dirname, "..", "src", "app", "dashboard", "economy", "radio-birthday", "RadioBirthdayClient.tsx");
       const js = ts.transpileModule(fs.readFileSync(file, "utf8"), {
-        compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+        compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
       }).outputText;
-      const module = { exports: {} };
+      const testModule = { exports: {} };
       new Function("require", "module", "exports", js)((name) => {
         if (name === "react/jsx-runtime") return jsx;
         if (name === "react") return {
@@ -62,8 +62,8 @@ for (const initial of [undefined, true]) {
           },
         };
         return require(name);
-      }, module, module.exports);
-      const render = () => { index = 0; effectIndex = 0; return nodes(module.exports.default()); };
+      }, testModule, testModule.exports);
+      const render = () => { index = 0; effectIndex = 0; return nodes(testModule.exports.default()); };
       render();
       render();
       await new Promise((resolve) => setImmediate(resolve));

@@ -2,8 +2,9 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
+import { summarizeSetupPlan, type SetupPlan, type SetupPlanAction } from "./setupPlan";
 
-type DirectoryRow = { id: string; name: string; kind?: string; parentId?: string; botPermissions?: { status?: string; flags?: string[] } };
+type DirectoryRow = { id: string; name: string; kind?: string; managed?: boolean; parentId?: string; botPermissions?: { status?: string } };
 type FeatureOption = { id: string; name: string; group: string; description: string; protected: boolean; selectable: boolean; selectionStatus?: string };
 type Proposal = {
   id: string;
@@ -33,23 +34,6 @@ type Finding = {
 };
 type AdaptRow = { id: string; engine: string; field: string; resourceId: string; resourceName: string };
 type AdaptPreview = { wrote?: boolean; planned?: AdaptRow[]; skipped?: { id: string; reason: string }[]; reason?: string };
-type SetupPlanAction = {
-  id: string;
-  type: string;
-  status: string;
-  engine?: string;
-  field?: string;
-  resourceType?: string;
-  name?: string;
-  flow?: string;
-  choice?: string;
-  requiredPermissions?: string[];
-  permissionStatus?: string;
-  missingPermissions?: string[];
-  permissionReason?: string;
-  result?: { error?: string; resourceId?: string; reconciled?: boolean } | null;
-};
-type SetupPlan = { id: string; digest: string; state: string; createdAt?: string; expiresAt?: string; actions: SetupPlanAction[] };
 type ActiveSetupPlan = { plan: SetupPlan; canResume?: boolean; canCancel?: boolean; canCompensate?: boolean };
 
 type Report = {
@@ -261,8 +245,9 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     };
   }
   if (action === "approve") {
+    const applied = countOf(result.applied);
     return {
-      title: `Approved ${countOf(result.applied)} empty field${countOf(result.applied) === 1 ? "" : "s"}`,
+      title: applied ? `Connected ${applied} destination${applied === 1 ? "" : "s"}` : "No destination connected",
       lines: [
         `Skipped ${countOf(result.skipped)}. Populated IDs were left unchanged.`,
         ...rowsOf(result.skipped).slice(0, 5).map((row) => `Skipped ${String(row.id || "")}: ${String(row.reason || "")}`),
@@ -432,6 +417,8 @@ export default function InfrastructureClient() {
   const [activePlan, setActivePlan] = useState<ActiveSetupPlan | null>(null);
   const [planProgress, setPlanProgress] = useState("");
   const [query, setQuery] = useState("");
+  const [showAllHealth, setShowAllHealth] = useState(false);
+  const [showAllMappings, setShowAllMappings] = useState(false);
   const [routes, setRoutes] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [allowSharedResources, setAllowSharedResources] = useState<Record<string, boolean>>({});
@@ -566,12 +553,13 @@ export default function InfrastructureClient() {
         }
         const nextPlan: ActiveSetupPlan = { plan: json.plan, canResume: true, canCancel: true, canCompensate: false };
         setActivePlan(nextPlan);
-        setReport(json.report || report);
         setPlanProgress("");
-        setConfirm("setup-plan");
-        const creates = json.plan.actions.filter((action) => action.type === "create_resource").length;
-        const mappings = json.plan.actions.filter((action) => action.type === "map_existing_resource").length;
-        notify("ok", "Setup plan ready for review", `${creates} resource creation${creates === 1 ? "" : "s"}, ${mappings} existing mapping${mappings === 1 ? "" : "s"}, and ${json.plan.actions.length} total checkpoint${json.plan.actions.length === 1 ? "" : "s"}. Nothing has been applied.`);
+        const summary = summarizeSetupPlan(json.plan.actions);
+        if (summary.total) setConfirm("setup-plan");
+        notify("ok", summary.total ? "Plan ready for approval" : "No changes to apply",
+          summary.total
+            ? `${summary.channels} channels, ${summary.roles} roles, ${summary.categories} categories to create · ${summary.mappings} destinations to connect. Approve the plan to apply it.`
+            : "No new connections were found. You can choose a destination for any unresolved field below.");
         return;
       }
       if (json.result?.duplicate === true || json.result?.stale === true) {
@@ -680,7 +668,7 @@ export default function InfrastructureClient() {
         }
         currentPlan = approval.plan;
         setActivePlan({ plan: currentPlan, canResume: true, canCancel: true });
-      } else if (["partial", "failed"].includes(currentPlan.state)) {
+      } else if (["partial", "failed", "recovery_required"].includes(currentPlan.state)) {
         const { response, json } = await sendPlanRequest("plan-resume");
         const resumed = json.result as { plan?: SetupPlan; error?: string } | undefined;
         if (!response.ok || json.success === false || !resumed?.plan) {
@@ -720,7 +708,9 @@ export default function InfrastructureClient() {
         const nowCompleted = currentPlan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
         setPlanProgress(done ? `Complete · ${nowCompleted} of ${currentPlan.actions.length} checkpoints verified.` : `Checkpoint verified · ${nowCompleted} of ${currentPlan.actions.length} complete.`);
         if (done) {
-          notify("ok", "Setup plan completed", `${nowCompleted} durable checkpoints completed and verified.`);
+          const summary = summarizeSetupPlan(currentPlan.actions, true);
+          notify("ok", summary.creates || summary.mappings ? "Infrastructure changes applied" : "No Discord resources changed",
+            `${summary.creates} resources created and verified · ${summary.mappings} existing destinations connected.`);
           break;
         }
         if (step === total + 1) notify("err", "Setup plan paused", "The plan did not reach a terminal state within its recorded action count. Its checkpoints are saved; resume it to continue.");
@@ -819,6 +809,9 @@ export default function InfrastructureClient() {
       };
     });
   }, [report]);
+  const healthFindings = (report?.findings || report?.issues || []).filter((finding) => !isPanelField(finding));
+  const pendingMappings = (report?.proposals || []).filter((proposal) => proposal.status !== "populated" && !isPanelField(proposal));
+  const activePlanSummary = summarizeSetupPlan(activePlan?.plan.actions || [], activePlan?.plan.state === "succeeded");
   const planPermissionBlocked = Boolean(activePlan?.plan.actions.some((action) =>
     action.type === "create_resource" && action.permissionStatus !== "verified"
   ));
@@ -860,9 +853,13 @@ export default function InfrastructureClient() {
         <p className="mt-2 text-sm text-pink-100/80">{report?.ready ? "Observed by the saved scan." : report?.reason || "Scan the server to build a read-only directory."}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
-          <ActionButton label="Build setup plan" tip={selectedFeatureCount ? "Create a saved, owner-reviewable plan for only the systems selected in Server Setup. Nothing changes until approval." : "Choose the systems this server uses in Server Setup first. Infrastructure will not assume every feature is enabled."} busy={busyAction === "setup-plan-preview"} busyLabel="Planning…" locked={locked || !report?.ready || selectedFeatureCount === 0} onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report), flowChoices: { onboarding: "keep", verification: "keep", preOnboarding: "keep" } })} />
-          {selectedFeatureCount === 0 ? <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-black uppercase">Choose systems in Server Setup</a> : null}
-          <ActionButton label="Preview existing matches" tip="Auto-Adapt only fills empty mappings when exactly one existing resource is a safe match. It cannot create missing resources." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked || !report?.ready} onClick={() => post("adapt-preview", { action: "adapt" })} />
+          <ActionButton label="Connect existing server" tip="Scan this server for clear channel, category, and role matches. Review the feature mappings before applying them."
+            busy={busyAction === "connect-existing"} busyLabel="Finding matches…" locked={locked}
+            onClick={() => post("connect-existing", { action: "plan-preview", settings: { connectExisting: true } })} />
+          <ActionButton label="Plan missing resources" tip="Review missing resources for systems selected in Server Setup."
+            busy={busyAction === "setup-plan-preview"} busyLabel="Planning…" locked={locked || selectedFeatureCount === 0}
+            onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report) })} />
+          <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-black uppercase">Guided Server Setup</a>
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.autopilotEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Autopilot is ${report?.settings?.autopilotEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.autopilotEnabled ? "●" : "○"}</span> Autopilot: {report?.settings?.autopilotEnabled ? "ON" : "OFF"}</span>
           <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="Autopilot only reroutes to a unique, unused existing channel/category for selected systems. It cannot create resources or touch protected flows." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.autopilotEnabled && selectedFeatureCount === 0)} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.automaticProvisioningEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Automatic resource creation is ${report?.settings?.automaticProvisioningEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.automaticProvisioningEnabled ? "●" : "○"}</span> Auto-create: {report?.settings?.automaticProvisioningEnabled ? "ON" : "OFF"}</span>
@@ -883,12 +880,17 @@ export default function InfrastructureClient() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] possum-soft">Persistent setup execution</p>
-              <h2 id="setup-plan-heading" className="mt-1 text-lg font-black uppercase text-red-200">Saved plan · {activePlan.plan.state.replace(/_/g, " ")}</h2>
+              <h2 id="setup-plan-heading" className="mt-1 text-lg font-black uppercase text-red-200">
+                {activePlan.plan.state === "succeeded" ? "Setup applied" : activePlan.plan.state === "draft" ? "Awaiting approval" : `Setup · ${activePlan.plan.state.replace(/_/g, " ")}`}
+              </h2>
+              <p className="mt-1 text-sm text-pink-100/80">{activePlan.plan.state === "succeeded"
+                ? `${activePlanSummary.creates} created · ${activePlanSummary.mappings} existing destinations connected`
+                : `${activePlanSummary.creates} to create · ${activePlanSummary.mappings} existing destinations to connect`}</p>
               <p className="mt-1 text-sm text-red-100/80">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length} of {activePlan.plan.actions.length} checkpoints verified{planProgress ? ` · ${planProgress}` : ""}</p>
               <p className="mt-1 text-xs text-pink-100/70">Each bot request runs one checkpoint. The plan is saved on the bot, so an interrupted run can resume from its last verified action.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {activePlan.plan.state === "draft" ? <ActionButton label="Review and approve" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
+              {activePlan.plan.state === "draft" && activePlan.canResume && activePlanSummary.total > 0 ? <ActionButton label="Review and apply" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
               {activePlan.canResume && activePlan.plan.state !== "draft" ? <ActionButton label="Resume plan" tip="Continue the saved plan from its next safe checkpoint." busy={busyAction === "setup-plan"} busyLabel="Running…" locked={locked} onClick={() => void executeSetupPlan()} /> : null}
               {activePlan.canCancel ? <ActionButton label="Cancel plan" tip="Cancel pending actions. Anything already created stays and remains recorded." busy={false} locked={locked} onClick={() => ask({ title: "Cancel this saved plan?", detail: "Pending actions will stop. Anything already created stays in the server and is listed in the saved plan.", confirmLabel: "Cancel plan", body: { action: "plan-cancel", planId: activePlan.plan.id } })} /> : null}
             </div>
@@ -897,7 +899,7 @@ export default function InfrastructureClient() {
             {activePlan.plan.actions.map((action) => (
               <div key={action.id} className="rounded-lg border border-red-900/40 px-3 py-2">
                 <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.status.replace(/_/g, " ")} · {action.type.replace(/_/g, " ")}</p>
-                <p className="mt-1 text-sm font-bold text-red-100">{action.name || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Setup settings"}</p>
+                <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Setup settings"}</p>
                 {action.missingPermissions?.length ? <p className="mt-1 text-xs text-amber-200">Needs bot permission: {action.missingPermissions.join(", ")}</p> : null}
                 {action.result?.error ? <p className="mt-1 text-xs text-red-200">{action.result.error}</p> : null}
               </div>
@@ -905,6 +907,88 @@ export default function InfrastructureClient() {
           </div>
         </section>
       ) : null}
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Server health</h2>
+        <div className="mt-3 space-y-2">
+          {(showAllHealth ? healthFindings : healthFindings.slice(0, 6)).map((finding) => (
+            <div key={`${finding.problemKind}-${finding.engine}-${finding.field}-${finding.message}`} className="rounded-lg border border-red-900/40 px-3 py-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-pink-200">{finding.severity} · {finding.problemKind}</p>
+              <p className="text-sm font-bold text-red-100">{finding.engine}.{finding.field}</p>
+              <p className="text-xs text-red-100/80">{finding.message}</p>
+              <p className="text-xs text-pink-100/80">{finding.recommendation}</p>
+              {finding.flexible && finding.severity !== "ignored" ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <ActionButton label="Turn off" tip="Hide this non-critical gap for this server. Critical gaps cannot be turned off." busy={false} locked={locked} onClick={() => ask({ title: "Turn off this gap", detail: `${finding.engine}.${finding.field} will be ignored for this server. The saved mapping is not deleted.`, confirmLabel: "Turn off", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "ignore" } })} />
+                  {finding.protectedFlow ? null : (
+                    <>
+                      <select className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={routes[`${finding.engine}:${finding.field}`] || ""} onChange={(event) => setRoutes((current) => ({ ...current, [`${finding.engine}:${finding.field}`]: event.target.value }))}>
+                        <option value="">Point at an existing {finding.resourceType || "resource"}</option>
+                        {(finding.resourceType === "role"
+                          ? report?.directory?.roles || []
+                          : finding.resourceType === "category"
+                            ? report?.directory?.categories || []
+                            : report?.directory?.channels || []).map((row) => (
+                          <option key={row.id} value={row.id}>{row.name}</option>
+                        ))}
+                      </select>
+                      <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[`${finding.engine}:${finding.field}`] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [`${finding.engine}:${finding.field}`]: event.target.checked }))} /> Share destination with other features</label>
+                      <ActionButton label="Use this" tip="Point this field at the selected existing Discord resource." busy={false} locked={locked || !routes[`${finding.engine}:${finding.field}`]} onClick={() => ask({ title: "Use this resource", detail: `${finding.engine}.${finding.field} will use the selected existing resource. Protected fields cannot be written.`, confirmLabel: "Use this", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "reroute", channelId: routes[`${finding.engine}:${finding.field}`] || "", allowSharedResource: allowSharedResources[`${finding.engine}:${finding.field}`] === true } })} />
+                    </>
+                  )}
+                </div>
+              ) : null}
+              {finding.severity === "ignored" ? (
+                <ActionButton label="Turn back on" tip="Clear the ignore decision for this field." busy={false} locked={locked} onClick={() => ask({ title: "Turn this gap back on", detail: `${finding.engine}.${finding.field} will show in health again.`, confirmLabel: "Turn back on", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "clear" } })} />
+              ) : null}
+            </div>
+          ))}
+        </div>
+        {!healthFindings.length ? <p className="mt-2 text-sm text-pink-100/70">{report?.ready ? "No health findings for the selected systems." : "Scan the server to see health findings."}</p> : null}
+        {healthFindings.length > 6 ? <button type="button" className="mt-3 text-sm font-bold underline" onClick={() => setShowAllHealth(!showAllHealth)}>{showAllHealth ? "Show fewer findings" : `Show all ${healthFindings.length} findings`}</button> : null}
+      </section>
+
+      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <h2 className="text-lg font-black uppercase text-red-200">Link existing channels and roles</h2>
+        <div className="mt-3 space-y-2">
+          {(showAllMappings ? pendingMappings : pendingMappings.slice(0, 6)).map((proposal) => (
+            <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">
+              <p className="text-sm font-bold text-red-100">{proposal.engineLabel || proposal.engine}.{proposal.field}</p>
+              {proposal.intendedName ? <p className="text-xs text-pink-100/70">Intended destination: {proposal.intendedName}</p> : null}
+              <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
+              {proposal.status === "ready" ? (
+                <ActionButton label="Approve empty field" tip="Write the suggested resource into this empty field. A populated id is not overwritten." busy={false} locked={locked} onClick={() => ask({ title: "Approve empty field", detail: `${proposal.engine}.${proposal.field} will be filled only if it is still empty.`, confirmLabel: "Approve", body: { action: "approve", proposalIds: [proposal.id] } })} />
+              ) : null}
+              {!proposal.protectedFlow ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <select aria-label={`Existing destination for ${proposal.intendedName || proposal.engine}`}
+                    className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={choices[proposal.id] || ""}
+                    onChange={(event) => setChoices((current) => ({ ...current, [proposal.id]: event.target.value }))}>
+                    <option value="">Choose an existing {proposal.resourceType || "channel"}</option>
+                    {(proposal.resourceType === "role" ? report?.directory?.roles || []
+                      : proposal.resourceType === "category" ? report?.directory?.categories || []
+                        : (report?.directory?.channels || []).filter((row) => /voice/i.test(proposal.field)
+                          ? row.kind === "voice" : /forum/i.test(proposal.field) ? row.kind === "forum" : ["text", "announcement"].includes(row.kind || "")))
+                      .filter((row) => row.name !== "@everyone" && row.managed !== true)
+                      .map((row) => <option key={row.id} value={row.id}>{row.name}{proposal.matches?.some((match) => match.id === row.id) ? " · suggested" : ""}</option>)}
+                  </select>
+                  <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[proposal.id] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [proposal.id]: event.target.checked }))} /> Share destination with other features</label>
+                  <ActionButton label="Connect destination" tip="Save the selected destination in this feature's dashboard settings."
+                    busy={false} locked={locked || !choices[proposal.id]}
+                    onClick={() => ask({
+                      title: "Connect destination",
+                      detail: `Save the selected resource for ${proposal.intendedName || proposal.engine}.`,
+                      confirmLabel: "Connect",
+                      body: { action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] }, allowSharedResource: allowSharedResources[proposal.id] === true },
+                    })} />
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+        {!pendingMappings.length ? <p className="mt-2 text-sm text-pink-100/70">No pending mappings for the selected systems.</p> : null}
+        {pendingMappings.length > 6 ? <button type="button" className="mt-3 text-sm font-bold underline" onClick={() => setShowAllMappings(!showAllMappings)}>{showAllMappings ? "Show fewer destinations" : `Show all ${pendingMappings.length} destinations`}</button> : null}
+      </section>
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <div>
@@ -948,8 +1032,8 @@ export default function InfrastructureClient() {
         </div>
       </section>
 
-      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <h2 className="text-lg font-black uppercase text-red-200">Directory</h2>
+      <details className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
+        <summary className="cursor-pointer text-lg font-black uppercase text-red-200">Channel and role inventory</summary>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, or roles" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
         <div className="mt-3 space-y-2">
           {rows.map((row) => (
@@ -959,12 +1043,12 @@ export default function InfrastructureClient() {
                 <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">
                   {row.kind}{row.parentId ? ` · ${report?.directory?.categories?.find((category) => category.id === row.parentId)?.name || "in a category"}` : ""}
                 </p>
-                <p className="text-xs text-red-100/70">{row.botPermissions?.flags?.length ? row.botPermissions.flags.join(", ") : row.botPermissions?.status || "role"}{report?.createdResources?.some((resource) => resource.id === row.id) ? " · Possum created" : ""}</p>
+                {report?.createdResources?.some((resource) => resource.id === row.id) ? <p className="text-xs text-red-100/70">Created by Possum</p> : null}
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </details>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Continuous watch</h2>
@@ -983,69 +1067,9 @@ export default function InfrastructureClient() {
         </div>
       </section>
 
-      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <h2 className="text-lg font-black uppercase text-red-200">Health</h2>
-        <div className="mt-3 space-y-2">
-          {(report?.findings || report?.issues || []).filter((finding) => !isPanelField(finding)).slice(0, 40).map((finding) => (
-            <div key={`${finding.problemKind}-${finding.engine}-${finding.field}-${finding.message}`} className="rounded-lg border border-red-900/40 px-3 py-2">
-              <p className="text-xs uppercase tracking-[0.14em] text-pink-200">{finding.severity} · {finding.problemKind}</p>
-              <p className="text-sm font-bold text-red-100">{finding.engine}.{finding.field}</p>
-              <p className="text-xs text-red-100/80">{finding.message}</p>
-              <p className="text-xs text-pink-100/80">{finding.recommendation}</p>
-              {finding.flexible && finding.severity !== "ignored" ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <ActionButton label="Turn off" tip="Hide this non-critical gap for this server. Critical gaps cannot be turned off." busy={false} locked={locked} onClick={() => ask({ title: "Turn off this gap", detail: `${finding.engine}.${finding.field} will be ignored for this server. The saved mapping is not deleted.`, confirmLabel: "Turn off", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "ignore" } })} />
-                  {finding.protectedFlow ? null : (
-                    <>
-                      <select className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={routes[`${finding.engine}:${finding.field}`] || ""} onChange={(event) => setRoutes((current) => ({ ...current, [`${finding.engine}:${finding.field}`]: event.target.value }))}>
-                        <option value="">Point at an existing {finding.resourceType || "resource"}</option>
-                        {(finding.resourceType === "role"
-                          ? report?.directory?.roles || []
-                          : finding.resourceType === "category"
-                            ? report?.directory?.categories || []
-                            : report?.directory?.channels || []).map((row) => (
-                          <option key={row.id} value={row.id}>{row.name}</option>
-                        ))}
-                      </select>
-                      <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[`${finding.engine}:${finding.field}`] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [`${finding.engine}:${finding.field}`]: event.target.checked }))} /> Share destination with other features</label>
-                      <ActionButton label="Use this" tip="Point this field at the selected existing Discord resource." busy={false} locked={locked} onClick={() => ask({ title: "Use this resource", detail: `${finding.engine}.${finding.field} will use the selected existing resource. Protected fields cannot be written.`, confirmLabel: "Use this", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "reroute", channelId: routes[`${finding.engine}:${finding.field}`] || "", allowSharedResource: allowSharedResources[`${finding.engine}:${finding.field}`] === true } })} />
-                    </>
-                  )}
-                </div>
-              ) : null}
-              {finding.severity === "ignored" ? (
-                <ActionButton label="Turn back on" tip="Clear the ignore decision for this field." busy={false} locked={locked} onClick={() => ask({ title: "Turn this gap back on", detail: `${finding.engine}.${finding.field} will show in health again.`, confirmLabel: "Turn back on", body: { action: "decide", engine: finding.engine, field: finding.field, decision: "clear" } })} />
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </section>
 
-      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <h2 className="text-lg font-black uppercase text-red-200">Proposed mappings (tracked features)</h2>
-        <div className="mt-3 space-y-2">
-          {(report?.proposals || []).filter((proposal) => proposal.status !== "populated" && !isPanelField(proposal)).slice(0, 40).map((proposal) => (
-            <div key={proposal.id} className="rounded-lg border border-red-900/40 px-3 py-2">
-              <p className="text-sm font-bold text-red-100">{proposal.engineLabel || proposal.engine}.{proposal.field}</p>
-              {proposal.intendedName ? <p className="text-xs text-pink-100/70">Intended destination: {proposal.intendedName}</p> : null}
-              <p className="text-xs text-pink-100/80">{proposal.status} · {proposal.reason}</p>
-              {proposal.status === "ready" ? (
-                <ActionButton label="Approve empty field" tip="Write the suggested resource into this empty field. A populated id is not overwritten." busy={false} locked={locked} onClick={() => ask({ title: "Approve empty field", detail: `${proposal.engine}.${proposal.field} will be filled only if it is still empty.`, confirmLabel: "Approve", body: { action: "approve", proposalIds: [proposal.id] } })} />
-              ) : null}
-              {["ambiguous", "duplicate"].includes(proposal.status) && proposal.matches?.length ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <select className="rounded-md border border-red-900/50 bg-black px-2 py-1 text-xs text-red-100" value={choices[proposal.id] || ""} onChange={(event) => setChoices((current) => ({ ...current, [proposal.id]: event.target.value }))}>
-                    <option value="">Choose a match</option>
-                    {proposal.matches.map((match) => <option key={match.id} value={match.id}>{match.name}</option>)}
-                  </select>
-                  <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[proposal.id] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [proposal.id]: event.target.checked }))} /> Share destination with other features</label>
-                  <ActionButton label="Use this match" tip="Choose an existing channel or role before applying the mapping." busy={false} locked={locked || !choices[proposal.id]} onClick={() => ask({ title: "Use this match", detail: `${proposal.engine}.${proposal.field} will use the selected match. Shared destinations are allowed only when explicitly checked.`, confirmLabel: "Use this match", body: { action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] || "" }, allowSharedResource: allowSharedResources[proposal.id] === true } })} />
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </section>
+
+
 
       <ConfirmDialog
         open={Boolean(pending)}
@@ -1080,20 +1104,26 @@ export default function InfrastructureClient() {
       <ConfirmDialog
         open={confirm === "setup-plan" && Boolean(activePlan?.plan)}
         title={`Review ${activePlan?.plan.actions.length || 0} setup checkpoint${activePlan?.plan.actions.length === 1 ? "" : "s"}`}
-        detail="This saved plan uses the currently tracked features, creates only the listed missing resources, maps only safe empty fields, and keeps onboarding, verification, and pre-onboarding unchanged. Approval authorizes execution one verified checkpoint at a time."
-        confirmLabel="Approve and run plan"
+        detail={activePlan?.plan.intent === "connect-existing"
+          ? "Review the destinations the bot found in this server. Apply the plan to connect them to the listed feature settings."
+          : "Review the exact resources to create and the existing destinations to connect."}
+        confirmLabel="Apply reviewed plan"
         busy={busyAction === "setup-plan"}
         locked={locked && busyAction !== "setup-plan"}
-        confirmDisabled={planPermissionBlocked}
+        confirmDisabled={planPermissionBlocked || activePlanSummary.total === 0}
         onConfirm={() => void executeSetupPlan()}
         onCancel={() => setConfirm("")}
       >
         {planPermissionBlocked ? <p className="mb-2 rounded-lg border border-amber-700/60 bg-amber-950/30 p-2 text-xs text-amber-100">The bot is missing a required Discord permission for at least one planned resource. The plan cannot run until Discord permissions are corrected and a fresh preview is created.</p> : null}
+        {activePlan?.plan.intent === "connect-existing" && activePlan.plan.actions.some((action) =>
+          action.type === "configure_autopilot" && action.changes?.some((change) => change.key === "automaticProvisioningEnabled")) ? (
+          <p className="mb-2 text-xs text-amber-100">This plan turns off Auto-create for this server so it can reuse your existing layout.</p>
+        ) : null}
         <div className="max-h-72 space-y-2 overflow-y-auto">
           {(activePlan?.plan.actions || []).map((action) => (
             <div key={action.id} className="rounded-lg border border-red-900/50 px-3 py-2">
               <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.type.replace(/_/g, " ")} · {action.resourceType || action.flow || "settings"}</p>
-              <p className="mt-1 text-sm font-bold text-red-100">{action.name || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Apply selected setup settings"}</p>
+              <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Apply selected setup settings"}</p>
               {action.requiredPermissions?.length ? <p className="mt-1 text-xs text-pink-100/70">Bot permission: {action.requiredPermissions.join(", ")}{action.permissionStatus === "verified" ? " · verified" : " · not verified"}</p> : null}
             </div>
           ))}

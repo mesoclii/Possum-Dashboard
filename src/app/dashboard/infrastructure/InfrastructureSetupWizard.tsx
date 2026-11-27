@@ -1074,6 +1074,14 @@ export default function InfrastructureSetupWizard() {
                   <span className="ml-2 text-xs text-pink-100/55">{action.type.replace(/_/g, " ")}</span>
                   {action.attempts ? <span className="ml-2 text-[11px] text-pink-100/45">Attempt {action.attempts}</span> : null}
                   {action.result?.error || action.result?.reason ? <span className="mt-1 block text-xs text-red-200">{action.result.error || action.result.reason}</span> : null}
+                  {action.result?.skipReason ? <span className="mt-1 block text-xs text-amber-100">Skipped intentionally: {action.result.skipReason}</span> : null}
+                  {action.history?.length ? (
+                    <span className="mt-1 block text-[11px] text-pink-100/55">
+                      Previous attempts: {action.history.slice(-3).map((entry) =>
+                        `${entry.attempts || "?"} · ${String(entry.status || "unknown").replace(/_/g, " ")}${entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}`
+                      ).join(" | ")}
+                    </span>
+                  ) : null}
                   {action.dependencies?.length ? <span className="mt-1 block text-[11px] text-pink-100/45">Waits for: {action.dependencies.join(", ")}</span> : null}
                   {action.missingPermissions?.length ? <span className="mt-1 block text-[11px] text-amber-200">Missing permissions: {action.missingPermissions.join(", ")}</span> : null}
                 </span>

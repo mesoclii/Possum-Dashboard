@@ -493,6 +493,7 @@ export default function InfrastructureClient() {
       setReport(null);
       setActivePlan(null);
       setPlanProgress("");
+      setCompensationPreview(null);
       if (!nextGuild) return;
       fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(nextGuild)}&userId=${encodeURIComponent(nextUser)}`, { cache: "no-store" })
         .then(async (response) => {
@@ -633,6 +634,7 @@ export default function InfrastructureClient() {
       setPreview(null);
       setConfirm("");
       setPending(null);
+      if (body.action === "plan-compensate") setCompensationPreview(null);
       const refreshedResponse = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;

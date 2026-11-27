@@ -9,7 +9,7 @@ const Database = require("better-sqlite3");
 function load(file, mocks) {
   const filename = path.join(__dirname, "..", "src", ...file.split("/"));
   const js = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-    compilerOptions: { testModule: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const testModule = { exports: {} };
   new Function("require", "module", "exports", js)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), testModule, testModule.exports);

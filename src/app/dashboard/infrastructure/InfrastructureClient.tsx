@@ -998,6 +998,21 @@ export default function InfrastructureClient() {
                 {action.result?.retryable === true ? <p className="mt-1 text-[11px] font-bold uppercase text-amber-200">Safe retry available</p> : null}
                 {action.result?.recoveryRequired === true ? <p className="mt-1 text-[11px] font-bold uppercase text-red-200">Manual reconciliation required</p> : null}
                 {action.result?.error || action.result?.reason || action.lastError ? <p className="mt-1 text-xs text-red-200">{action.result?.error || action.result?.reason || action.lastError}</p> : null}
+                {action.result?.skipReason ? <p className="mt-1 text-xs text-amber-100">Skipped intentionally: {action.result.skipReason}</p> : null}
+                {action.history?.length ? (
+                  <div className="mt-2 border-t border-red-900/30 pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-pink-100/60">Previous execution attempts</p>
+                    <div className="mt-1 space-y-1">
+                      {action.history.slice(-3).map((entry, index) => (
+                        <p key={`${action.id}-history-${index}`} className="text-[11px] text-pink-100/65">
+                          Attempt {entry.attempts || index + 1}: {String(entry.status || "unknown").replace(/_/g, " ")}
+                          {entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}
+                          {entry.result?.error ? ` · ${entry.result.error}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

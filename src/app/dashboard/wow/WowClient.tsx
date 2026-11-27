@@ -216,7 +216,7 @@ export default function WowClient() {
     message: "Be online 15 minutes early with consumables ready.",
     channelId: "",
     expiresMinutes: String(cfg.motd.autoDeleteMinutes || 0),
-    scheduledAt: localDateTimeValue(new Date(Date.now() + 60 * 60 * 1000)),
+    scheduledAt: "",
   });
 
   function updatePreset(index: number, patch: Partial<PresetConfig>) {
@@ -245,7 +245,9 @@ export default function WowClient() {
   }
 
   async function scheduleMotd() {
-    const scheduledAt = new Date(motdForm.scheduledAt);
+    const scheduledAt = motdForm.scheduledAt
+      ? new Date(motdForm.scheduledAt)
+      : new Date(Date.now() + 60 * 60 * 1000);
     if (!Number.isFinite(scheduledAt.getTime())) return;
     await runAction("scheduleMotd", {
       title: motdForm.title,

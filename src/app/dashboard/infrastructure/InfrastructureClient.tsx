@@ -842,11 +842,23 @@ export default function InfrastructureClient() {
         ))}
       </div>
 
-<section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
-        <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
-        <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
-        <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0} · Tracking {report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)} feature{(report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)) === 1 ? "" : "s"}</p>
+<section className="relative overflow-hidden rounded-2xl border border-pink-700/40 bg-gradient-to-br from-[#240912] via-[#10070d] to-black p-5 shadow-[0_18px_70px_rgba(110,12,48,0.18)] possum-border sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border border-pink-400/10 bg-pink-500/[0.04] blur-2xl" />
+        <div className="relative">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-pink-200/80">Possum · Server Intelligence</p>
+            <span className="inline-flex items-center gap-2 rounded-full border border-pink-500/30 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-pink-100"><span className="h-1.5 w-1.5 rounded-full bg-pink-300 shadow-[0_0_12px_rgba(249,168,212,0.9)]" /> {report?.ready ? "Live inventory" : "Awaiting first scan"}</span>
+          </div>
+          <h1 className="mt-3 max-w-4xl text-3xl font-black uppercase leading-[1.04] tracking-[0.035em] text-white sm:text-4xl">Setup &amp; Infrastructure</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-rose-100/80 sm:text-base">Your server, understood. Possum maps the systems you enable to the roles, channels, categories, permissions, and configuration they depend on. Review the plan, approve the changes, and verify what was actually applied.</p>
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Health score</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.healthScore ?? "—"}<span className="ml-1 text-xs font-bold text-pink-100/50">/ 100</span></p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Configured</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.setup?.configured ?? "—"}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Needs attention</p><p className="mt-1 text-2xl font-black tabular-nums text-amber-200">{report?.setup?.needsAttention ?? report?.counts?.critical ?? "—"}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Systems tracked</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.trackedEngineCount ?? (report?.allEngines?.length ?? "—")}</p></div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-rose-100/65"><span>{report?.counts?.critical ?? 0} critical</span><span>{report?.counts?.warning ?? 0} warnings</span><span>{report?.counts?.optional ?? report?.counts?.notice ?? 0} optional</span><span>{report?.setup?.missing ?? 0} missing mappings</span></div>
+        </div>
         {report?.onboarding?.status === "needs-choice" ? (
           <p className="mt-2 text-sm text-pink-100">This server was just discovered. Open Server Setup to choose systems, review resource names, and approve setup.</p>
         ) : null}

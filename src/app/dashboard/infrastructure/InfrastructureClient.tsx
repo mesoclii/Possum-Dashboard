@@ -955,9 +955,12 @@ export default function InfrastructureClient() {
                 <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.status.replace(/_/g, " ")} · {action.type.replace(/_/g, " ")}</p>
                 <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Setup settings"}</p>
                 {action.attempts ? <p className="mt-1 text-[11px] text-pink-100/55">Execution attempts: {action.attempts}</p> : null}
+                {action.updatedAt ? <p className="mt-1 text-[11px] text-pink-100/45">Updated {new Date(action.updatedAt).toLocaleString()}</p> : null}
                 {action.dependencies?.length ? <p className="mt-1 text-[11px] text-pink-100/55">Depends on: {action.dependencies.join(", ")}</p> : null}
                 {action.missingPermissions?.length ? <p className="mt-1 text-xs text-amber-200">Needs bot permission: {action.missingPermissions.join(", ")}</p> : null}
-                {action.result?.error || action.result?.reason ? <p className="mt-1 text-xs text-red-200">{action.result.error || action.result.reason}</p> : null}
+                {action.result?.retryable === true ? <p className="mt-1 text-[11px] font-bold uppercase text-amber-200">Safe retry available</p> : null}
+                {action.result?.recoveryRequired === true ? <p className="mt-1 text-[11px] font-bold uppercase text-red-200">Manual reconciliation required</p> : null}
+                {action.result?.error || action.result?.reason || action.lastError ? <p className="mt-1 text-xs text-red-200">{action.result?.error || action.result?.reason || action.lastError}</p> : null}
               </div>
             ))}
           </div>

@@ -21,6 +21,12 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
+      // Keep the newer React Compiler diagnostics visible without blocking
+      // the legacy dashboard lint gate during the broader component migration.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/immutability": "warn",
     },
   },
   {

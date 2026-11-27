@@ -19,7 +19,7 @@ test("undo proxy is disabled and never forwards tokens while isolation is unreso
     fetchBotApi: async () => { upstreamCalls++; throw new Error("must not forward"); },
   };
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "pages", "api", "bot", "infrastructure.ts"), "utf8");
-  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+  const js = ts.transpileModule(source, { compilerOptions: { testModule: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   const mod = { exports: {} };
   new Function("require", "module", "exports", js)((name) => {
     if (name === "@/lib/botApi") return mocks;

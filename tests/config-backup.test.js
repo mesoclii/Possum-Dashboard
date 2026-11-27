@@ -67,7 +67,7 @@ function fixture(options = {}) {
     },
   };
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "pages", "api", "system", "config-backup.ts"), "utf8");
-  const compiled = ts.transpileModule(source, { compilerOptions: { testModule: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
   const mod = { exports: {} };
   new Function("require", "module", "exports", "process", compiled)((name) => mocks[name] || require(name), mod, mod.exports, process);
   const call = async (method, body = {}, query = { guildId }, origin = "https://dashboard.example") => {

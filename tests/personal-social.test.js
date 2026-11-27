@@ -7,13 +7,25 @@ const ts = require("typescript");
 const Database = require("better-sqlite3");
 
 function load(file, mocks) {
-  const filename = path.join(__dirname, "..", "src", ...file.split("/"));
+  const srcRoot = path.join(__dirname, "..", "src");
+  const filename = path.isAbsolute(file) ? file : path.join(srcRoot, ...file.split("/"));
   const js = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const module = { exports: {} };
-  new Function("require", "module", "exports", js)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports);
-  return module.exports;
+  const compiledModule = { exports: {} };
+  const loadDependency = (name) => {
+    if (Object.hasOwn(mocks, name)) return mocks[name];
+    if (name.startsWith("@/")) {
+      const target = path.join(srcRoot, ...name.slice(2).split("/"));
+      const candidates = [`${target}.ts`, `${target}.tsx`, path.join(target, "index.ts"), path.join(target, "index.tsx")];
+      const resolved = candidates.find((candidate) => fs.existsSync(candidate));
+      if (!resolved) throw new Error(`Cannot resolve Dashboard alias ${name}`);
+      return load(resolved, mocks);
+    }
+    return require(name);
+  };
+  new Function("require", "module", "exports", js)(loadDependency, compiledModule, compiledModule.exports);
+  return compiledModule.exports;
 }
 
 function fixture() {

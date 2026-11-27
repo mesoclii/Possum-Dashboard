@@ -11,11 +11,11 @@ const { renderToStaticMarkup } = require("react-dom/server");
 function load(file, mocks = {}) {
   const filename = path.join(__dirname, "..", "src", ...file.split("/"));
   const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { testModule: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const module = { exports: {} };
-  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports);
-  return module.exports;
+  const testModule = { exports: {} };
+  new Function("require", "module", "exports", code)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), testModule, testModule.exports);
+  return testModule.exports;
 }
 
 const { createJedPrivateClient } = load("lib/jedPrivateClient.ts");

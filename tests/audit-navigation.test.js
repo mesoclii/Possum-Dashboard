@@ -11,7 +11,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 function load(relative, aliases = {}) {
   const source = fs.readFileSync(path.join(__dirname, "..", relative), "utf8");
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const testModule = { exports: {} };
   new Function("require", "module", "exports", compiled)(

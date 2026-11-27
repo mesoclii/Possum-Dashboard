@@ -1170,7 +1170,7 @@ export default function ModeratorClient() {
             <label>Log Channel</label>
             <select style={input} value={cfg.logging.logChannelId} onChange={(e) => setCfg((prev) => ({ ...prev, logging: { ...prev.logging, logChannelId: e.target.value } }))}>
               <option value="">Select a channel</option>
-              {channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
+              {textChannels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}
             </select>
           </div>
 

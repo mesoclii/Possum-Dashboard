@@ -35,6 +35,7 @@ type AdaptRow = { id: string; engine: string; field: string; resourceId: string;
 type AdaptPreview = { wrote?: boolean; planned?: AdaptRow[]; skipped?: { id: string; reason: string }[]; reason?: string };
 
 type Report = {
+  guildId?: string;
   ready?: boolean;
   panelSetupPolicy?: string;
   channelCreationPolicy?: string;

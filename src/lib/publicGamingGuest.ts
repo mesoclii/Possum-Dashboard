@@ -21,7 +21,11 @@ export function makePublicGamingGuestCookieValue(id = `guest_${crypto.randomUUID
 }
 
 export function readPublicGamingGuestId(request: NextRequest) {
-  const raw = String(request.cookies.get(PUBLIC_GAMING_GUEST_COOKIE)?.value || "");
+  return readPublicGamingGuestIdFromValue(request.cookies.get(PUBLIC_GAMING_GUEST_COOKIE)?.value);
+}
+
+export function readPublicGamingGuestIdFromValue(value: unknown) {
+  const raw = String(value || "");
   const [id, expiresText, suppliedSignature, ...extra] = raw.split(".");
   if (extra.length || !/^guest_[0-9a-f-]{36}$/i.test(id || "")) return "";
   const expiresAt = Number(expiresText);

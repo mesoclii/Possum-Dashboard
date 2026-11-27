@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
-import { summarizeSetupPlan, type SetupPlan } from "./setupPlan";
+import { describeBlueprintResource, summarizeSetupPlan, type SetupPlan } from "./setupPlan";
 
 type Feature = {
   id: string;
@@ -1574,6 +1574,7 @@ export default function InfrastructureSetupWizard() {
                     {resourceId ? <> · ID <code>{resourceId}</code></> : null}
                     {parentCategoryId ? <> · under {parentCategoryName} · ID <code>{parentCategoryId}</code></> : null}
                     {!parentCategoryId && action.resourceType !== "category" && action.groupCategorySelection === "create" ? <> · under new {parentCategoryName} category</> : null}
+                    {describeBlueprintResource(action, planActions).map((detail) => <span key={detail} className="block pl-3 text-xs text-pink-100/65">{detail}</span>)}
                   </li>;
                 })}
               </ul>

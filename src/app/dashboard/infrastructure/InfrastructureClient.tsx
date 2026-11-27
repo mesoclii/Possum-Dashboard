@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
-import { summarizeSetupPlan, type SetupPlan, type SetupPlanAction } from "./setupPlan";
+import { describeBlueprintResource, summarizeSetupPlan, type SetupPlan, type SetupPlanAction } from "./setupPlan";
 
 type DirectoryRow = { id: string; name: string; kind?: string; managed?: boolean; parentId?: string; botPermissions?: { status?: string } };
 type FeatureOption = { id: string; name: string; group: string; description: string; protected: boolean; selectable: boolean; selectionStatus?: string };
@@ -1142,6 +1142,7 @@ export default function InfrastructureClient() {
               <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.type.replace(/_/g, " ")} · {action.resourceType || action.flow || "settings"}</p>
               <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Apply selected setup settings"}</p>
               {action.requiredPermissions?.length ? <p className="mt-1 text-xs text-pink-100/70">Bot permission: {action.requiredPermissions.join(", ")}{action.permissionStatus === "verified" ? " · verified" : " · not verified"}</p> : null}
+              {describeBlueprintResource(action, activePlan?.plan.actions).map((detail) => <p key={detail} className="mt-1 text-xs leading-relaxed text-pink-100/65">{detail}</p>)}
             </div>
           ))}
         </div>

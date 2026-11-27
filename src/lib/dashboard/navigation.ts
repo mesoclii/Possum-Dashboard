@@ -149,8 +149,11 @@ export function getDashboardNavSections(
       ],
     },
     {
-      label: "Social",
+      label: "Socials",
       items: [
+        { href: "/dashboard/games", label: "Gaming Hub" },
+        { href: "/dashboard/wow", label: "WoW Groups" },
+        { href: "/tcg", label: "Possum Underworld TCG" },
         { href: "/dashboard/podcast", label: "Podcast Studio" },
         { href: "/dashboard/community-studio", label: "Community Studio" },
         { href: "/dashboard/bump-reminder", label: "Bump Reminder" },
@@ -162,8 +165,6 @@ export function getDashboardNavSections(
     {
       label: "Fun + Games",
       items: [
-        { href: "/dashboard/games", label: "Gaming Hub" },
-        { href: "/dashboard/wow", label: "WoW Groups" },
         { href: "/dashboard/crew", label: "Crew" },
         { href: "/dashboard/dominion", label: "Dominion" },
         { href: "/dashboard/contracts", label: "Contracts" },
@@ -171,17 +172,16 @@ export function getDashboardNavSections(
         { href: "/dashboard/rarespawn", label: "Rare Spawn" },
         { href: "/dashboard/range", label: "Range" },
         { href: "/dashboard/truthdare", label: "Truth Dare" },
-        { href: "/dashboard/heist", label: "Heist" },
         { href: "/dashboard/pokemon-catching", label: "Pokemon Catching", pokemonOperatorOnly: true },
         { href: "/dashboard/pokemon-battle", label: "Pokemon Battle", pokemonOperatorOnly: true },
         { href: "/dashboard/pokemon-trade", label: "Pokemon Trade", pokemonOperatorOnly: true },
-        { href: "/tcg", label: "Possum Underworld TCG" },
       ],
     },
     {
       label: "Possum Pro",
       items: [
         { href: "/dashboard/premium-features", label: "Possum Pro" },
+        { href: "/dashboard/heist", label: "Heist Engine" },
         { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
         { href: "/dashboard/analytics", label: "Analytics" },

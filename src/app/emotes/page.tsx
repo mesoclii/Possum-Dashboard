@@ -5,15 +5,36 @@ import type { CSSProperties } from "react";
 
 type Guild = { id: string; name: string; owner?: boolean; manageable?: boolean; botPresent?: boolean };
 type Asset = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; published?: boolean; sourceGuildId?: string; sourceGuildName?: string };
-type CatalogItem = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; publishedAt: string; useCount: number };
+type CatalogItem = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; publishedAt: string; useCount: number; tags?: string[] };
 type PendingCatalogItem = { id: string; sourceGuildId: string; sourceGuildName: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; submittedAt: string };
-type PersonalItem = { id: string; sourceGuildId: string; sourceGuildName: string; sourceAssetId: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; uploaded?: boolean; downloadName?: string; url: string; importedAt: string };
+type PersonalItem = { id: string; sourceGuildId: string; sourceGuildName: string; sourceAssetId: string; name: string; originalName?: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; uploaded?: boolean; downloadName?: string; url: string; importedAt: string; collection?: string; favorite?: boolean; tags?: string[]; contentRating?: "unreviewed" | "general" | "adult"; sources?: Array<{ guildId?: string; guildName?: string; assetId?: string; url?: string }>; sha256?: string; visualFingerprint?: string; fileBytes?: number };
+type PersonalCollection = { name: string; description: string; visibility: "private"; assetCount: number; createdAt?: string; updatedAt?: string };
+type PersonalStats = { total: number; uploaded: number; animated: number; favorites: number; unreviewed: number; bytes: number; sources: number };
+type ImportJob = { id: string; guildId: string; guildName: string; status: string; total: number; processed: number; added: number; skipped: number; errors: string[]; error: string; retryable?: boolean; createdAt: string; updatedAt: string };
 
 const shell: CSSProperties = { minHeight: "100vh", padding: "clamp(18px, 4vw, 48px)", color: "#ffe4ee", background: "radial-gradient(ellipse at 85% 0%, #5b082e 0%, transparent 36%), radial-gradient(ellipse at 0% 40%, #3b071f 0%, transparent 40%), #10000b" };
 const panel: CSSProperties = { border: "1px solid #8a2450", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, rgba(55,5,29,.95), rgba(18,0,12,.97))", boxShadow: "0 12px 32px rgba(0,0,0,.22)" };
 const input: CSSProperties = { width: "100%", maxWidth: 480, padding: "10px 12px", border: "1px solid #8a2450", borderRadius: 9, color: "#fff", background: "#16000b" };
 const button: CSSProperties = { padding: "10px 15px", borderRadius: 9, border: "1px solid #ff2e75", color: "#fff", background: "#a7003e", cursor: "pointer", fontWeight: 750 };
 const muted: CSSProperties = { color: "#efb4c9", lineHeight: 1.65 };
+const accent: CSSProperties = { color: "#ff75aa" };
+const cardGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))", gap: 14 };
+
+type JedView = "discover" | "vault" | "public" | "import" | "review";
+type JedFilter = "all" | "favorites" | "animated" | "recent" | "multi-source" | "needs-review";
+const PUBLIC_PAGE_SIZE = 24;
+const PRIVATE_PAGE_SIZE = 60;
+
+function fingerprintDistance(left: string, right: string): number {
+  if (!/^[0-9a-f]{16}$/i.test(left) || !/^[0-9a-f]{16}$/i.test(right)) return Number.POSITIVE_INFINITY;
+  let bits = BigInt(`0x${left}`) ^ BigInt(`0x${right}`);
+  let distance = 0;
+  while (bits) {
+    distance += Number(bits & 1n);
+    bits >>= 1n;
+  }
+  return distance;
+}
 
 export default function EmoteLibraryPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
@@ -21,6 +42,11 @@ export default function EmoteLibraryPage() {
   const [isCatalogReviewer, setIsCatalogReviewer] = useState(false);
   const [publishingEnabled, setPublishingEnabled] = useState(false);
   const [personalItems, setPersonalItems] = useState<PersonalItem[]>([]);
+  const [personalCollections, setPersonalCollections] = useState<PersonalCollection[]>([]);
+  const [personalStats, setPersonalStats] = useState<PersonalStats>({ total: 0, uploaded: 0, animated: 0, favorites: 0, unreviewed: 0, bytes: 0, sources: 0 });
+  const [personalTotal, setPersonalTotal] = useState(0);
+  const [personalPage, setPersonalPage] = useState(0);
+  const [personalSort, setPersonalSort] = useState<"recent" | "oldest" | "name" | "favorites">("recent");
   const [assets, setAssets] = useState<Asset[]>([]);
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [sourceGuildId, setSourceGuildId] = useState("all");
@@ -31,7 +57,7 @@ export default function EmoteLibraryPage() {
   const [gifUrl, setGifUrl] = useState("");
   const [linkedAssetUrl, setLinkedAssetUrl] = useState("");
   const [linkedAssetName, setLinkedAssetName] = useState("");
-  const [linkedAssetType, setLinkedAssetType] = useState<"emoji" | "sticker">("emoji");
+  const [linkedAssetType, setLinkedAssetType] = useState<"emoji" | "sticker" | "gif">("emoji");
   const [uploadName, setUploadName] = useState("");
   const [uploadAssetType, setUploadAssetType] = useState<"emoji" | "sticker" | "gif">("emoji");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -40,23 +66,70 @@ export default function EmoteLibraryPage() {
   const [personalRightsConfirmed, setPersonalRightsConfirmed] = useState(false);
   const [targetType, setTargetType] = useState<"emoji" | "sticker">("emoji");
   const [search, setSearch] = useState("");
+  const [publicTypeFilter, setPublicTypeFilter] = useState("all");
+  const [publicSortFilter, setPublicSortFilter] = useState<"recent" | "popular">("recent");
+  const [publicPage, setPublicPage] = useState(0);
+  const [publicTotal, setPublicTotal] = useState(0);
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [view, setView] = useState<JedView>("discover");
+  const [assetTypeFilter, setAssetTypeFilter] = useState("all");
+  const [assetSearch, setAssetSearch] = useState("");
+  const [personalSearch, setPersonalSearch] = useState("");
+  const [personalTypeFilter, setPersonalTypeFilter] = useState("all");
+  const [collectionFilter, setCollectionFilter] = useState("all");
+  const [smartFilter, setSmartFilter] = useState<JedFilter>("all");
+  const [selectedPersonal, setSelectedPersonal] = useState<string[]>([]);
+  const [bulkCollection, setBulkCollection] = useState("");
+  const [manageCollectionName, setManageCollectionName] = useState("");
+  const [renamedCollection, setRenamedCollection] = useState("");
+  const [newCollectionName, setNewCollectionName] = useState("");
+  const [newCollectionDescription, setNewCollectionDescription] = useState("");
+  const [collectionDescription, setCollectionDescription] = useState("");
+  const [detailsId, setDetailsId] = useState("");
+  const [importProgress, setImportProgress] = useState("");
+  const [similarTo, setSimilarTo] = useState("");
+  const [vaultHealth, setVaultHealth] = useState<{ missingFiles: number; integrityMismatches: number } | null>(null);
+  const [importJobs, setImportJobs] = useState<ImportJob[]>([]);
   const uploadInput = useRef<HTMLInputElement>(null);
+  const catalogRequestId = useRef(0);
+  const personalRequestId = useRef(0);
+  const importWasActive = useRef(false);
 
   const guildName = (id: string) => guilds.find((entry) => entry.id === id)?.name || id;
 
-  const loadCatalog = useCallback(async (includeReview = signedIn) => {
-    const response = await fetch(`/api/jed-catalog${includeReview ? "?review=1" : ""}`, { cache: "no-store" });
+  const loadCatalog = useCallback(async (includeReview = signedIn, options: { query?: string; type?: string; sort?: "recent" | "popular"; limit?: number; offset?: number } = {}) => {
+    const requestId = ++catalogRequestId.current;
+    const params = new URLSearchParams();
+    if (includeReview) params.set("review", "1");
+    if (options.query) params.set("q", options.query.slice(0, 80));
+    if (options.type && options.type !== "all") params.set("type", options.type);
+    if (options.sort === "popular") params.set("sort", options.sort);
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.offset) params.set("offset", String(options.offset));
+    const response = await fetch(`/api/jed-catalog${params.size ? `?${params}` : ""}`, { cache: "no-store" });
     const body = await response.json().catch(() => ({}));
+    if (requestId !== catalogRequestId.current) return;
     if (!response.ok || body?.success !== true) throw new Error(body?.error || "The public JED library is unavailable.");
     setItems(Array.isArray(body.items) ? body.items : []);
+    setPublicTotal(Number.isFinite(Number(body.total)) ? Number(body.total) : 0);
     setPublishingEnabled(body.publishingEnabled === true);
     setIsCatalogReviewer(body.reviewer === true);
     setPendingItems(body.reviewer === true && Array.isArray(body.pending) ? body.pending : []);
   }, [signedIn]);
+
+  useEffect(() => {
+    if (view !== "public") return;
+    setLoading(true);
+    const timer = window.setTimeout(() => {
+      void loadCatalog(signedIn, { query: search.trim(), type: publicTypeFilter, sort: publicSortFilter, limit: PUBLIC_PAGE_SIZE, offset: publicPage * PUBLIC_PAGE_SIZE })
+        .catch((error) => setMessage(error instanceof Error ? error.message : "The public JED library is unavailable."))
+        .finally(() => setLoading(false));
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [view, signedIn, search, publicTypeFilter, publicSortFilter, publicPage, loadCatalog]);
 
   const loadGuildAssets = useCallback(async (guildId: string): Promise<Asset[]> => {
     if (!guildId) return [];
@@ -70,12 +143,50 @@ export default function EmoteLibraryPage() {
     }));
   }, []);
 
-  const loadPersonalItems = useCallback(async () => {
-    const response = await fetch("/api/jed-catalog?collection=1", { cache: "no-store" });
+  const personalQuery = useMemo(() => ({
+    query: personalSearch.trim(),
+    type: personalTypeFilter,
+    collection: collectionFilter,
+    smart: smartFilter,
+    similarTo,
+    sort: personalSort,
+    limit: PRIVATE_PAGE_SIZE,
+    offset: personalPage * PRIVATE_PAGE_SIZE,
+  }), [personalSearch, personalTypeFilter, collectionFilter, smartFilter, similarTo, personalSort, personalPage]);
+  const personalQueryRef = useRef(personalQuery);
+  personalQueryRef.current = personalQuery;
+
+  const loadPersonalItems = useCallback(async (options: Partial<typeof personalQuery> = {}) => {
+    const requestId = ++personalRequestId.current;
+    const params = new URLSearchParams({ collection: "1" });
+    if (options.query) params.set("q", options.query);
+    if (options.type && options.type !== "all") params.set("type", options.type);
+    if (options.collection && options.collection !== "all") params.set("collectionName", options.collection);
+    if (options.smart && options.smart !== "all") params.set("smart", options.smart);
+    if (options.similarTo) params.set("similarTo", options.similarTo);
+    if (options.sort) params.set("sort", options.sort);
+    params.set("limit", String(options.limit || PRIVATE_PAGE_SIZE));
+    params.set("offset", String(options.offset || 0));
+    const response = await fetch(`/api/jed-catalog?${params}`, { cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || body?.success !== true) throw new Error(body?.error || "Your private JED collection is unavailable.");
+    if (requestId !== personalRequestId.current) return;
     setPersonalItems(Array.isArray(body.items) ? body.items : []);
+    setPersonalCollections(Array.isArray(body.collections) ? body.collections : []);
+    setPersonalStats(body.stats && typeof body.stats === "object" ? body.stats : { total: Number(body.total) || 0, uploaded: 0, animated: 0, favorites: 0, unreviewed: 0, bytes: 0, sources: 0 });
+    setPersonalTotal(Number.isFinite(Number(body.total)) ? Number(body.total) : 0);
   }, []);
+
+  const loadImportJobs = useCallback(async () => {
+    const response = await fetch("/api/jed-catalog?importJobs=1", { cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body?.success !== true) throw new Error(body?.error || "JED import queue is unavailable.");
+    const next = Array.isArray(body.jobs) ? body.jobs as ImportJob[] : [];
+    const active = next.some((job) => ["queued", "running", "cancel_requested"].includes(job.status));
+    if (importWasActive.current && !active) void loadPersonalItems(personalQueryRef.current).catch(() => undefined);
+    importWasActive.current = active;
+    setImportJobs(next);
+  }, [loadPersonalItems]);
 
   useEffect(() => {
     let active = true;
@@ -87,7 +198,8 @@ export default function EmoteLibraryPage() {
         const session = await sessionResponse.json().catch(() => ({}));
         if (!session?.loggedIn) return;
         setSignedIn(true);
-        void loadPersonalItems().catch((error) => active && setMessage(error instanceof Error ? error.message : "Private collection unavailable."));
+        void loadPersonalItems({ limit: PRIVATE_PAGE_SIZE, offset: 0 }).catch((error) => active && setMessage(error instanceof Error ? error.message : "Private collection unavailable."));
+        void loadImportJobs().catch((error) => active && setMessage(error instanceof Error ? error.message : "JED import queue unavailable."));
         const [manageableResponse, installedResponse] = await Promise.all([
           fetch("/api/guilds?includeAll=1", { cache: "no-store" }), fetch("/api/guilds/installed", { cache: "no-store" }),
         ]);
@@ -125,7 +237,25 @@ export default function EmoteLibraryPage() {
       } catch (error) { if (active) setMessage(error instanceof Error ? error.message : "Server access could not be loaded."); }
     })();
     return () => { active = false; };
-  }, [loadCatalog, loadGuildAssets, loadPersonalItems]);
+  }, [loadCatalog, loadGuildAssets, loadPersonalItems, loadImportJobs]);
+
+  useEffect(() => {
+    if (!signedIn || view !== "vault") return;
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void loadPersonalItems(personalQuery).catch((error) => active && setMessage(error instanceof Error ? error.message : "Private collection unavailable."));
+    }, 120);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [signedIn, view, personalQuery, loadPersonalItems]);
+
+  useEffect(() => {
+    if (!signedIn || view !== "import") return;
+    let active = true;
+    const refresh = () => { if (active) void loadImportJobs().catch((error) => setMessage(error instanceof Error ? error.message : "JED import queue unavailable.")); };
+    refresh();
+    const timer = window.setInterval(refresh, 1800);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [signedIn, view, loadImportJobs]);
 
   const readableGuilds = useMemo(() => guilds.filter((guild) => guild.botPresent), [guilds]);
   const destinationGuilds = useMemo(() => guilds.filter((guild) => guild.botPresent && guild.manageable), [guilds]);
@@ -133,6 +263,35 @@ export default function EmoteLibraryPage() {
   const visibleGuildAssets = useMemo(() => sourceGuildId === "all" ? assets : assets.filter((asset) => asset.sourceGuildId === sourceGuildId), [assets, sourceGuildId]);
 
   const visibleItems = useMemo(() => items.filter((item) => `${item.name} ${item.assetType}`.toLowerCase().includes(search.trim().toLowerCase())), [items, search]);
+  const filteredGuildAssets = useMemo(() => visibleGuildAssets.filter((asset) =>
+    (assetTypeFilter === "all" || asset.assetType === assetTypeFilter) &&
+    `${asset.name} ${asset.assetType} ${asset.sourceGuildName}`.toLowerCase().includes(assetSearch.trim().toLowerCase())),
+  [visibleGuildAssets, assetTypeFilter, assetSearch]);
+  const collections = useMemo(() => {
+    const names = new Set(personalCollections.map((collection) => collection.name));
+    for (const item of personalItems) names.add(String(item.collection || "Inbox"));
+    return [...names].sort((a, b) => a === "Inbox" ? -1 : b === "Inbox" ? 1 : a.localeCompare(b));
+  }, [personalCollections, personalItems]);
+  const filteredPersonalItems = useMemo(() => {
+    const needle = personalSearch.trim().toLowerCase();
+    const selected = similarTo ? personalItems.find((item) => item.id === similarTo) : undefined;
+    return personalItems.filter((item) => {
+      const sourceNames = (Array.isArray(item.sources) ? item.sources : []).map((source) => source.guildName || "").join(" ");
+      const text = `${item.name} ${item.originalName || ""} ${item.assetType} ${item.sourceGuildName || ""} ${sourceNames} ${(item.tags || []).join(" ")}`.toLowerCase();
+      const matchesText = !needle || text.includes(needle);
+      const matchesType = personalTypeFilter === "all" || item.assetType === personalTypeFilter;
+      const matchesCollection = collectionFilter === "all" || String(item.collection || "Inbox") === collectionFilter;
+      const matchesSmart = smartFilter === "all" ||
+        (smartFilter === "favorites" && item.favorite === true) ||
+        (smartFilter === "animated" && item.animated === true) ||
+        (smartFilter === "multi-source" && Array.isArray(item.sources) && item.sources.length > 1) ||
+        (smartFilter === "needs-review" && (!item.contentRating || item.contentRating === "unreviewed")) ||
+        (smartFilter === "recent" && Date.now() - new Date(item.importedAt).getTime() < 7 * 24 * 60 * 60 * 1000);
+      const matchesSimilar = !selected || (item.id !== selected.id && fingerprintDistance(item.visualFingerprint || "", selected.visualFingerprint || "") <= 12);
+      return matchesText && matchesType && matchesCollection && matchesSmart && matchesSimilar;
+    });
+  }, [personalItems, personalSearch, personalTypeFilter, collectionFilter, smartFilter, similarTo]);
+  const vaultStats = personalStats;
 
   async function changeCatalog(action: string, extra: Record<string, unknown>, guildId = sourceGuildId) {
     if (!guildId || guildId === "all") throw new Error("Choose one source server first.");
@@ -175,7 +334,7 @@ export default function EmoteLibraryPage() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true) throw new Error(body?.error || "JED could not export this asset.");
       setMessage(`JED added ${item.name} to ${guildName(targetGuildId)}.`);
-      await loadCatalog();
+      await loadCatalog(signedIn, { query: search.trim(), type: publicTypeFilter, sort: publicSortFilter, limit: PUBLIC_PAGE_SIZE, offset: publicPage * PUBLIC_PAGE_SIZE });
     } catch (error) { setMessage(error instanceof Error ? error.message : "JED export failed."); }
     finally { setBusy(""); }
   }
@@ -205,29 +364,54 @@ export default function EmoteLibraryPage() {
     if (!personalRightsConfirmed) { setMessage("Confirm you are authorized to keep these assets in your private collection."); return; }
     setBusy("import-all"); setMessage("");
     try {
-      let added = 0;
-      let skipped = 0;
-      let importedFrom = 0;
-      let finalItems: PersonalItem[] = [];
+      const queued: ImportJob[] = [];
       const failures: string[] = [];
-      for (const guild of selectedGuilds) {
+      for (let index = 0; index < selectedGuilds.length; index += 1) {
+        const guild = selectedGuilds[index];
+        setImportProgress(`Scanning ${guild.name} · ${index + 1} of ${selectedGuilds.length}`);
         const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "import-all", guildId: guild.id, rightsConfirmed: true }) });
+          body: JSON.stringify({ action: "start-import", guildId: guild.id, rightsConfirmed: true }) });
         const body = await response.json().catch(() => ({}));
         if (!response.ok || body?.success !== true) {
           failures.push(`${guild.name}${body?.error ? ` (${body.error})` : ""}`);
           continue;
         }
-        importedFrom += 1;
-        added += Number(body.added || 0);
-        skipped += Number(body.skipped || 0);
-        if (Array.isArray(body.errors) && body.errors.length) failures.push(`${guild.name}: ${body.errors.join("; ")}`);
-        if (Array.isArray(body.items)) finalItems = body.items;
+        if (body.job) queued.push(body.job as ImportJob);
       }
-      if (importedFrom) setPersonalItems(finalItems);
+      if (queued.length) {
+        setImportJobs((current) => [...queued, ...current.filter((job) => !queued.some((entry) => entry.id === job.id))]);
+        importWasActive.current = true;
+      }
       setPersonalRightsConfirmed(false);
-      setMessage(`Saved ${added} new assets from ${importedFrom} server${importedFrom === 1 ? "" : "s"}; ${skipped} duplicates or unavailable assets were skipped.${failures.length ? ` Could not read: ${failures.join(", ")}.` : ""}`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not import server assets."); }
+      setImportProgress("");
+      setView("import");
+      await loadImportJobs();
+      setMessage(`Queued ${queued.length} server import${queued.length === 1 ? "" : "s"}. JED will save assets in resumable batches.${failures.length ? ` Could not queue: ${failures.join(", ")}.` : ""}`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not queue server assets."); }
+    finally { setBusy(""); setImportProgress(""); }
+  }
+
+  async function updateImportJob(jobId: string, action: "cancel-import" | "retry-import") {
+    setBusy(`job:${jobId}`); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, jobId }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not update this import.");
+      await loadImportJobs();
+      setMessage(action === "cancel-import" ? "Import cancellation requested." : "Import queued to resume.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update import."); }
+    finally { setBusy(""); }
+  }
+
+  async function inspectVault() {
+    setBusy("inspect-vault"); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "inspect-personal-vault" }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not inspect your vault.");
+      setVaultHealth({ missingFiles: Number(body.report?.missingFiles) || 0, integrityMismatches: Number(body.report?.integrityMismatches) || 0 });
+      setMessage("Private vault integrity scan finished. No assets were changed.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not inspect vault integrity."); }
     finally { setBusy(""); }
   }
 
@@ -240,7 +424,7 @@ export default function EmoteLibraryPage() {
         body: JSON.stringify({ action: "import-one", guildId: asset.sourceGuildId, assetId: asset.id, rightsConfirmed: true }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not save this server asset.");
-      setPersonalItems(Array.isArray(body.items) ? body.items : []);
+      await loadPersonalItems(personalQuery);
       setMessage(body.added ? `Saved a private copy of ${asset.name} from ${asset.sourceGuildName}.` : `${asset.name} was already saved in your private collection.`);
       if (Array.isArray(body.errors) && body.errors.length) setMessage(`${asset.name} could not be downloaded: ${body.errors.join("; ")}`);
       setPersonalRightsConfirmed(false);
@@ -266,7 +450,7 @@ export default function EmoteLibraryPage() {
         }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not save this Discord asset link.");
-      setPersonalItems(Array.isArray(body.items) ? body.items : []);
+      await loadPersonalItems(personalQuery);
       setLinkedAssetUrl("");
       setLinkedAssetName("");
       setPersonalRightsConfirmed(false);
@@ -296,7 +480,7 @@ export default function EmoteLibraryPage() {
         }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not save this image.");
-      await loadPersonalItems();
+      await loadPersonalItems(personalQuery);
       setUploadFile(null);
       setUploadName("");
       setPersonalRightsConfirmed(false);
@@ -328,179 +512,306 @@ export default function EmoteLibraryPage() {
         body: JSON.stringify({ action: "remove-personal", itemId: item.id }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not remove this asset.");
-      setPersonalItems((previous) => previous.filter((entry) => entry.id !== item.id));
+      if (personalItems.length === 1 && personalPage > 0) setPersonalPage((page) => page - 1);
+      else await loadPersonalItems(personalQuery);
       setMessage(`${item.name} was removed from your private collection.`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Could not remove this asset."); }
     finally { setBusy(""); }
   }
 
+  async function updatePersonalItem(itemId: string, metadata: Record<string, unknown>) {
+    setBusy(`metadata:${itemId}`); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-personal", itemId, metadata }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not update this asset.");
+      await loadPersonalItems(personalQuery);
+      setMessage(`Saved JED details for ${body.item?.name || "asset"}.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update asset details."); }
+    finally { setBusy(""); }
+  }
+
+  async function updateSelected(metadata: Record<string, unknown>) {
+    if (!selectedPersonal.length) return;
+    setBusy("bulk-metadata"); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update-personal-bulk", itemIds: selectedPersonal, metadata }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not update selected assets.");
+      await loadPersonalItems(personalQuery);
+      setSelectedPersonal([]);
+      setMessage(`Updated ${body.updated || 0} selected JED assets.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update selected assets."); }
+    finally { setBusy(""); }
+  }
+
+  async function manageCollection(operation: "create" | "rename" | "describe" | "empty" | "delete") {
+    const target = operation === "create" ? newCollectionName.trim() : manageCollectionName;
+    if (!target || (operation !== "create" && target === "Inbox")) return;
+    if (operation === "rename" && !renamedCollection.trim()) { setMessage("Enter the new collection name."); return; }
+    if ((operation === "empty" || operation === "delete") && !window.confirm(operation === "delete"
+      ? `Delete the collection “${target}”? Its assets will move to Inbox and will not be deleted.`
+      : `Move every asset in “${target}” to Inbox? No assets will be deleted.`)) return;
+    setBusy("manage-collection"); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "manage-personal-collection", collection: target, operation,
+          newName: renamedCollection, description: operation === "create" ? newCollectionDescription : collectionDescription }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not update this collection.");
+      await loadPersonalItems({ ...personalQuery, offset: 0 });
+      setPersonalPage(0);
+      setPersonalCollections(Array.isArray(body.collections) ? body.collections : []);
+      setCollectionFilter("all");
+      if (operation === "create") { setNewCollectionName(""); setNewCollectionDescription(""); setManageCollectionName(target); }
+      if (operation === "delete") { setManageCollectionName(""); setRenamedCollection(""); setCollectionDescription(""); }
+      if (operation === "rename") { setManageCollectionName(body.collection || renamedCollection); setRenamedCollection(""); }
+      if (operation === "describe") setMessage(`Saved the description for “${target}”.`);
+      else if (operation === "create") setMessage(`Created private collection “${target}”.`);
+      else if (operation === "rename") setMessage(`Renamed the collection and moved ${body.updated} assets.`);
+      else if (operation === "delete") setMessage(`Deleted the collection. ${body.updated} assets were moved to Inbox; none were deleted.`);
+      else setMessage(`Moved ${body.updated} assets to Inbox. Nothing was deleted.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not update this collection."); }
+    finally { setBusy(""); }
+  }
+
+  function toggleSelected(itemId: string) {
+    setSelectedPersonal((current) => current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]);
+  }
+
+  function assetCardImage(url: string, alt: string, size = 148) {
+    return <img src={url} alt={alt} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: size, objectFit: "contain", background: "linear-gradient(145deg,#170712,#08040a)", borderRadius: 14, border: "1px solid #472039" }} />;
+  }
+
+  const tabStyle = (active: boolean): CSSProperties => ({ ...button, background: active ? "linear-gradient(105deg,#ff347d,#a9004b)" : "#170710", borderColor: active ? "#ff79a7" : "#59203a", padding: "11px 16px" });
+  const smallButton: CSSProperties = { ...button, padding: "7px 10px", fontSize: 13 };
+  const field: CSSProperties = { ...input, maxWidth: "none", boxSizing: "border-box" };
+  const statCard: CSSProperties = { ...panel, padding: "13px 16px", minWidth: 120, flex: "1 1 120px" };
+  const sourceSelector = <label style={{ ...muted, display: "grid", gap: 6, minWidth: 230 }}>Asset source
+    <select style={field} value={sourceGuildId} onChange={(event) => setSourceGuildId(event.target.value)}>
+      <option value="all">Every server JED can read</option>
+      {guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}{guild.botPresent ? " · connected" : " · add Possum Bot"}</option>)}
+    </select>
+  </label>;
+
   return (
     <main style={shell}>
-      <div style={{ maxWidth: 1440, margin: "0 auto", display: "grid", gap: 18 }}>
-        <header style={{ ...panel, padding: "clamp(22px, 5vw, 44px)" }}>
-          <div style={{ color: "#ff81ad", fontSize: 12, fontWeight: 900, letterSpacing: ".2em", textTransform: "uppercase" }}>JED · Public Library</div>
-          <h1 style={{ margin: "8px 0", fontSize: "clamp(32px, 5vw, 52px)", color: "#fff" }}>Emoji, Sticker & GIF Studio</h1>
-          <p style={{ ...muted, maxWidth: 900, marginBottom: 0 }}>Browse approved public assets or manage your private Discord asset collection. Your private collection is visible only to your account; ordinary JED saves remain in each server&apos;s automatic guild vault.</p>
+      <div style={{ maxWidth: 1500, margin: "0 auto", display: "grid", gap: 18 }}>
+        <header style={{ ...panel, padding: "clamp(22px, 5vw, 48px)", overflow: "hidden" }}>
+          <div style={{ ...accent, fontSize: 12, fontWeight: 900, letterSpacing: ".22em", textTransform: "uppercase" }}>JED · Your expression library</div>
+          <h1 style={{ margin: "10px 0 8px", fontSize: "clamp(34px, 5vw, 60px)", lineHeight: 1.02, color: "#fff" }}>Find it. Keep it. Make it yours.</h1>
+          <p style={{ ...muted, maxWidth: 900, margin: "0 0 20px" }}>One workspace for discovering Discord expressions, organizing your private vault, sharing approved public assets, and sending assets into servers you manage.</p>
+          <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+            <a href="/dashboard/jed" style={{ ...smallButton, textDecoration: "none" }}>JED controls</a>
+            <a href="/dashboard/jed/private-media" style={{ ...smallButton, textDecoration: "none", background: "#241020" }}>Private media</a>
+            <a href="/dashboard/jed/adult-emotes" style={{ ...smallButton, textDecoration: "none", background: "#241020" }}>Adult Emote Studio</a>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 22 }}>
+            <div style={statCard}><strong style={{ display: "block", fontSize: 23 }}>{vaultStats.total}</strong><span style={muted}>Vault assets</span></div>
+            <div style={statCard}><strong style={{ display: "block", fontSize: 23 }}>{vaultStats.favorites}</strong><span style={muted}>Favorites</span></div>
+            <div style={statCard}><strong style={{ display: "block", fontSize: 23 }}>{readableGuilds.length}</strong><span style={muted}>Connected servers</span></div>
+            <div style={statCard}><strong style={{ display: "block", fontSize: 23 }}>{items.length}</strong><span style={muted}>Public assets</span></div>
+          </div>
         </header>
 
-        {message ? <div role="status" style={panel}>{message}</div> : null}
-        {!publishingEnabled ? <div style={panel}>New shared public submissions are disabled. Existing approved items remain available; use the private collection below for your server assets.</div> : null}
+        {message ? <div role="status" style={{ ...panel, borderColor: "#ff4d8b" }}>{message}</div> : null}
+        {!publishingEnabled ? <div style={{ ...panel, padding: 14 }}><strong>Public sharing is currently closed.</strong> Existing approved assets remain available, and private vault imports continue to work.</div> : null}
+        {!signedIn ? <div style={panel}>Sign in to manage your vault and inspect server assets. <a href="/api/auth/discord/login?returnTo=%2Femotes" style={{ ...smallButton, display: "inline-block", marginLeft: 10, textDecoration: "none" }}>Sign in with Discord</a></div> : null}
 
-        <section style={panel}>
-          <h2 style={{ marginTop: 0 }}>Browse the public library</h2>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <input aria-label="Search public assets" style={input} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search emoji, sticker, or GIF" />
-            <label style={muted}>Add to server <select style={input} value={targetGuildId} onChange={(event) => setTargetGuildId(event.target.value)} disabled={!destinationGuilds.length}>
-              <option value="">Choose a destination</option>{destinationGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}
-            </select></label>
-            <label style={muted}>Save as <select style={{ ...input, maxWidth: 180 }} value={targetType} onChange={(event) => setTargetType(event.target.value as "emoji" | "sticker")}><option value="emoji">Emoji / GIF</option><option value="sticker">Sticker</option></select></label>
+        <nav aria-label="JED sections" style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
+          {([[ "discover", "Discover" ], [ "vault", "My Vault" ], [ "public", "Public Library" ], [ "import", "Import & Sources" ], ...(isCatalogReviewer ? [[ "review", "Review Queue" ]] : [])] as Array<[JedView, string]>).map(([key, label]) =>
+            <button key={key} type="button" style={tabStyle(view === key)} onClick={() => setView(key)}>{label}{key === "vault" ? " · " + personalItems.length : key === "public" ? " · " + items.length : key === "review" ? " · " + pendingItems.length : ""}</button>
+          )}
+        </nav>
+
+        {view === "discover" ? <section style={{ ...panel, display: "grid", gap: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
+            <div><div style={accent}>DISCOVERY</div><h2 style={{ margin: "5px 0" }}>Browse server expressions</h2><p style={{ ...muted, margin: 0 }}>See emoji and stickers across servers where you are a member and JED has been installed.</p></div>
+            {signedIn ? sourceSelector : null}
           </div>
-          {!signedIn ? <p style={muted}><a href="/api/auth/discord/login?returnTo=%2Femotes" style={{ color: "#ff9ebc" }}>Sign in with Discord</a> to see your servers and save JED assets.</p> : !destinationGuilds.length ? <p style={muted}>To add assets into a Discord server, Possum Bot must be installed there and your account must be able to manage that server.</p> : null}
-          {loading ? <p role="status">Loading public assets…</p> : visibleItems.length ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginTop: 16 }}>
-              {visibleItems.map((item) => <article key={item.id} style={{ ...panel, padding: 14 }}>
-                <img src={item.url} alt={item.name} loading="lazy" referrerPolicy="no-referrer" style={{ display: "block", width: "100%", height: 132, objectFit: "contain", background: "#10000b", borderRadius: 10 }} />
-                <strong style={{ display: "block", marginTop: 10, overflowWrap: "anywhere" }}>{item.name}</strong>
-                <div style={muted}>{item.assetType}{item.animated ? " · Animated" : ""} · {item.useCount} uses</div>
-                <button type="button" style={{ ...button, width: "100%", marginTop: 10 }} disabled={!signedIn || !targetGuildId || Boolean(busy)} onClick={() => void exportItem(item)}>{busy === `export:${item.id}` ? "Using JED…" : "Add with JED"}</button>
-              </article>)}
-            </div>
-          ) : <p style={muted}>{search ? "No matching public assets." : "No public assets have been shared yet."}</p>}
-        </section>
+          {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={{ ...panel, background: "#180813" }}>
+            <strong>{selectedSourceGuild.name}</strong><p style={muted}>Discord only exposes a server&apos;s expression inventory to an app installed there. Ask a server administrator to add Possum Bot to make its assets discoverable.</p>
+            {botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...smallButton, display: "inline-block", textDecoration: "none" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
+          </div> : null}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+            <label style={{ ...muted, display: "grid", gap: 5, flex: "1 1 260px" }}>Search discovered assets<input style={field} value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} placeholder="Name, type, or server" /></label>
+            <label style={{ ...muted, display: "grid", gap: 5 }}>Type<select style={{ ...field, minWidth: 150 }} value={assetTypeFilter} onChange={(event) => setAssetTypeFilter(event.target.value)}><option value="all">All types</option><option value="emoji">Emoji</option><option value="sticker">Stickers</option><option value="gif">GIFs</option></select></label>
+            <label style={{ ...muted, display: "grid", gap: 5 }}>Destination<select style={{ ...field, minWidth: 190 }} value={targetGuildId} onChange={(event) => setTargetGuildId(event.target.value)}><option value="">Choose a server</option>{destinationGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}</select></label>
+            <button type="button" style={smallButton} disabled={!personalRightsConfirmed || !visibleGuildAssets.length || Boolean(busy)} onClick={() => void importAllAssets()}>{busy === "import-all" ? "Importing…" : "Import all from source"}</button>
+          </div>
+          <div style={{ ...panel, display: "flex", gap: 12, flexWrap: "wrap", padding: 13 }}>
+            <label style={muted}><input type="checkbox" checked={personalRightsConfirmed} onChange={(event) => setPersonalRightsConfirmed(event.target.checked)} /> I have permission to save these assets privately.</label>
+            {publishingEnabled ? <><label style={muted}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)} /> I have rights to share selected assets.</label><label style={muted}><input type="checkbox" checked={generalConfirmed} onChange={(event) => setGeneralConfirmed(event.target.checked)} /> Public submissions are general-audience.</label></> : null}
+          </div>
+          {assetLoadMessage ? <div role="status" style={muted}>{assetLoadMessage}</div> : null}
+          {importProgress ? <div role="status" style={{ ...panel, padding: 12 }}>{importProgress}</div> : null}
+          {loading ? <p role="status" style={muted}>Loading JED discovery…</p> : !signedIn ? <p style={muted}>Sign in to load your connected Discord servers.</p> : filteredGuildAssets.length ? <div style={cardGrid}>
+            {filteredGuildAssets.map((asset) => <article key={asset.sourceGuildId + ":" + asset.id} style={{ ...panel, padding: 13, background: "linear-gradient(155deg,#26091b,#10000b)" }}>
+              {assetCardImage(asset.url, asset.name, 150)}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 10 }}><strong style={{ overflowWrap: "anywhere" }}>{asset.name}</strong><span style={{ ...muted, whiteSpace: "nowrap" }}>{asset.assetType}{asset.animated ? " · GIF" : ""}</span></div>
+              <div style={{ ...muted, fontSize: 13 }}>{asset.sourceGuildName}</div>
+              <button type="button" style={{ ...smallButton, width: "100%", marginTop: 10 }} disabled={!personalRightsConfirmed || Boolean(busy)} onClick={() => void importOneAsset(asset)}>{busy === "import-one:" + asset.id ? "Saving…" : "Save to my vault"}</button>
+              {publishingEnabled && guilds.find((guild) => guild.id === asset.sourceGuildId)?.manageable ? <button type="button" style={{ ...smallButton, width: "100%", marginTop: 7, background: "#241020" }} disabled={Boolean(busy) || (!asset.published && !(rightsConfirmed && generalConfirmed))} onClick={() => void publishAsset(asset)}>{asset.published ? "Withdraw public listing" : "Submit to public library"}</button> : null}
+            </article>)}
+          </div> : <div style={{ ...panel, textAlign: "center", padding: 32 }}><strong>No matching expressions found.</strong><p style={muted}>{assetLoadMessage || "Try another search or choose a server where JED can read the expression list."}</p></div>}
+        </section> : null}
 
-        {signedIn && publishingEnabled && isCatalogReviewer ? <section style={panel}>
-          <h2 style={{ marginTop: 0 }}>JED public-library review queue</h2>
-          <p style={muted}>New submissions are private until a configured reviewer checks that they are general-audience and rights-cleared.</p>
-          {pendingItems.length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-            {pendingItems.map((item) => <article key={item.id} style={{ ...panel, padding: 14 }}>
-              <img src={item.url} alt={item.name} loading="lazy" referrerPolicy="no-referrer" style={{ display: "block", width: "100%", height: 120, objectFit: "contain", background: "#10000b", borderRadius: 10 }} />
-              <strong style={{ display: "block", marginTop: 8 }}>{item.name} · {item.assetType}</strong>
-              <div style={muted}>Source: {item.sourceGuildName || "Discord server"}</div>
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <button type="button" style={button} disabled={Boolean(busy)} onClick={() => void reviewAsset(item, "approve")}>Approve</button>
-                <button type="button" style={{ ...button, background: "#421328" }} disabled={Boolean(busy)} onClick={() => void reviewAsset(item, "reject")}>Reject</button>
+        {view === "vault" ? <section style={{ ...panel, display: "grid", gap: 16 }}>
+          <div><div style={accent}>PRIVATE COLLECTION</div><h2 style={{ margin: "5px 0" }}>Your JED Vault</h2><p style={{ ...muted, margin: 0 }}>Organize private copies, favorites, tags, collections, source history, and review status. Existing saved assets remain intact.</p></div>
+          {!signedIn ? <p style={muted}>Sign in with Discord to open your private vault.</p> : <>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+              <label style={{ ...muted, display: "grid", gap: 5, flex: "1 1 240px" }}>Search your vault<input style={field} value={personalSearch} onChange={(event) => { setPersonalSearch(event.target.value); setPersonalPage(0); }} placeholder="Name, tag, server, or type" /></label>
+              <label style={{ ...muted, display: "grid", gap: 5 }}>Collection<select style={field} value={collectionFilter} onChange={(event) => { setCollectionFilter(event.target.value); setPersonalPage(0); }}><option value="all">All collections</option>{collections.map((collection) => <option key={collection} value={collection}>{collection}</option>)}</select></label>
+              <label style={{ ...muted, display: "grid", gap: 5 }}>Type<select style={field} value={personalTypeFilter} onChange={(event) => { setPersonalTypeFilter(event.target.value); setPersonalPage(0); }}><option value="all">All types</option><option value="emoji">Emoji</option><option value="sticker">Stickers</option><option value="gif">GIFs</option></select></label>
+              <label style={{ ...muted, display: "grid", gap: 5 }}>Smart view<select style={field} value={smartFilter} onChange={(event) => { setSmartFilter(event.target.value as JedFilter); setPersonalPage(0); }}><option value="all">Everything</option><option value="favorites">Favorites</option><option value="animated">Animated</option><option value="recent">Added this week</option><option value="multi-source">Found in multiple servers</option><option value="needs-review">Needs content review</option></select></label>
+              <label style={{ ...muted, display: "grid", gap: 5 }}>Sort<select style={field} value={personalSort} onChange={(event) => { setPersonalSort(event.target.value as typeof personalSort); setPersonalPage(0); }}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="favorites">Favorites first</option></select></label>
+              <button type="button" style={smallButton} onClick={() => setSelectedPersonal(filteredPersonalItems.map((item: any) => item.id))}>Select visible</button>
+              {similarTo ? <button type="button" style={{ ...smallButton, background: "#241020" }} onClick={() => setSimilarTo("")}>Clear visual matches</button> : null}
+            </div>
+            <div style={{ ...panel, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", padding: 12 }}>
+              <div><strong>Vault integrity</strong><div style={muted}>{vaultHealth ? `${vaultHealth.missingFiles} missing files · ${vaultHealth.integrityMismatches} hash mismatches` : "Check your private files without changing them."}</div></div>
+              <button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => void inspectVault()}>{busy === "inspect-vault" ? "Inspecting…" : "Inspect vault files"}</button>
+            </div>
+            {selectedPersonal.length ? <div style={{ ...panel, display: "flex", gap: 9, flexWrap: "wrap", alignItems: "end", padding: 13 }}>
+              <strong>{selectedPersonal.length} selected</strong>
+              <label style={{ ...muted, display: "grid", gap: 4 }}>Move to collection<input style={{ ...field, width: 220 }} value={bulkCollection} onChange={(event) => setBulkCollection(event.target.value)} placeholder="Collection name" /></label>
+              <button type="button" style={smallButton} disabled={!bulkCollection.trim() || Boolean(busy)} onClick={() => void updateSelected({ collection: bulkCollection.trim() })}>Move</button>
+              <button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => void updateSelected({ favorite: true })}>Favorite</button>
+              <button type="button" style={{ ...smallButton, background: "#241020" }} disabled={Boolean(busy)} onClick={() => void updateSelected({ favorite: false })}>Unfavorite</button>
+              <button type="button" style={{ ...smallButton, background: "#241020" }} onClick={() => setSelectedPersonal([])}>Clear selection</button>
+            </div> : null}
+            <div style={{ ...panel, display: "grid", gap: 12, padding: 13 }}>
+              <strong>Private collections</strong>
+              <p style={{ ...muted, margin: 0 }}>Collections belong to your account. Deleting one moves its assets to Inbox; it never deletes asset files or records.</p>
+              <div style={{ display: "flex", gap: 9, flexWrap: "wrap", alignItems: "end" }}>
+                <label style={{ ...muted, display: "grid", gap: 4 }}>New collection<input style={{ ...field, width: 220 }} maxLength={40} value={newCollectionName} onChange={(event) => setNewCollectionName(event.target.value)} placeholder="Collection name" /></label>
+                <label style={{ ...muted, display: "grid", gap: 4, flex: "1 1 240px" }}>Description<input style={field} maxLength={280} value={newCollectionDescription} onChange={(event) => setNewCollectionDescription(event.target.value)} placeholder="Optional description" /></label>
+                <button type="button" style={smallButton} disabled={!newCollectionName.trim() || Boolean(busy)} onClick={() => void manageCollection("create")}>Create private collection</button>
               </div>
-            </article>)}
-          </div> : <p style={muted}>No assets are waiting for review.</p>}
+              <div style={{ display: "flex", gap: 9, flexWrap: "wrap", alignItems: "end" }}>
+                <label style={{ ...muted, display: "grid", gap: 4 }}>Collection<select style={field} value={manageCollectionName} onChange={(event) => {
+                  const name = event.target.value; setManageCollectionName(name);
+                  setCollectionDescription(personalCollections.find((entry) => entry.name === name)?.description || "");
+                }}><option value="">Choose collection</option>{collections.filter((collection) => collection !== "Inbox").map((collection) => <option key={collection} value={collection}>{collection}</option>)}</select></label>
+                <label style={{ ...muted, display: "grid", gap: 4 }}>Rename to<input style={{ ...field, width: 220 }} maxLength={40} value={renamedCollection} onChange={(event) => setRenamedCollection(event.target.value)} placeholder="New collection name" /></label>
+                <button type="button" style={smallButton} disabled={!manageCollectionName || !renamedCollection.trim() || Boolean(busy)} onClick={() => void manageCollection("rename")}>Rename</button>
+                <label style={{ ...muted, display: "grid", gap: 4, flex: "1 1 240px" }}>Description<input style={field} maxLength={280} value={collectionDescription} onChange={(event) => setCollectionDescription(event.target.value)} placeholder="Describe this collection" /></label>
+                <button type="button" style={smallButton} disabled={!manageCollectionName || Boolean(busy)} onClick={() => void manageCollection("describe")}>Save description</button>
+                <button type="button" style={{ ...smallButton, background: "#241020" }} disabled={!manageCollectionName || Boolean(busy)} onClick={() => void manageCollection("empty")}>Move assets to Inbox</button>
+                <button type="button" style={{ ...smallButton, background: "#421328" }} disabled={!manageCollectionName || Boolean(busy)} onClick={() => void manageCollection("delete")}>Delete collection safely</button>
+              </div>
+              {manageCollectionName ? <span style={muted}>{personalCollections.find((entry) => entry.name === manageCollectionName)?.assetCount ?? personalItems.filter((item) => (item.collection || "Inbox") === manageCollectionName).length} assets · Private</span> : null}
+            </div>
+            {filteredPersonalItems.length ? <div style={cardGrid}>
+              {filteredPersonalItems.map((item: any) => <article key={item.id} style={{ ...panel, padding: 13, background: "linear-gradient(155deg,#26091b,#10000b)", outline: selectedPersonal.includes(item.id) ? "2px solid #ff4c8c" : "none" }}>
+                <label style={{ ...muted, display: "flex", gap: 7, alignItems: "center", marginBottom: 8 }}><input type="checkbox" checked={selectedPersonal.includes(item.id)} onChange={() => toggleSelected(item.id)} /> Select</label>
+                {assetCardImage(item.url, item.name, 148)}
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 10 }}><strong style={{ overflowWrap: "anywhere" }}>{item.name}</strong><span style={muted}>{item.favorite ? "★" : "☆"}</span></div>
+                <div style={{ ...muted, fontSize: 13 }}>{item.assetType}{item.animated ? " · Animated" : ""} · {item.collection || "Inbox"}</div>
+                <div style={{ ...muted, fontSize: 13 }}>From {item.sourceGuildName || (item.uploaded ? "your upload" : "Discord asset")} · {(item.sources || []).length || 1} source{(item.sources || []).length === 1 ? "" : "s"}</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  <button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => void updatePersonalItem(item.id, { favorite: !item.favorite })}>{item.favorite ? "Unfavorite" : "Favorite"}</button>
+                  <button type="button" style={{ ...smallButton, background: "#241020" }} onClick={() => setDetailsId(detailsId === item.id ? "" : item.id)}>{detailsId === item.id ? "Hide details" : "Edit details"}</button>
+                  <button type="button" style={{ ...smallButton, background: "#241020" }} onClick={() => setSimilarTo(item.id)}>Find similar</button>
+                </div>
+                {detailsId === item.id ? <div style={{ ...panel, padding: 11, marginTop: 10, display: "grid", gap: 8 }}>
+                  <label style={{ ...muted, display: "grid", gap: 4 }}>Asset name<input id={"jed-name-" + item.id} style={field} defaultValue={item.name} maxLength={32} /></label>
+                  <label style={{ ...muted, display: "grid", gap: 4 }}>Collection<input id={"jed-collection-" + item.id} style={field} defaultValue={item.collection || "Inbox"} maxLength={40} /></label>
+                  <label style={{ ...muted, display: "grid", gap: 4 }}>Tags, separated by commas<input id={"jed-tags-" + item.id} style={field} defaultValue={(item.tags || []).join(", ")} maxLength={400} /></label>
+                  <label style={{ ...muted, display: "grid", gap: 4 }}>Content review<select id={"jed-rating-" + item.id} style={field} defaultValue={item.contentRating || "unreviewed"}><option value="unreviewed">Not reviewed</option><option value="general">General</option><option value="adult">Adult / restricted</option></select></label>
+                  <button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => {
+                    const read = (suffix: string) => (document.getElementById("jed-" + suffix + "-" + item.id) as HTMLInputElement | null)?.value || "";
+                    void updatePersonalItem(item.id, { name: read("name"), collection: read("collection"), tags: read("tags").split(",").map((tag) => tag.trim()).filter(Boolean), contentRating: read("rating") });
+                  }}>Save details</button>
+                  <div style={{ ...muted, fontSize: 12 }}>Visual fingerprint: {item.visualFingerprint || "Not available"} · {item.sha256 ? "Content hash saved" : "Hash unavailable"}</div>
+                  <div style={{ ...muted, fontSize: 12 }}>Sources: {(item.sources || []).map((source: any) => source.guildName || "Direct import").join(" · ") || item.sourceGuildName || "Direct import"}</div>
+                </div> : null}
+                <div style={{ display: "flex", gap: 7, marginTop: 9 }}>
+                  <a href={item.url} download={item.downloadName || item.name} style={{ ...smallButton, flex: 1, textAlign: "center", textDecoration: "none" }}>Download</a>
+                  <button type="button" style={{ ...smallButton, flex: 1, background: "#241020" }} disabled={!targetGuildId || Boolean(busy)} onClick={() => void exportPersonalItem(item)}>{busy === "personal-export:" + item.id ? "Adding…" : "Send to server"}</button>
+                </div>
+                <button type="button" style={{ ...smallButton, width: "100%", marginTop: 7, background: "#421328" }} disabled={Boolean(busy)} onClick={() => void removePersonalItem(item)}>{busy === "personal-remove:" + item.id ? "Removing…" : "Remove from vault"}</button>
+              </article>)}
+            </div> : <div style={{ ...panel, padding: 28, textAlign: "center" }}><strong>{personalTotal ? "No assets match these filters." : "Your private vault is ready."}</strong><p style={muted}>{personalTotal ? "Change the search or smart view to see more." : "Import server expressions, add a Discord CDN link, or upload an image in Import & Sources."}</p></div>}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span style={muted}>{personalTotal} matching assets · Page {personalTotal ? personalPage + 1 : 0} of {Math.max(1, Math.ceil(personalTotal / PRIVATE_PAGE_SIZE))}</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" style={smallButton} disabled={personalPage <= 0 || Boolean(busy)} onClick={() => setPersonalPage((page) => Math.max(0, page - 1))}>Previous</button>
+                <button type="button" style={smallButton} disabled={(personalPage + 1) * PRIVATE_PAGE_SIZE >= personalTotal || Boolean(busy)} onClick={() => setPersonalPage((page) => page + 1)}>Next</button>
+              </div>
+            </div>
+          </>}
         </section> : null}
 
-        {signedIn ? <section style={panel}>
-          <h2 style={{ marginTop: 0 }}>Import from your Discord server</h2>
-          <p style={muted}>JED lists every server you belong to. It can read that server&apos;s inventory when Possum Bot is installed there. Saving a private copy does not change the server or publish the asset.</p>
-          <label style={{ ...muted, display: "block" }}>Source server<br /><select style={input} value={sourceGuildId} onChange={(event) => setSourceGuildId(event.target.value)}>
-            <option value="all">All servers where JED can read assets</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name} — {guild.botPresent ? "Possum Bot installed" : "Add Possum Bot to read assets"}</option>)}
-          </select></label>
-          {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={{ ...panel, marginTop: 10 }}>
-            <strong>{selectedSourceGuild.name}</strong><p style={muted}>You’re a member, but Possum Bot isn’t installed there, so Discord won’t let JED read the server’s emoji/sticker inventory. Add the app to this server to enable bulk listing and import.</p>
-            {botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
-          </div> : null}
-          <div style={{ ...panel, marginTop: 14, display: "grid", gap: 9 }}>
-            <label style={muted}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)} /> I own this asset or have the right to redistribute it to a public catalog and other Discord servers.</label>
-            <label style={muted}><input type="checkbox" checked={generalConfirmed} onChange={(event) => setGeneralConfirmed(event.target.checked)} /> I confirm this asset is suitable for a general-audience gallery and is not adult content.</label>
+        {view === "public" ? <section style={{ ...panel, display: "grid", gap: 15 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "end" }}><div><div style={accent}>COMMUNITY LIBRARY</div><h2 style={{ margin: "5px 0" }}>Public JED Library</h2><p style={{ ...muted, margin: 0 }}>Approved assets shared by their owners. Public listings are separate from your private vault.</p></div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><input aria-label="Search public assets" style={{ ...field, width: 250 }} value={search} onChange={(event) => { setSearch(event.target.value); setPublicPage(0); }} placeholder="Search names and tags" /><select aria-label="Public asset type" style={{ ...field, width: 150 }} value={publicTypeFilter} onChange={(event) => { setPublicTypeFilter(event.target.value); setPublicPage(0); }}><option value="all">All types</option><option value="emoji">Emoji</option><option value="sticker">Stickers</option><option value="gif">GIFs</option></select><select aria-label="Sort public assets" style={{ ...field, width: 150 }} value={publicSortFilter} onChange={(event) => { setPublicSortFilter(event.target.value as "recent" | "popular"); setPublicPage(0); }}><option value="recent">Recently added</option><option value="popular">Most used</option></select><select aria-label="Destination server" style={{ ...field, width: 220 }} value={targetGuildId} onChange={(event) => setTargetGuildId(event.target.value)}><option value="">Choose destination</option>{destinationGuilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name}</option>)}</select><select aria-label="Export asset as" style={{ ...field, width: 150 }} value={targetType} onChange={(event) => setTargetType(event.target.value as "emoji" | "sticker")}><option value="emoji">Emoji</option><option value="sticker">Sticker</option></select></div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
-            {visibleGuildAssets.map((asset) => <article key={`${asset.sourceGuildId}:${asset.id}`} style={{ ...panel, padding: 12 }}>
-              <img src={asset.url} alt={asset.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 104, objectFit: "contain", background: "#10000b", borderRadius: 8 }} />
-              <strong style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{asset.name}</strong>
-              <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={!personalRightsConfirmed || Boolean(busy)} onClick={() => void importOneAsset(asset)}>
-                {busy === `import-one:${asset.id}` ? "Saving copy…" : "Save private copy"}
-              </button>
-              <div style={muted}>{asset.assetType}{asset.animated ? " · Animated" : ""} · {asset.sourceGuildName}</div>
-              {publishingEnabled ? <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={Boolean(busy) || !guilds.find((guild) => guild.id === asset.sourceGuildId)?.manageable || (!asset.published && !(rightsConfirmed && generalConfirmed))} onClick={() => void publishAsset(asset)}>
-                {busy === `publish:${asset.id}` ? "Saving…" : asset.published ? "Remove from public library" : "Publish to library"}
-              </button> : null}
-            </article>)}
-          </div>
-          {assetLoadMessage ? <p role="status" style={muted}>{assetLoadMessage}</p> : null}
-          {!publishingEnabled ? <p style={muted}>Public catalog submissions are disabled. Private imports and downloads remain available.</p> : null}
-          {sourceGuildId !== "all" && selectedSourceGuild && selectedSourceGuild.botPresent && !visibleGuildAssets.length ? <p style={muted}>No supported Discord emoji or stickers were found in {selectedSourceGuild.name}.</p> : null}
-          {sourceGuildId === "all" && !visibleGuildAssets.length && !assetLoadMessage ? <p style={muted}>No server assets are available yet.</p> : null}
-          <div style={{ borderTop: "1px solid #5d1b39", marginTop: 20, paddingTop: 16 }}>
-            <h3>Add a GIF URL</h3>
-            <p style={muted}>Only HTTPS media from supported Discord, Tenor, Giphy, or Imgur hosts can be cataloged. JED revalidates and processes the URL during export.</p>
-            <div style={{ display: "grid", gap: 10 }}>
-              <input style={input} maxLength={32} value={name} onChange={(event) => setName(event.target.value)} placeholder="GIF name" aria-label="GIF name" />
-              <input style={input} maxLength={2000} value={gifUrl} onChange={(event) => setGifUrl(event.target.value)} placeholder="https://media.tenor.com/..." aria-label="GIF URL" />
-              <button type="button" style={button} disabled={Boolean(busy) || sourceGuildId === "all" || !selectedSourceGuild?.botPresent || !selectedSourceGuild?.manageable || !name.trim() || !gifUrl.trim() || !(rightsConfirmed && generalConfirmed)} onClick={() => void publishGif()}>{busy === "publish-gif" ? "Adding…" : "Publish GIF"}</button>
+          {loading ? <p style={muted}>Loading public assets…</p> : visibleItems.length ? <div style={cardGrid}>{visibleItems.map((item) => <article key={item.id} style={{ ...panel, padding: 13 }}>
+            {assetCardImage(item.url, item.name, 144)}<strong style={{ display: "block", marginTop: 9, overflowWrap: "anywhere" }}>{item.name}</strong><div style={muted}>{item.assetType}{item.animated ? " · Animated" : ""} · {item.useCount} uses</div>
+            <button type="button" style={{ ...smallButton, width: "100%", marginTop: 9 }} disabled={!signedIn || !targetGuildId || Boolean(busy)} onClick={() => void exportItem(item)}>{busy === "export:" + item.id ? "Adding…" : "Add to selected server"}</button>
+          </article>)}</div> : <p style={muted}>{search ? "No assets match the search." : "The public library does not have approved assets yet."}</p>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={muted}>{publicTotal} approved assets · Page {publicTotal ? publicPage + 1 : 0} of {Math.max(1, Math.ceil(publicTotal / PUBLIC_PAGE_SIZE))}</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" style={smallButton} disabled={publicPage <= 0 || loading} onClick={() => setPublicPage((page) => Math.max(0, page - 1))}>Previous</button>
+              <button type="button" style={smallButton} disabled={(publicPage + 1) * PUBLIC_PAGE_SIZE >= publicTotal || loading} onClick={() => setPublicPage((page) => page + 1)}>Next</button>
             </div>
           </div>
         </section> : null}
 
-        {signedIn ? <section id="private-collection" style={panel}>
-          <h2 style={{ marginTop: 0 }}>My private asset collection</h2>
-          <p style={muted}>JED lists emotes and supported stickers from every server you belong to where Possum Bot is installed. The server name appears on each asset. Choose one server or leave “All servers” selected to import across all available servers. Servers without the bot stay visible in the selector; add Possum Bot there to unlock their inventory. This collection is private to your account and is never published automatically.</p>
-          <label style={{ ...muted, display: "block" }}>Source server<br /><select style={input} value={sourceGuildId} onChange={(event) => setSourceGuildId(event.target.value)}>
-            <option value="all">All servers where JED can read assets</option>{guilds.map((guild) => <option key={guild.id} value={guild.id}>{guild.name} — {guild.botPresent ? "Possum Bot installed" : "Add Possum Bot to read assets"}</option>)}
-          </select></label>
-          {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={{ ...panel, marginTop: 10 }}>
-            <strong>{selectedSourceGuild.name}</strong><p style={muted}>Possum Bot isn’t in this server, so it cannot read the server inventory yet. Once an admin adds it, refresh this page and the server’s assets will appear here.</p>
-            {botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...button, textDecoration: "none", display: "inline-block" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
-          </div> : null}
-          <p style={muted}><label><input type="checkbox" checked={personalRightsConfirmed} onChange={(event) => setPersonalRightsConfirmed(event.target.checked)} /> I am authorized to keep these assets in my private collection and use them in servers I manage.</label></p>
-          <button type="button" style={button} disabled={!personalRightsConfirmed || !readableGuilds.length || (sourceGuildId !== "all" && !selectedSourceGuild?.botPresent) || Boolean(busy)} onClick={() => void importAllAssets()}>
-            {busy === "import-all" ? "Importing server assets…" : `Import all ${visibleGuildAssets.length} listed assets${sourceGuildId === "all" ? ` from ${readableGuilds.length} servers` : ""}`}
-          </button>
-          {assetLoadMessage ? <p role="status" style={muted}>{assetLoadMessage}</p> : null}
-          {visibleGuildAssets.length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
-            {visibleGuildAssets.map((asset) => <article key={`${asset.sourceGuildId}:${asset.id}`} style={{ ...panel, padding: 12 }}>
-              <img src={asset.url} alt={asset.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 104, objectFit: "contain", background: "#10000b", borderRadius: 8 }} />
-              <strong style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{asset.name}</strong>
-              <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={!personalRightsConfirmed || Boolean(busy)} onClick={() => void importOneAsset(asset)}>
-                {busy === `import-one:${asset.id}` ? "Saving copy…" : "Save private copy"}
-              </button>
-              <div style={muted}>{asset.assetType}{asset.animated ? " · Animated" : ""} · {asset.sourceGuildName}</div>
-            </article>)}
-          </div> : null}
-          <div style={{ ...panel, marginTop: 18 }}>
-            <h3 style={{ marginTop: 0 }}>Save a Discord asset link</h3>
-            <p style={muted}>Paste a direct Discord CDN URL for an emoji or sticker. JED downloads and validates the image into your private collection.</p>
-            <div style={{ display: "grid", gap: 10 }}>
-              <input style={input} maxLength={32} value={linkedAssetName} onChange={(event) => setLinkedAssetName(event.target.value)} placeholder="Asset name" aria-label="Linked asset name" />
-              <input style={input} maxLength={2000} value={linkedAssetUrl} onChange={(event) => setLinkedAssetUrl(event.target.value)} placeholder="https://cdn.discordapp.com/emojis/..." aria-label="Discord asset CDN URL" />
-              <select style={{ ...input, maxWidth: 220 }} value={linkedAssetType} onChange={(event) => setLinkedAssetType(event.target.value as "emoji" | "sticker")} aria-label="Linked asset type">
-                <option value="emoji">Emoji</option><option value="sticker">Sticker</option>
-              </select>
-              <button type="button" style={button} disabled={Boolean(busy) || !linkedAssetUrl.trim() || !linkedAssetName.trim() || !personalRightsConfirmed} onClick={() => void importLinkedAsset()}>
-                {busy === "import-link" ? "Saving link…" : "Save linked asset"}
-              </button>
+        {view === "import" ? <section style={{ ...panel, display: "grid", gap: 16 }}>
+          <div><div style={accent}>SOURCE MANAGER</div><h2 style={{ margin: "5px 0" }}>Bring assets into your vault</h2><p style={{ ...muted, margin: 0 }}>Bulk imports append and deduplicate by content. They do not remove or replace existing assets. Discord requires Possum Bot to be installed to list that server&apos;s inventory.</p></div>
+          {!signedIn ? <p style={muted}>Sign in with Discord to import assets.</p> : <>
+            <div style={{ ...panel, display: "flex", gap: 12, alignItems: "end", flexWrap: "wrap", padding: 14 }}>
+              {sourceSelector}<label style={muted}><input type="checkbox" checked={personalRightsConfirmed} onChange={(event) => setPersonalRightsConfirmed(event.target.checked)} /> I have permission to save these assets in my private vault.</label>
+              <button type="button" style={button} disabled={!personalRightsConfirmed || !readableGuilds.length || (sourceGuildId !== "all" && !selectedSourceGuild?.botPresent) || Boolean(busy)} onClick={() => void importAllAssets()}>{busy === "import-all" ? "Importing…" : "Import all from selected source"}</button>
             </div>
-          </div>
-          <div style={{ ...panel, marginTop: 14 }}>
-            <h3 style={{ marginTop: 0 }}>Upload a copied image</h3>
-            <p style={muted}>Choose a PNG, JPEG, WebP, or GIF image under 5 MiB. JED validates it before saving.</p>
+            {assetLoadMessage ? <p role="status" style={muted}>{assetLoadMessage}</p> : null}{importProgress ? <p role="status" style={muted}>{importProgress}</p> : null}
             <div style={{ display: "grid", gap: 10 }}>
-              <input style={input} maxLength={32} value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="Asset name" aria-label="Uploaded asset name" />
-              <select style={{ ...input, maxWidth: 220 }} value={uploadAssetType} onChange={(event) => setUploadAssetType(event.target.value as "emoji" | "sticker" | "gif")} aria-label="Uploaded asset type">
-                <option value="emoji">Emoji</option><option value="sticker">Sticker</option><option value="gif">GIF</option>
-              </select>
-              <input ref={uploadInput} style={input} type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Choose an image to upload" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} />
-              <button type="button" style={button} disabled={Boolean(busy) || !uploadFile || !uploadName.trim() || !personalRightsConfirmed} onClick={() => void uploadPersonalAsset()}>
-                {busy === "upload-personal" ? "Saving image…" : "Save uploaded image"}
-              </button>
+              <h3 style={{ margin: 0 }}>Import activity</h3>
+              {importJobs.length ? importJobs.map((job) => {
+                const progress = job.total ? Math.min(100, Math.round(job.processed / job.total * 100)) : 0;
+                const active = ["queued", "running", "cancel_requested"].includes(job.status);
+                return <article key={job.id} style={{ ...panel, padding: 13, display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><strong>{job.guildName}</strong><span style={muted}>{job.status.replaceAll("_", " ")}</span></div>
+                  <div role="progressbar" aria-label={`${job.guildName} import progress`} aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} style={{ height: 8, borderRadius: 8, background: "#16000b", overflow: "hidden" }}><div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg,#ff347d,#ff8bb6)" }} /></div>
+                  <span style={muted}>{job.processed}/{job.total} processed · {job.added} added · {job.skipped} skipped{job.error ? ` · ${job.error}` : ""}</span>
+                  {job.errors?.length ? <details><summary style={{ cursor: "pointer" }}>Import notes ({job.errors.length})</summary><ul style={muted}>{job.errors.map((error, index) => <li key={`${job.id}:${index}`}>{error}</li>)}</ul></details> : null}
+                  <div style={{ display: "flex", gap: 8 }}>{active ? <button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => void updateImportJob(job.id, "cancel-import")}>Cancel import</button> : null}{job.retryable ? <button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => void updateImportJob(job.id, "retry-import")}>Resume import</button> : null}</div>
+                </article>;
+              }) : <div style={panel}>No imports have been queued yet.</div>}
             </div>
-          </div>
-          <h3>Saved assets ({personalItems.length})</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
-            {personalItems.map((item) => <article key={item.id} style={{ ...panel, padding: 12 }}>
-              <img src={item.url} alt={item.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 104, objectFit: "contain", background: "#10000b", borderRadius: 8 }} />
-              <strong style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{item.name}</strong>
-              <a href={item.url} download={item.downloadName || item.name} style={{ ...button, display: "block", textAlign: "center", textDecoration: "none", marginTop: 8 }}>Download saved copy</a>
-              <div style={muted}>{item.assetType}{item.animated ? " · Animated" : ""} · {item.sourceGuildName}</div>
-              <button type="button" style={{ ...button, width: "100%", marginTop: 8 }} disabled={!targetGuildId || Boolean(busy)} onClick={() => void exportPersonalItem(item)}>
-                {busy === `personal-export:${item.id}` ? "Using JED…" : `Add to ${guildName(targetGuildId)}`}
-              </button>
-              <button type="button" style={{ ...button, width: "100%", marginTop: 8, background: "#421328" }} disabled={Boolean(busy)} onClick={() => void removePersonalItem(item)}>
-                {busy === `personal-remove:${item.id}` ? "Removing…" : "Remove"}
-              </button>
-            </article>)}
-          </div>
-          {!personalItems.length ? <p style={muted}>Your private collection is empty.</p> : null}
+            {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={panel}><strong>{selectedSourceGuild.name}</strong><p style={muted}>JED can show this server in your source list, but Discord will only share its inventory after the server installs Possum Bot.</p>{botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...smallButton, textDecoration: "none", display: "inline-block" }}>Add Possum Bot</a> : null}</div> : null}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14 }}>
+              <div style={panel}><h3 style={{ marginTop: 0 }}>Import a direct Discord link</h3><p style={muted}>Add a Discord emoji, sticker, or attachment CDN link for an image or GIF. JED validates and stores a private copy.</p><div style={{ display: "grid", gap: 9 }}>
+                <input style={field} maxLength={32} value={linkedAssetName} onChange={(event) => setLinkedAssetName(event.target.value)} placeholder="Name for this asset" aria-label="Linked asset name" />
+                <input style={field} maxLength={2000} value={linkedAssetUrl} onChange={(event) => setLinkedAssetUrl(event.target.value)} placeholder="https://cdn.discordapp.com/emojis/…" aria-label="Discord asset URL" />
+                <select style={field} value={linkedAssetType} onChange={(event) => setLinkedAssetType(event.target.value as "emoji" | "sticker" | "gif")}><option value="emoji">Emoji</option><option value="sticker">Sticker</option><option value="gif">GIF or image</option></select>
+                <button type="button" style={smallButton} disabled={!personalRightsConfirmed || !linkedAssetName.trim() || !linkedAssetUrl.trim() || Boolean(busy)} onClick={() => void importLinkedAsset()}>{busy === "import-link" ? "Importing…" : "Save link to vault"}</button>
+              </div></div>
+              <div style={panel}><h3 style={{ marginTop: 0 }}>Upload an image or GIF</h3><p style={muted}>PNG, JPEG, WebP, or GIF under 5 MiB. JED validates the file and keeps a private original.</p><div style={{ display: "grid", gap: 9 }}>
+                <input style={field} maxLength={32} value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="Name for this asset" aria-label="Uploaded asset name" />
+                <select style={field} value={uploadAssetType} onChange={(event) => setUploadAssetType(event.target.value as "emoji" | "sticker" | "gif")}><option value="emoji">Emoji</option><option value="sticker">Sticker</option><option value="gif">GIF</option></select>
+                <input ref={uploadInput} style={field} type="file" accept="image/png,image/jpeg,image/webp,image/gif" aria-label="Choose an image" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} />
+                <button type="button" style={smallButton} disabled={!personalRightsConfirmed || !uploadFile || !uploadName.trim() || Boolean(busy)} onClick={() => void uploadPersonalAsset()}>{busy === "upload-personal" ? "Saving…" : "Save upload to vault"}</button>
+              </div></div>
+            </div>
+            {publishingEnabled ? <div style={panel}><h3 style={{ marginTop: 0 }}>Submit a GIF URL to the public library</h3><p style={muted}>Public GIF submissions remain subject to ownership and general-audience confirmation and review.</p><div style={{ display: "grid", gap: 8 }}>
+              <input style={field} maxLength={32} value={name} onChange={(event) => setName(event.target.value)} placeholder="GIF display name" aria-label="GIF display name" />
+              <input style={field} maxLength={2000} value={gifUrl} onChange={(event) => setGifUrl(event.target.value)} placeholder="HTTPS media URL" aria-label="GIF URL" />
+              <label style={muted}><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)} /> I have permission to share this asset.</label>
+              <label style={muted}><input type="checkbox" checked={generalConfirmed} onChange={(event) => setGeneralConfirmed(event.target.checked)} /> This asset is suitable for a general-audience library.</label>
+              <button type="button" style={smallButton} disabled={!name.trim() || !gifUrl.trim() || !(rightsConfirmed && generalConfirmed) || sourceGuildId === "all" || !selectedSourceGuild?.botPresent || !selectedSourceGuild?.manageable || Boolean(busy)} onClick={() => void publishGif()}>{busy === "publish-gif" ? "Submitting…" : "Submit GIF for review"}</button>
+            </div></div> : null}
+          </>}
         </section> : null}
 
-        <section style={panel}>
-          <h2 style={{ marginTop: 0 }}>18+ catalog mode</h2>
-          <p style={muted}>The server-side NSFW preference is available in the JED dashboard and defaults off. Adult assets are not accepted into this public feed and the toggle cannot bypass age checks. Adult browsing/export stays locked until age assurance, moderation, and access checks are configured.</p>
-        </section>
+        {view === "review" && isCatalogReviewer ? <section style={{ ...panel, display: "grid", gap: 14 }}><div><div style={accent}>CURATION</div><h2 style={{ margin: "5px 0" }}>Public library review queue</h2><p style={{ ...muted, margin: 0 }}>Submissions stay private until a reviewer approves them. Check rights, source, and audience classification before publishing.</p></div>
+          {pendingItems.length ? <div style={cardGrid}>{pendingItems.map((item) => <article key={item.id} style={{ ...panel, padding: 13 }}>{assetCardImage(item.url, item.name, 140)}<strong style={{ display: "block", marginTop: 9 }}>{item.name}</strong><div style={muted}>{item.assetType} · {item.sourceGuildName || "Discord server"}</div><div style={{ display: "flex", gap: 7, marginTop: 10 }}><button type="button" style={smallButton} disabled={Boolean(busy)} onClick={() => void reviewAsset(item, "approve")}>Approve</button><button type="button" style={{ ...smallButton, background: "#421328" }} disabled={Boolean(busy)} onClick={() => void reviewAsset(item, "reject")}>Reject</button></div></article>)}</div> : <div style={panel}>No assets are waiting for review.</div>}
+        </section> : null}
       </div>
     </main>
   );

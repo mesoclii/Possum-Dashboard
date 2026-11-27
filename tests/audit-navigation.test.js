@@ -54,6 +54,19 @@ test("Possum Admin navigation is owner-only and includes primary-owner switchboa
   assert.ok(primaryOwnerAdmin.items.some((item) => item.href === "/dashboard/switchboard"));
 });
 
+test("social game hubs and Heist appear in their requested dashboard categories", () => {
+  const sections = nav.getDashboardNavSections(true, {});
+  const socials = sections.find((section) => section.label === "Socials");
+  const pro = sections.find((section) => section.label === "Possum Pro");
+  assert.ok(socials);
+  assert.ok(pro);
+  for (const href of ["/dashboard/games", "/dashboard/wow", "/tcg"]) {
+    assert.ok(socials.items.some((item) => item.href === href), `${href} should be under Socials`);
+  }
+  assert.ok(pro.items.some((item) => item.href === "/dashboard/heist"));
+  assert.equal(sections.some((section) => section.label === "Fun + Games" && section.items.some((item) => ["/dashboard/games", "/dashboard/wow", "/tcg", "/dashboard/heist"].includes(item.href))), false);
+});
+
 test("moderator tab links select valid tabs and preserve the original default", () => {
   assert.equal(moderator.readModeratorTab(null), "automod");
   assert.equal(moderator.readModeratorTab("invalid"), "automod");

@@ -51,13 +51,27 @@ export async function GET(request: NextRequest) {
   const collection = request.nextUrl.searchParams.get("collection") === "1";
   const q = String(request.nextUrl.searchParams.get("q") || "").slice(0, 80);
   const type = String(request.nextUrl.searchParams.get("type") || "").slice(0, 16);
-  const actor = guildId || collection ? await userId(request) : "";
-  if ((guildId || collection) && !actor) return reply({ success: false, error: "Sign in with Discord to inspect server assets or your private collection." }, 401);
+  const limit = String(request.nextUrl.searchParams.get("limit") || "").slice(0, 3);
+  const offset = String(request.nextUrl.searchParams.get("offset") || "").slice(0, 6);
+  const sort = String(request.nextUrl.searchParams.get("sort") || "").slice(0, 16);
+  const collectionName = String(request.nextUrl.searchParams.get("collectionName") || "").slice(0, 40);
+  const smart = String(request.nextUrl.searchParams.get("smart") || "").slice(0, 24);
+  const similarTo = String(request.nextUrl.searchParams.get("similarTo") || "").slice(0, 40);
+  const importJobs = request.nextUrl.searchParams.get("importJobs") === "1";
+  const actor = guildId || collection || importJobs ? await userId(request) : "";
+  if ((guildId || collection || importJobs) && !actor) return reply({ success: false, error: "Sign in with Discord to inspect server assets, your private collection, or import jobs." }, 401);
   const params = new URLSearchParams();
   if (guildId) params.set("guildId", guildId);
   if (collection) params.set("collection", "1");
   if (q) params.set("q", q);
   if (type) params.set("type", type);
+  if (limit) params.set("limit", limit);
+  if (offset) params.set("offset", offset);
+  if (sort) params.set("sort", sort);
+  if (collectionName) params.set("collectionName", collectionName);
+  if (smart) params.set("smart", smart);
+  if (similarTo) params.set("similarTo", similarTo);
+  if (importJobs) params.set("importJobs", "1");
   try {
     const upstream = await fetchServerBotApi(`${SERVER_BOT_API}/internal/jed-catalog${params.size ? `?${params}` : ""}`, {
       headers: buildServerBotApiHeaders(actor), cache: "no-store",
@@ -108,7 +122,9 @@ export async function POST(request: NextRequest) {
   if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) return reply({ success: false, error: "JSON required." }, 415);
   let parsed: Awaited<ReturnType<typeof readBody>>;
   try { parsed = await readBody(request); } catch { return reply({ success: false, error: "Request is too large." }, 413); }
-  if (parsed && parsed.size > 16_384 && parsed.body?.action !== "upload-personal") {
+  const action = String(parsed?.body?.action || "");
+  const maxBodySize = action === "upload-personal" ? 7_000_000 : action === "update-personal-bulk" || action === "start-import" ? 32_768 : 16_384;
+  if (parsed && parsed.size > maxBodySize) {
     return reply({ success: false, error: "Only private asset uploads may exceed 16 KiB." }, 413);
   }
   const body: any = parsed?.body;

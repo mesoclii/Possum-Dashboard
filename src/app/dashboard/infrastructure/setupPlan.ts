@@ -14,7 +14,12 @@ export type SetupPlanAction = {
   permissionStatus?: string;
   missingPermissions?: string[];
   permissionReason?: string;
-  result?: { error?: string; resourceId?: string; reconciled?: boolean } | null;
+  dependencies?: string[];
+  attempts?: number;
+  startedAt?: string | null;
+  updatedAt?: string | null;
+  completedAt?: string | null;
+  result?: { error?: string; reason?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean } | null;
 };
 
 export type SetupPlan = { id: string; digest: string; state: string; intent?: string; actions: SetupPlanAction[] };

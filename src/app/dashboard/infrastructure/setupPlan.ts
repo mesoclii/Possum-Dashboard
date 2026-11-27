@@ -16,11 +16,18 @@ export type SetupPlanAction = {
   permissionReason?: string;
   dependencies?: string[];
   attempts?: number;
+  history?: {
+    status?: string;
+    attempts?: number;
+    completedAt?: string | null;
+    recovery?: string;
+    result?: { error?: string; reason?: string; retryable?: boolean } | null;
+  }[];
   startedAt?: string | null;
   updatedAt?: string | null;
   completedAt?: string | null;
   lastError?: string;
-  result?: { error?: string; reason?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean; recoveryRequired?: boolean } | null;
+  result?: { error?: string; reason?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean; recoveryRequired?: boolean; skipReason?: string } | null;
 };
 
 export type SetupPlan = {

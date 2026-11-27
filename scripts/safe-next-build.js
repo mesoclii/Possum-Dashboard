@@ -27,6 +27,7 @@ function detectHostMemoryMb() {
 const hostMemoryMb = detectHostMemoryMb();
 const autoVmMode = args.has("--auto") && hostMemoryMb > 0 && hostMemoryMb <= 1536;
 const vmMode = args.has("--vm") || autoVmMode;
+const serialMode = args.has("--serial") || String(process.env.POSSUM_SERIAL_BUILD || "").trim() === "1";
 const ciMode = String(process.env.CI || "").trim().toLowerCase() === "true";
 
 // Heap cap has to follow the machine, not a hardcoded 448 MB default. A cap below
@@ -180,7 +181,7 @@ async function main() {
   }
 
   if (hostMemoryMb > 0) {
-    log(`Detected host memory: ${hostMemoryMb} MB.${autoVmMode ? " Enabling low-memory VM build mode automatically." : ""}`);
+    log(`Detected host memory: ${hostMemoryMb} MB.${autoVmMode ? " Enabling low-memory VM build mode automatically." : ""}${serialMode ? " Using single-worker build mode." : ""}`);
   }
 
   removeDir(stagingDir);
@@ -203,13 +204,13 @@ async function main() {
         ...process.env,
         CI: process.env.CI || "1",
         NEXT_TELEMETRY_DISABLED: "1",
-        POSSUM_LOW_MEMORY_BUILD: vmMode ? "1" : "0",
+        POSSUM_LOW_MEMORY_BUILD: vmMode || serialMode ? "1" : "0",
         POSSUM_HOST_MEMORY_MB: hostMemoryMb ? String(hostMemoryMb) : "",
         POSSUM_NEXT_DIST_DIR: path.basename(stagingDir),
         NODE_OPTIONS: nodeOptions,
       };
 
-      log(`Starting Next build with ${memoryMb} MB heap cap${vmMode ? " (vm mode)" : ""}.`);
+      log(`Starting Next build with ${memoryMb} MB heap cap${vmMode ? " (vm mode)" : ""}${serialMode && !vmMode ? " (single-worker mode)" : ""}.`);
       const result = await runNextBuild(env);
       restoreBuildConfig(buildConfigSnapshot);
       if (receivedSignal || result.signal) break;

@@ -8,7 +8,7 @@ const vm = require("node:vm");
 const ts = require("typescript");
 
 const source = fs.readFileSync(path.join(__dirname, "../src/lib/dashboard/channelEntries.ts"), "utf8");
-const compiled = ts.transpileModule(source, { compilerOptions: { testModule: ts.ModuleKind.CommonJS } }).outputText;
+const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
 const exportsObject = {};
 vm.runInNewContext(compiled, { exports: exportsObject });
 const { extractIdList, toggleChannelEntries } = exportsObject;

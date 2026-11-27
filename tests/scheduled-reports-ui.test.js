@@ -11,7 +11,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 function render(reports) {
   const states = ["weekly", "", [], reports, ""];
   const source = fs.readFileSync(path.join(__dirname, "../src/app/dashboard/scheduled-reports/page.tsx"), "utf8");
-  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const js = ts.transpileModule(source, { compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const mod = { exports: {} };
   new Function("require", "module", "exports", js)((name) => {
     if (name === "react") return { useState: () => [states.shift(), () => {}], useEffect: () => {} };

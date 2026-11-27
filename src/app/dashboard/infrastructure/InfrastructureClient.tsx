@@ -945,6 +945,7 @@ export default function InfrastructureClient() {
               {activePlan.plan.updatedAt ? <p className="mt-1 text-[11px] text-pink-100/55">Last checkpoint update: {new Date(activePlan.plan.updatedAt).toLocaleString()}</p> : null}
               {activePlan.plan.finishedAt ? <p className="mt-1 text-[11px] text-pink-100/55">Plan closed: {new Date(activePlan.plan.finishedAt).toLocaleString()}</p> : null}
               <p className="mt-1 text-xs text-pink-100/70">Each bot request runs one checkpoint. The plan is saved on the bot, so an interrupted run can resume from its last verified action.</p>
+              {activePlan.plan.state === "rolling_back" ? <p role="status" className="mt-2 text-xs font-bold text-amber-200">Restore is currently owned by a rollback worker. Its durable lease prevents a second restore from starting; refresh this page to see the final checkpoint.</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">
               {activePlan.plan.state === "draft" && activePlan.canResume && activePlanSummary.total > 0 ? <ActionButton label="Review and apply" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}

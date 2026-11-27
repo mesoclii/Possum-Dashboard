@@ -483,6 +483,7 @@ test("Discord social link retains its server through the sign-in prompt", async 
 test("former-server grant is presented with a functional individual revoke control", async () => {
   const data = {
     providers: [{ id: "twitch", status: "available" }], guilds: [], guildsVerified: false,
+    identityType: "discord",
     accounts: [{ provider: "twitch", providerId: "1", label: "one", url: "https://www.twitch.tv/one" }],
     visibility: [{ provider: "twitch", guildId: "123" }],
   };

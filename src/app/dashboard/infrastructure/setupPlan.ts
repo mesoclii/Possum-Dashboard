@@ -20,7 +20,7 @@ export type SetupPlanAction = {
   updatedAt?: string | null;
   completedAt?: string | null;
   lastError?: string;
-  result?: { error?: string; reason?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean } | null;
+  result?: { error?: string; reason?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean; recoveryRequired?: boolean } | null;
 };
 
 export type SetupPlan = {

@@ -1061,10 +1061,17 @@ export default function InfrastructureSetupWizard() {
             <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Total checkpoints</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.length}</p></div>
           </div>
           <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-sm">
-            {activePlan.plan.actions.map((action, index) => (
+            {activePlan.plan.actions.map((action) => (
               <li key={action.id} className="flex items-start gap-2 rounded-md border border-white/5 px-2 py-2">
                 <span className={action.status === "completed" ? "text-emerald-300" : action.status === "failed" ? "text-red-300" : action.status === "running" ? "text-amber-200" : "text-pink-100/45"}>{action.status === "completed" ? "✓" : action.status === "failed" ? "!" : action.status === "running" ? "…" : "○"}</span>
-                <span className="min-w-0 flex-1"><strong>{action.name || action.resourceName || action.field || action.type}</strong><span className="ml-2 text-xs text-pink-100/55">{action.type.replace(/_/g, " ")}</span>{action.result?.error ? <span className="mt-1 block text-xs text-red-200">{action.result.error}</span> : null}</span>
+                <span className="min-w-0 flex-1">
+                  <strong>{action.name || action.resourceName || action.field || action.type}</strong>
+                  <span className="ml-2 text-xs text-pink-100/55">{action.type.replace(/_/g, " ")}</span>
+                  {action.attempts ? <span className="ml-2 text-[11px] text-pink-100/45">Attempt {action.attempts}</span> : null}
+                  {action.result?.error || action.result?.reason ? <span className="mt-1 block text-xs text-red-200">{action.result.error || action.result.reason}</span> : null}
+                  {action.dependencies?.length ? <span className="mt-1 block text-[11px] text-pink-100/45">Waits for: {action.dependencies.join(", ")}</span> : null}
+                  {action.missingPermissions?.length ? <span className="mt-1 block text-[11px] text-amber-200">Missing permissions: {action.missingPermissions.join(", ")}</span> : null}
+                </span>
                 <span className="shrink-0 text-xs capitalize text-pink-100/60">{action.status.replace(/_/g, " ")}</span>
               </li>
             ))}

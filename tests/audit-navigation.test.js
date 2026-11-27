@@ -38,20 +38,27 @@ test("Security navigation exposes the audit trail without replacing Moderator", 
   }
 });
 
-test("Possum Admin navigation is owner-only and includes primary-owner switchboard", () => {
+test("top navigation links and Possum Admin section respect owner boundaries without duplicates", () => {
   const memberSections = nav.getDashboardNavSections(false, {});
   assert.equal(memberSections.some((section) => section.label === "Possum Admin"), false);
+  assert.deepEqual(nav.getDashboardNavTopLinks(false).map((item) => item.href), [
+    "/dashboard/motd",
+    "/dashboard/system-health",
+  ]);
 
   const ownerAdmin = nav.getDashboardNavSections(true, {}).find((section) => section.label === "Possum Admin");
   assert.ok(ownerAdmin);
-  assert.deepEqual(ownerAdmin.items.map((item) => item.href), [
+  assert.deepEqual(ownerAdmin.items.map((item) => item.href), ["/dashboard/ai/openai-platform"]);
+  const ownerTopLinks = nav.getDashboardNavTopLinks(true).map((item) => item.href);
+  assert.deepEqual(ownerTopLinks, [
+    "/dashboard/motd",
     "/dashboard/system-health",
     "/dashboard/operations",
     "/dashboard/master",
-    "/dashboard/ai/openai-platform",
   ]);
-  const primaryOwnerAdmin = nav.getDashboardNavSections(true, {}, true).find((section) => section.label === "Possum Admin");
-  assert.ok(primaryOwnerAdmin.items.some((item) => item.href === "/dashboard/switchboard"));
+  const primaryOwnerTopLinks = nav.getDashboardNavTopLinks(true, true).map((item) => item.href);
+  assert.ok(primaryOwnerTopLinks.includes("/dashboard/switchboard"));
+  assert.equal(ownerAdmin.items.some((item) => ownerTopLinks.includes(item.href)), false);
 });
 
 test("social game hubs and Heist appear in their requested dashboard categories", () => {

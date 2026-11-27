@@ -53,10 +53,6 @@ export function getDashboardNavSections(
     {
       label: "Possum Admin",
       items: [
-        { href: "/dashboard/system-health", label: "System Health", creatorOnly: true },
-        { href: "/dashboard/operations", label: "Operations", creatorOnly: true },
-        { href: "/dashboard/master", label: "Master Control", creatorOnly: true },
-        { href: "/dashboard/switchboard", label: "My Quick Switchboard", primaryOwnerOnly: true },
         { href: "/dashboard/ai/openai-platform", label: "Creator AI Platform", creatorOnly: true },
       ],
     },

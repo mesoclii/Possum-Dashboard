@@ -2,8 +2,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import ConfigJsonEditor from "@/components/possum/ConfigJsonEditor";
 import EngineInsights from "@/components/possum/EngineInsights";
+import { PossumCard } from "@/components/possum/PossumCard";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 import { fetchRuntimeEngine } from "@/lib/liveRuntime";
 
@@ -145,7 +147,8 @@ function normalizeItems(raw: unknown): StoreItem[] {
       // Keep spaces while typing. Trimming here makes a trailing space disappear
       // on every render, so users cannot type a multi-word name.
       name: String(item.name ?? ""),
-      description: String(item.description || "").trim(),
+      // Keep trailing spaces while the controlled textarea is being edited.
+      description: String(item.description ?? ""),
       type,
       roleId: String(item.roleId || "").trim(),
       priceCoins: Number.isFinite(rawPrice) ? Math.min(1_000_000_000, Math.max(0, Math.floor(rawPrice))) : 0,
@@ -194,21 +197,26 @@ function mergeConfig(raw: Partial<StoreConfig> | null | undefined): StoreConfig 
   };
 }
 
-const box: React.CSSProperties = {
-  border: "1px solid #5f0000",
-  borderRadius: 12,
-  padding: 14,
-  background: "rgba(120,0,0,0.07)",
-  marginBottom: 14,
+const input: CSSProperties = {
+  width: "100%",
+  minWidth: 0,
+  minHeight: 42,
+  padding: "9px 11px",
+  background: "#080808",
+  border: "1px solid rgba(255, 47, 134, 0.55)",
+  color: "#ffe3ef",
+  borderRadius: 9,
 };
 
-const input: React.CSSProperties = {
-  width: "100%",
-  padding: 10,
-  background: "#0a0a0a",
-  border: "1px solid #6f0000",
-  color: "#ffd7d7",
-  borderRadius: 8,
+const button: CSSProperties = {
+  minHeight: 42,
+  border: "1px solid rgba(255, 47, 134, 0.7)",
+  borderRadius: 9,
+  background: "rgba(110, 0, 45, 0.32)",
+  color: "#ffe3ef",
+  padding: "9px 13px",
+  cursor: "pointer",
+  fontWeight: 800,
 };
 
 export default function StorePage() {
@@ -224,6 +232,7 @@ export default function StorePage() {
     loading,
     saving,
     message,
+    reload,
     save,
   } = useGuildEngineEditor<StoreConfig>("store", DEFAULT_CONFIG);
 
@@ -355,38 +364,42 @@ export default function StorePage() {
   }
 
   if (!guildId) {
-    return <div style={{ color: "#ff7777", padding: 20 }}>Missing guildId.</div>;
+    return <div style={{ color: "#ffb9d8", padding: 20 }}>Missing guildId. Open the store from a selected server.</div>;
   }
 
   return (
-    <div style={{ color: "#ff4d4d", padding: 20, maxWidth: 1180 }}>
-      <h1 style={{ marginTop: 0, letterSpacing: "0.12em", textTransform: "uppercase" }}>Economy - Store Engine</h1>
-      <p>Guild: {guildName || "Selected server"}</p>
-      <div style={{ color: "#ffb7b7", lineHeight: 1.6, marginBottom: 12 }}>
-        Store now writes straight into the live guild store engine. Catalog items, panel art, policy toggles, and role grants stay on the same runtime path the bot uses.
-      </div>
-      {visibleMessage ? <div style={{ marginBottom: 12, color: "#ffd1d1" }}>{visibleMessage}</div> : null}
+    <main className="possum-bg possum-store-page" style={{ maxWidth: 1320, margin: "0 auto", padding: "24px clamp(16px, 3vw, 36px) 96px", display: "grid", gap: 16, color: "#fff" }}>
+      <PossumCard
+        title="Server Store"
+        description="Build the catalog, choose who can access it, and control how purchases are delivered."
+        right={<span className="possum-pill" style={{ display: "inline-block", maxWidth: 260, overflowWrap: "anywhere", letterSpacing: ".08em" }}>{guildName || "Selected server"}</span>}
+      />
+
+      {visibleMessage ? (
+        <div role="status" style={{ border: "1px solid rgba(255, 47, 134, 0.55)", borderRadius: 12, padding: "12px 16px", background: "rgba(72, 0, 32, 0.72)", color: "#ffe3ef" }}>
+          {visibleMessage}
+        </div>
+      ) : null}
 
       {loading ? (
-        <p>Loading...</p>
+      <PossumCard title="Loading store settings" description="Connecting to the live server configuration..." />
       ) : (
         <>
           <EngineInsights summary={summary} details={details} />
 
-          <div style={{ ...box, marginTop: 14 }}>
-            <label>
+          <PossumCard title="Store status" description="Changes here apply to the live store engine for this server.">
+            <label className="store-check">
               <input
                 type="checkbox"
                 checked={cfg.active}
                 onChange={(e) => setCfg((prev) => ({ ...prev, active: e.target.checked }))}
               />{" "}
-              Store engine active
+              Enable purchases in this server
             </label>
-          </div>
+          </PossumCard>
 
-          <div style={box}>
-            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Store Panel</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <PossumCard title="Store panel" description="Choose where the public entry point appears and what members see before opening their private catalog.">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
               <div>
                 <label>Panel channel (blank = channel where /showstore is used)</label>
                 <select
@@ -437,7 +450,7 @@ export default function StorePage() {
               />
             </div>
 
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 16 }}>
               <label>Who can open this store</label>
               <select
                 style={input}
@@ -448,12 +461,12 @@ export default function StorePage() {
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
-                VIP and Supporter access uses the role IDs configured in the VIP Engine. The public panel only shows an Open Store button; each member gets a private catalog filtered to their roles.
+              <div style={{ color: "#ffadd1", fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
+                Access uses the VIP and Supporter roles configured in the VIP Engine. The public panel shows only an Open Store button; each member gets a private catalog filtered to their roles.
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+            <div className="store-panel-style-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginTop: 14 }}>
               <div>
                 <label>Embed color</label>
                 <input
@@ -474,7 +487,7 @@ export default function StorePage() {
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <label>
+              <label className="store-check">
                 <input
                   type="checkbox"
                   checked={cfg.panel.enabled}
@@ -483,11 +496,10 @@ export default function StorePage() {
                 Panel enabled
               </label>
             </div>
-          </div>
+          </PossumCard>
 
-          <div style={box}>
-            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Store Background Image Library</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8 }}>
+          <PossumCard title="Store artwork" description="Save reusable images here, then assign them to the panel or an individual item.">
+            <div className="store-image-add-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(150px, 1fr) auto", gap: 10 }}>
               <input
                 style={input}
                 placeholder="Image URL"
@@ -505,7 +517,7 @@ export default function StorePage() {
                   setNewImageUrl("");
                   setNewImageLabel("");
                 })}
-                style={{ ...input, width: "auto", cursor: "pointer" }}
+                style={{ ...button, width: "auto" }}
                 type="button"
               >
                 Add
@@ -515,50 +527,50 @@ export default function StorePage() {
             {cfg.panel.imageLibrary.length ? (
               <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                 {cfg.panel.imageLibrary.map((img) => (
-                  <div key={img.url} style={{ border: "1px solid #5f0000", borderRadius: 8, padding: 8, display: "grid", gridTemplateColumns: "88px 1fr auto auto", gap: 8, alignItems: "center" }}>
-                    <div style={{ width: 88, height: 56, borderRadius: 8, overflow: "hidden", border: "1px solid #3a0000", background: "#0a0a0a" }}>
+                  <div key={img.url} className="store-library-row" style={{ border: "1px solid rgba(255, 47, 134, 0.3)", borderRadius: 12, padding: 10, display: "grid", gridTemplateColumns: "88px minmax(0, 1fr) auto auto", gap: 10, alignItems: "center", background: "rgba(18, 8, 14, 0.72)" }}>
+                    <div style={{ width: 88, height: 56, borderRadius: 9, overflow: "hidden", border: "1px solid rgba(255, 47, 134, 0.35)", background: "#080808" }}>
                       <img src={img.url} alt={img.label || "Store library image"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </div>
                     <div>
                       <div style={{ color: "#ffd6d6", fontWeight: 700 }}>{img.label || "Store background"}</div>
-                      <div style={{ color: "#ff9f9f", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{img.url}</div>
+                      <div style={{ color: "#ffadd1", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>{img.url}</div>
                     </div>
-                    <button type="button" onClick={() => setPanelBackground(img.url)} style={{ ...input, width: "auto", cursor: "pointer" }}>
+                    <button type="button" onClick={() => setPanelBackground(img.url)} className="possum-btn" style={{ ...button, width: "auto" }}>
                       {cfg.panel.imageUrl === img.url ? "Selected" : "Select"}
                     </button>
-                    <button type="button" onClick={() => removePanelImage(img.url)} style={{ ...input, width: "auto", cursor: "pointer" }}>
+                    <button type="button" onClick={() => removePanelImage(img.url)} className="possum-btn" style={{ ...button, width: "auto" }}>
                       Remove
                     </button>
                   </div>
                 ))}
               </div>
             ) : (
-              <div style={{ marginTop: 10, color: "#ff9f9f", fontSize: 12 }}>No images in library yet.</div>
+              <div style={{ marginTop: 10, color: "#ffadd1", fontSize: 12 }}>No images in library yet.</div>
             )}
 
             {cfg.panel.imageUrl ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ color: "#ffb3b3", marginBottom: 4, fontSize: 12 }}>Current background preview</div>
-                <img src={cfg.panel.imageUrl} alt="Store background preview" style={{ maxWidth: "100%", borderRadius: 8, border: "1px solid #5f0000" }} />
+                <div style={{ color: "#ffadd1", marginBottom: 6, fontSize: 12 }}>Current background preview</div>
+                <img src={cfg.panel.imageUrl} alt="Store background preview" style={{ maxWidth: "100%", maxHeight: 320, objectFit: "cover", borderRadius: 12, border: "1px solid rgba(255, 47, 134, 0.38)" }} />
               </div>
             ) : null}
-          </div>
+          </PossumCard>
 
-          <div style={box}>
-            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Policies</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+          <PossumCard title="Purchase policies" description="Set safeguards for role delivery, approvals, and purchase logging.">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
               <div>
-                <label>Require staff approval</label>
-                <br />
-                <input
-                  type="checkbox"
-                  checked={cfg.policies.requireStaffApproval}
-                  onChange={(e) => setCfg((prev) => ({ ...prev, policies: { ...prev.policies, requireStaffApproval: e.target.checked } }))}
-                />
-                <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
+                <label className="store-check">
+                  <input
+                    type="checkbox"
+                    checked={cfg.policies.requireStaffApproval}
+                    onChange={(e) => setCfg((prev) => ({ ...prev, policies: { ...prev.policies, requireStaffApproval: e.target.checked } }))}
+                  />
+                  Require staff approval for role purchases
+                </label>
+                <div style={{ color: "#ffadd1", fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
                   Role purchases are held (charged) and posted to the approval channel with Approve / Deny buttons. Approve grants the role; deny or no review within 72 hours refunds the buyer automatically.
                 </div>
-                <label style={{ display: "block", marginTop: 8 }}>Staff approval channel</label>
+                <label style={{ marginTop: 12 }}>Staff approval channel</label>
                 <select
                   style={input}
                   value={cfg.policies.approvalChannelId}
@@ -574,7 +586,7 @@ export default function StorePage() {
               </div>
             </div>
             <div style={{ marginTop: 8 }}>
-              <label>
+              <label className="store-check">
                 <input
                   type="checkbox"
                   checked={cfg.policies.allowRoleStacking}
@@ -583,23 +595,20 @@ export default function StorePage() {
                 Allow role stacking
               </label>
             </div>
-          </div>
+          </PossumCard>
 
-          <div style={box}>
-            <h3 style={{ marginTop: 0, color: "#ff4444" }}>Store Items</h3>
-            <div style={{ color: "#ffb7b7", marginBottom: 10, lineHeight: 1.5 }}>
-              Build each catalog entry like a visual shop card first, then tune the behavior underneath. The image library above doubles as a quick asset picker for each item.
-            </div>
+          <PossumCard title="Catalog" description="Create the items members can browse and purchase. Select a card to edit its price, artwork, delivery, and role access.">
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <button type="button" onClick={addItem} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 700 }}>
-                + Add Item
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+              <button type="button" onClick={addItem} className="possum-btn" style={{ ...button, width: "auto", background: "linear-gradient(100deg, #ff4f9a, #d5005f)" }}>
+                + Add catalog item
               </button>
               <button
                 type="button"
                 onClick={() => activeItemIndex >= 0 && removeItem(activeItemIndex)}
                 disabled={activeItemIndex < 0}
-                style={{ ...input, width: "auto", cursor: activeItemIndex >= 0 ? "pointer" : "not-allowed", opacity: activeItemIndex >= 0 ? 1 : 0.6 }}
+                className="possum-btn"
+                style={{ ...button, width: "auto", cursor: activeItemIndex >= 0 ? "pointer" : "not-allowed", opacity: activeItemIndex >= 0 ? 1 : 0.6 }}
               >
                 Remove Selected
               </button>
@@ -607,38 +616,43 @@ export default function StorePage() {
 
             {cfg.items.length ? (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10, marginBottom: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(205px, 1fr))", gap: 12, marginBottom: 18 }}>
                   {cfg.items.map((item, index) => {
                     const selected = index === activeItemIndex;
                     return (
                       <button
                         key={item.id || index}
                         type="button"
+                        aria-pressed={selected}
                         onClick={() => setSelectedItemIndex(index)}
                         style={{
-                          border: selected ? "1px solid #ff6b6b" : "1px solid #5f0000",
-                          borderRadius: 12,
-                          padding: 8,
-                          background: selected ? "rgba(255,70,70,0.12)" : "rgba(120,0,0,0.05)",
-                          color: "#ffd7d7",
+                          border: selected ? "1px solid rgba(255, 47, 134, 0.9)" : "1px solid rgba(255, 47, 134, 0.32)",
+                          borderRadius: 14,
+                          padding: 10,
+                          background: selected ? "linear-gradient(160deg, rgba(140, 0, 66, 0.52), rgba(18, 8, 14, 0.92))" : "rgba(18, 8, 14, 0.72)",
+                          color: "#ffe3ef",
                           textAlign: "left",
-                          cursor: "pointer"
+                          cursor: "pointer",
+                          boxShadow: selected ? "0 0 18px rgba(255, 0, 112, 0.2)" : "none",
+                          transition: "border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease",
                         }}
                       >
-                        <div style={{ height: 110, borderRadius: 8, border: "1px solid #3a0000", overflow: "hidden", background: "linear-gradient(180deg, #1b1b1b, #090909)", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div style={{ height: 126, borderRadius: 10, border: "1px solid rgba(255, 47, 134, 0.28)", overflow: "hidden", background: "linear-gradient(180deg, #25101c, #090808)", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
                           {item.imageUrl ? (
                             <img src={item.imageUrl} alt={`${item.name || "Store item"} card`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           ) : (
-                            <div style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ff8e8e" }}>No Image</div>
+                            <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffadd1" }}>No image</div>
                           )}
                         </div>
                         <div style={{ fontWeight: 800, color: "#fff0f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {item.name || "Untitled Item"}
                         </div>
-                        <div style={{ marginTop: 4, color: "#ffb3b3", fontSize: 12 }}>
-                          {formatPrice(item)} | {item.type}{item.type === "role" ? (item.durationDays > 0 ? ` | ${item.durationDays}d timed` : " | permanent") : ""}                        </div>
-                        <div style={{ marginTop: 4, color: item.enabled ? "#9cffb0" : "#ff9d9d", fontSize: 12 }}>
-                          {item.enabled ? "Live" : "Disabled"}{item.oneTime ? " | one-time" : ""} | {storeAccessLabel(item.access)}
+                        <div style={{ marginTop: 4, color: "#ffadd1", fontSize: 12 }}>
+                          {formatPrice(item)} | {item.type}{item.type === "role" ? (item.durationDays > 0 ? ` | ${item.durationDays}d timed` : " | permanent") : ""}
+                        </div>
+                        <div style={{ marginTop: 8, color: "#ffadd1", fontSize: 11, lineHeight: 1.5 }}>
+                          <span style={{ color: item.enabled ? "#78e0aa" : "#ff90ad", fontWeight: 800 }}>{item.enabled ? "LIVE" : "DISABLED"}</span>
+                          {item.oneTime ? " · One time" : ""} · {storeAccessLabel(item.access)}
                         </div>
                       </button>
                     );
@@ -646,21 +660,28 @@ export default function StorePage() {
                 </div>
 
                 {activeItem ? (
-                  <div style={{ border: "1px solid #5f0000", borderRadius: 12, padding: 12, background: "rgba(120,0,0,0.05)" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+                  <div style={{ border: "1px solid rgba(255, 47, 134, 0.38)", borderRadius: 16, padding: 16, background: "linear-gradient(145deg, rgba(34, 12, 25, 0.88), rgba(8, 8, 8, 0.92))" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
                       <div>
-                        <div style={{ border: "1px solid #5f0000", borderRadius: 12, overflow: "hidden", background: "#090909" }}>
-                          <div style={{ height: 180, background: "linear-gradient(180deg, #171717, #090909)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div style={{ color: "#fff", fontSize: 14, fontWeight: 900, letterSpacing: "0.16em", textTransform: "uppercase" }}>Edit selected item</div>
+                        <div style={{ marginTop: 4, color: "#ffadd1", fontSize: 12 }}>Set the member-facing details and purchase rules.</div>
+                      </div>
+                      <span className="possum-pill" style={{ padding: "6px 10px", letterSpacing: ".1em", fontSize: 10 }}>{activeItem.enabled ? "Enabled" : "Disabled"}</span>
+                    </div>
+                    <div className="store-edit-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.82fr) minmax(0, 1.18fr)", gap: 18 }}>
+                      <div>
+                        <div style={{ border: "1px solid rgba(255, 47, 134, 0.34)", borderRadius: 14, overflow: "hidden", background: "#090808", position: "sticky", top: 105 }}>
+                          <div style={{ height: 240, background: "linear-gradient(180deg, #25101c, #090808)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             {activeItem.imageUrl ? (
                               <img src={activeItem.imageUrl} alt={`${activeItem.name || "Store item"} preview`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             ) : (
-                              <div style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "#ff8e8e" }}>No Item Art</div>
+                              <div style={{ fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: "#ffadd1" }}>No item artwork</div>
                             )}
                           </div>
-                          <div style={{ padding: 10 }}>
+                          <div style={{ padding: 16 }}>
                             <div style={{ fontWeight: 900, color: "#fff2f2" }}>{activeItem.name || "Untitled Item"}</div>
-                            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>{formatPrice(activeItem)}</div>
-                            <div style={{ color: "#ff9f9f", fontSize: 12, marginTop: 6 }}>{activeItem.description || "Add a short description for this item."}</div>
+                            <div style={{ color: "#ff72b8", fontSize: 14, fontWeight: 800, marginTop: 6 }}>{formatPrice(activeItem)}</div>
+                            <div style={{ color: "#ffadd1", fontSize: 13, lineHeight: 1.6, marginTop: 10 }}>{activeItem.description || "Add a short description for this item."}</div>
                           </div>
                         </div>
                       </div>
@@ -782,7 +803,7 @@ export default function StorePage() {
                               disabled={activeItem.type !== "role"}
                               onChange={(e) => updateItem(activeItemIndex, { durationDays: Math.min(3650, Math.max(0, Math.floor(Number(e.target.value || 0)) || 0)) })}
                             />
-                            <div style={{ color: "#ffb3b3", fontSize: 12, marginTop: 4 }}>
+                            <div style={{ color: "#ffadd1", fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
                               {activeItem.type !== "role"
                                 ? "Only role items can be timed."
                                 : activeItem.durationDays > 0
@@ -810,7 +831,7 @@ export default function StorePage() {
 
                         {cfg.panel.imageLibrary.length ? (
                           <div style={{ marginTop: 10 }}>
-                            <div style={{ color: "#ffb3b3", marginBottom: 6, fontSize: 12 }}>Choose from saved images</div>
+                            <div style={{ color: "#ffadd1", marginBottom: 6, fontSize: 12 }}>Choose from saved images</div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
                               {cfg.panel.imageLibrary.map((img) => {
                                 const selected = activeItem.imageUrl === img.url;
@@ -820,22 +841,22 @@ export default function StorePage() {
                                     type="button"
                                     onClick={() => updateItem(activeItemIndex, { imageUrl: selected ? "" : img.url })}
                                     style={{
-                                      border: selected ? "1px solid #ff6b6b" : "1px solid #5f0000",
+                                      border: selected ? "1px solid rgba(255, 47, 134, 0.9)" : "1px solid rgba(255, 47, 134, 0.32)",
                                       borderRadius: 10,
                                       padding: 6,
-                                      background: selected ? "rgba(255,70,70,0.14)" : "rgba(120,0,0,0.05)",
-                                      color: "#ffd7d7",
+                                      background: selected ? "rgba(140, 0, 66, 0.38)" : "rgba(18, 8, 14, 0.72)",
+                                      color: "#ffe3ef",
                                       textAlign: "left",
                                       cursor: "pointer"
                                     }}
                                   >
-                                    <div style={{ height: 72, borderRadius: 8, overflow: "hidden", border: "1px solid #3a0000", background: "#0a0a0a" }}>
+                                    <div style={{ height: 72, borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255, 47, 134, 0.28)", background: "#080808" }}>
                                       <img src={img.url} alt={img.label || "Saved store item art"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                                     </div>
                                     <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: "#fff0f0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                       {img.label || "Saved image"}
                                     </div>
-                                    <div style={{ marginTop: 2, fontSize: 11, color: selected ? "#ffc9c9" : "#ff9f9f" }}>
+                                    <div style={{ marginTop: 2, fontSize: 11, color: selected ? "#ffe3ef" : "#ffadd1" }}>
                                       {selected ? "Selected" : "Use image"}
                                     </div>
                                   </button>
@@ -845,8 +866,8 @@ export default function StorePage() {
                           </div>
                         ) : null}
 
-                        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 10 }}>
-                          <label>
+                        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(255, 47, 134, 0.22)" }}>
+                          <label className="store-check">
                             <input
                               type="checkbox"
                               checked={activeItem.oneTime}
@@ -854,7 +875,7 @@ export default function StorePage() {
                             />{" "}
                             One-time purchase
                           </label>
-                          <label>
+                          <label className="store-check">
                             <input
                               type="checkbox"
                               checked={activeItem.enabled}
@@ -869,11 +890,12 @@ export default function StorePage() {
                 ) : null}
               </>
             ) : (
-              <div style={{ border: "1px dashed #5f0000", borderRadius: 12, padding: 18, color: "#ffb3b3" }}>
-                No items yet. Add your first item to start building the catalog cards.
+              <div style={{ border: "1px dashed rgba(255, 47, 134, 0.42)", borderRadius: 14, padding: 28, color: "#ffadd1", textAlign: "center", background: "rgba(18, 8, 14, 0.55)" }}>
+                <div style={{ color: "#fff", fontSize: 14, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" }}>Your catalog is empty</div>
+                <div style={{ marginTop: 7, fontSize: 13 }}>Add the first item to start building the member-facing store.</div>
               </div>
             )}
-          </div>
+          </PossumCard>
 
           <ConfigJsonEditor
             title="Advanced Store Config"
@@ -886,11 +908,17 @@ export default function StorePage() {
             }}
           />
 
-          <button onClick={() => void saveStore()} disabled={saving} style={{ ...input, width: "auto", cursor: "pointer", fontWeight: 700 }}>
-            {saving ? "Saving..." : "Save Store"}
-          </button>
+          <div style={{ position: "sticky", bottom: 10, zIndex: 5, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", padding: 12, borderRadius: 14, border: "1px solid rgba(255, 47, 134, 0.42)", background: "rgba(15, 8, 12, 0.96)", boxShadow: "0 8px 30px #0009", backdropFilter: "blur(12px)" }}>
+            <button type="button" onClick={() => void saveStore()} disabled={saving || loading} className="possum-btn" style={{ ...button, background: "linear-gradient(100deg, #ff4f9a, #d5005f)", padding: "12px 18px" }}>
+              {saving ? "Saving..." : "Save store"}
+            </button>
+            <button type="button" onClick={() => void reload()} disabled={saving || loading} className="possum-btn" style={button}>
+              Reload
+            </button>
+            {message ? <span role="status" style={{ color: "#ffadd1", fontSize: 13 }}>{message}</span> : null}
+          </div>
         </>
       )}
-    </div>
+    </main>
   );
 }

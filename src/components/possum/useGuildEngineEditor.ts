@@ -39,6 +39,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
   const initialGuild = typeof window === "undefined" ? null : peekGuildData(initialGuildId, initialViewerUserId);
   const defaultsRef = useRef(defaults);
   const contextRef = useRef({ guildId: initialGuildId, viewerUserId: initialViewerUserId });
+  const loadRequestRef = useRef(0);
   const [guildId, setGuildId] = useState(initialGuildId);
   const [viewerUserId, setViewerUserId] = useState(initialViewerUserId);
   const [guildName, setGuildName] = useState(String((initialGuild as any)?.guild?.name || "").trim());
@@ -73,12 +74,16 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
       ) {
         return;
       }
+      loadRequestRef.current += 1;
+      editRevision.current += 1;
       contextRef.current = { guildId: nextGuildId, viewerUserId: nextUserId };
       setConfig({ ...(defaultsRef.current as any) });
       setSummary([]);
       setDetails({});
       setGuildName("");
       setLoading(true);
+      setSaving(false);
+      setMessage("");
       setEmojis([]);
       if (nextGuildId) {
         localStorage.setItem("activeGuildId", nextGuildId);
@@ -104,6 +109,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
   }, [defaults]);
 
   const reload = useCallback(async (targetGuildId = guildId, targetUserId = viewerUserId) => {
+    const requestId = ++loadRequestRef.current;
     if (!enabled) {
       setLoading(false);
       return;
@@ -112,6 +118,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
       setLoading(false);
       return;
     }
+    if (contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId) return;
     const warmRuntime = peekRuntimeEngine(targetGuildId, engine, targetUserId);
     const revisionAtLoad = editRevision.current;
     const warmGuild = peekGuildData(targetGuildId, targetUserId);
@@ -146,14 +153,13 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
         fetchGuildData(targetGuildId, targetUserId),
       ]);
 
-      if (engine === "botPersonalizer" &&
-          (contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId)) return;
+      if (requestId !== loadRequestRef.current ||
+          contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId) return;
       const loadErrors: string[] = [];
 
       if (runtimeResult.status === "fulfilled") {
         const runtimeJson = runtimeResult.value;
-        if (engine !== "botPersonalizer" || (revisionAtLoad === editRevision.current &&
-          contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId)) {
+        if (revisionAtLoad === editRevision.current) {
           setConfig({ ...(defaultsRef.current as any), ...(runtimeJson?.config || {}) });
         }
         setSummary(Array.isArray(runtimeJson?.summary) ? runtimeJson.summary : []);
@@ -185,12 +191,12 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
         setMessage(loadErrors.join(" | "));
       }
     } catch (err: any) {
-      if (engine === "botPersonalizer" &&
-          (contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId)) return;
+      if (requestId !== loadRequestRef.current ||
+          contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId) return;
       setMessage(err?.message || "Failed to load engine.");
     } finally {
-      if (engine !== "botPersonalizer" ||
-          (contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId)) setLoading(false);
+      if (requestId === loadRequestRef.current &&
+          contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId) setLoading(false);
     }
   }, [enabled, engine, guildId, viewerUserId]);
 
@@ -247,8 +253,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
       if (!res.ok || json?.success === false) {
         throw new Error(json?.error || "Save failed");
       }
-      if (engine === "botPersonalizer" &&
-          (contextRef.current.guildId !== guildId || contextRef.current.viewerUserId !== viewerUserId)) return null;
+      if (contextRef.current.guildId !== guildId || contextRef.current.viewerUserId !== viewerUserId) return null;
       const savedConfig = { ...(defaultsRef.current as any), ...(json?.config || patch) };
       if (engine === "botPersonalizer") {
         setConfig((current) => mergePersonalizerSave(submittedDraft, current, savedConfig) as T);
@@ -261,11 +266,12 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
       setMessage(saveWarnings.length ? `Saved. ${saveWarnings.join(" | ")}` : "Saved.");
       return json;
     } catch (err: any) {
-      if (engine !== "botPersonalizer" ||
-          (contextRef.current.guildId === guildId && contextRef.current.viewerUserId === viewerUserId)) setMessage(err?.message || "Save failed.");
+      if (contextRef.current.guildId === guildId && contextRef.current.viewerUserId === viewerUserId) {
+        setMessage(err?.message || "Save failed.");
+      }
       return null;
     } finally {
-      setSaving(false);
+      if (contextRef.current.guildId === guildId && contextRef.current.viewerUserId === viewerUserId) setSaving(false);
     }
   }
 

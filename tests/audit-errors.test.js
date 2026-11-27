@@ -11,13 +11,13 @@ const { renderToStaticMarkup } = require("react-dom/server");
 function load(relative, aliases = {}) {
   const source = fs.readFileSync(path.join(__dirname, "..", relative), "utf8");
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const module = { exports: {} };
+  const testModule = { exports: {} };
   new Function("require", "module", "exports", compiled)(
-    (name) => aliases[name] || require(name), module, module.exports
+    (name) => aliases[name] || require(name), testModule, testModule.exports
   );
-  return module.exports;
+  return testModule.exports;
 }
 
 const requests = load("src/lib/auditRequests.ts");

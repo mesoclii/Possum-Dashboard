@@ -11,7 +11,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 test("JED gallery renders the unified discovery and vault workspace", () => {
   const filename = path.join(__dirname, "..", "src", "app", "emotes", "page.tsx");
   const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
-    compilerOptions: { testModule: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const pageModule = { exports: {} };
   new Function("require", "module", "exports", code)(require, pageModule, pageModule.exports);

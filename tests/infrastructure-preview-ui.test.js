@@ -9,7 +9,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 
 function render(customChannels) {
   const source = fs.readFileSync(path.join(__dirname, "../src/app/dashboard/infrastructure/InfrastructureSetupWizard.tsx"), "utf8");
-  const js = ts.transpileModule(source, { compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const testModule = { exports: {} };
   let stateIndex = 0;
   new Function("require", "module", "exports", js)((name) => {

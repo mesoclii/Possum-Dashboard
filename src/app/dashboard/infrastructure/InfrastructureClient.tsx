@@ -1007,7 +1007,7 @@ export default function InfrastructureClient() {
                         <p key={`${action.id}-history-${index}`} className="text-[11px] text-pink-100/65">
                           Attempt {entry.attempts || index + 1}: {String(entry.status || "unknown").replace(/_/g, " ")}
                           {entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}
-                          {entry.result?.error ? ` · ${entry.result.error}` : ""}
+                          {entry.result?.error || entry.result?.reason ? ` · ${entry.result.error || entry.result.reason}` : ""}
                         </p>
                       ))}
                     </div>

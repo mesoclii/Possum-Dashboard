@@ -693,8 +693,11 @@ export default function InfrastructureSetupWizard() {
       throw new Error("Setup stopped before the final checkpoint.");
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : "Setup stopped before all approved actions completed.";
-      setError(running ? `${detail} Open Infrastructure to review or resume the saved plan.` : detail);
-      if (running) setPreviewSnapshot(null);
+      setError(running ? `${detail} The saved checkpoint is retained below so you can resume without rebuilding the preview.` : detail);
+      if (running) {
+        setPreviewSnapshot(null);
+        await loadReport().catch(() => null);
+      }
     } finally {
       setBatchProgress("");
       setBusy(false);

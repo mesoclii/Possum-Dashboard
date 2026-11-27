@@ -51,7 +51,7 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
-  panelGuides?: { id: string; label: string; href: string; page: string; resourceType?: string; suggestedName?: string; destination: string; configured: boolean }[];
+  panelGuides?: { id: string; label: string; href: string; page: string; resourceType?: string; resourceId?: string | null; suggestedName?: string; destination: string; configured: boolean }[];
   settings?: {
     mode: string;
     repairEnabled: boolean;
@@ -1008,7 +1008,10 @@ export default function InfrastructureClient() {
           <h2 className="text-lg font-black uppercase text-red-200">Need to plan panel destinations?</h2>
           <p className="mt-1 max-w-3xl text-sm text-red-100/75">Guided Server Setup owns the panel checklist. Infrastructure stays focused on scanning server resources, health, and saved mappings.</p>
         </div>
-        <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">Open panel checklist</a>
+        <div className="flex flex-wrap gap-2">
+          <a href="/dashboard/panels" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">View panel destinations</a>
+          <a href="/dashboard/server-setup#setup-panels" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">Edit panel setup</a>
+        </div>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
@@ -1056,6 +1059,7 @@ export default function InfrastructureClient() {
                 <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">
                   {row.kind}{row.parentId ? ` · ${report?.directory?.categories?.find((category) => category.id === row.parentId)?.name || "in a category"}` : ""}
                 </p>
+                <p className="mt-1 break-all font-mono text-[11px] text-pink-100/65">Discord ID: {row.id}</p>
                 {report?.createdResources?.some((resource) => resource.id === row.id) ? <p className="text-xs text-red-100/70">Created by Possum</p> : null}
               </div>
             </div>

@@ -91,6 +91,7 @@ type PanelGuide = {
   href: string;
   page: string;
   resourceType: string;
+  resourceId?: string | null;
   suggestedName?: string;
   destination: string;
   configured: boolean;
@@ -929,7 +930,7 @@ export default function InfrastructureSetupWizard() {
         </div>
       </section>
 
-      <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
+      <section id="setup-panels" className="scroll-mt-24 rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase">Discord panel channels</h2>
@@ -949,6 +950,7 @@ export default function InfrastructureSetupWizard() {
                 </span>
               </div>
               <p className="mt-2 text-sm text-pink-100/70">{item.destination}</p>
+              {item.resourceId ? <p className="mt-1 break-all font-mono text-xs text-pink-100/65">Discord channel ID: {item.resourceId}</p> : null}
               {item.engine && features.some((feature) => feature.id === item.engine && feature.selectable) ? (
                 <label className="mt-2 flex items-center gap-2 text-xs text-pink-100">
                   <input type="checkbox" className="accent-pink-500" checked={featureSelected(item.engine)} disabled={busy}

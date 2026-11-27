@@ -727,14 +727,18 @@ export default function InfrastructureClient() {
         const completed = currentPlan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
         setPlanProgress(`Running checkpoint ${Math.min(completed + 1, total)} of ${total} · ${completed} verified.`);
         const { response, json } = await sendPlanRequest("plan-run");
-        const result = json.result as { plan?: SetupPlan; completed?: boolean; error?: string; resumable?: boolean; action?: SetupPlanAction } | undefined;
+        const result = json.result as { plan?: SetupPlan; completed?: boolean; error?: string; resumable?: boolean; leaseLost?: boolean; action?: SetupPlanAction } | undefined;
         if (result?.plan) {
           currentPlan = result.plan;
           setActivePlan({ plan: currentPlan, canResume: result.resumable !== false, canCancel: true });
         }
         if (json.report) setReport(json.report);
         if (!response.ok || json.success === false) {
-          notify("err", "Setup plan paused", json.error || result?.error || "The bot rejected the next checkpoint. Completed work remains saved.");
+          if (result?.leaseLost) {
+            notify("err", "Setup worker changed — checkpoint preserved", result.error || json.error || "This worker lost its execution lease. The saved plan is shown below; wait for the previous lease to expire, then resume so Possum can reconcile Discord before continuing.");
+          } else {
+            notify("err", "Setup plan paused", json.error || result?.error || "The bot rejected the next checkpoint. Completed work remains saved.");
+          }
           break;
         }
         if (result?.error) {

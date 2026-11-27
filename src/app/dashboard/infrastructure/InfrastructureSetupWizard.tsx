@@ -1081,7 +1081,7 @@ export default function InfrastructureSetupWizard() {
                   {action.history?.length ? (
                     <span className="mt-1 block text-[11px] text-pink-100/55">
                       Previous attempts: {action.history.slice(-3).map((entry) =>
-                        `${entry.attempts || "?"} · ${String(entry.status || "unknown").replace(/_/g, " ")}${entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}`
+                        `${entry.attempts || "?"} · ${String(entry.status || "unknown").replace(/_/g, " ")}${entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}${entry.result?.error || entry.result?.reason ? ` · ${entry.result.error || entry.result.reason}` : ""}`
                       ).join(" | ")}
                     </span>
                   ) : null}

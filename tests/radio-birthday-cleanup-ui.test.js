@@ -41,7 +41,7 @@ for (const initial of [undefined, true]) {
     try {
       const file = path.join(__dirname, "..", "src", "app", "dashboard", "economy", "radio-birthday", "RadioBirthdayClient.tsx");
       const js = ts.transpileModule(fs.readFileSync(file, "utf8"), {
-        compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+        compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
       }).outputText;
       const testModule = { exports: {} };
       new Function("require", "module", "exports", js)((name) => {

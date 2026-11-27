@@ -5,6 +5,8 @@ import { readPersonalSocialGuestId } from "@/lib/personalSocialGuest";
 import { decodeDirectoryCursor, disconnectSocial, isSocialOAuthProvider, memberGuilds, sameOrigin, setSocialVisibility, SOCIAL_PROVIDERS, socialProviderStatus, visibleDirectory } from "@/lib/personalSocial";
 import { enforceDashboardRateLimit } from "@/lib/rateLimiter";
 import { RateLimiterMemory } from "rate-limiter-flexible";
+import type { SocialTransaction } from "@/lib/personalSocial";
+import type { DiscordGuild } from "@/lib/discordOAuth";
 
 const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 const reply = (data: object, status = 200) => NextResponse.json(data, { status, headers });
@@ -29,9 +31,12 @@ export async function GET(request: NextRequest) {
       catch { return reply({ error: "Too many directory requests. Please retry shortly." }, 429); }
       return reply(await visibleDirectory(guildId, session.accessToken, cursor));
     }
+    const guildsRequest: Promise<DiscordGuild[] | null> = session
+      ? memberGuilds(String(session.accessToken)).catch(() => null)
+      : Promise.resolve(null);
     const [guilds, { accounts, visibility }] = await Promise.all([
-      session ? memberGuilds(session.accessToken).catch(() => null) : Promise.resolve(null),
-      prisma.$transaction(async (tx) => ({
+      guildsRequest,
+      prisma.$transaction(async (tx: SocialTransaction) => ({
         accounts: await tx.$queryRaw<{ provider: string; providerId: string; revision: string | null; label: string; url: string }[]>`SELECT a."provider", a."providerId", r."revision", a."label", a."url" FROM "PersonalSocialAccount" a LEFT JOIN "PersonalSocialRevision" r ON r."userId" = a."userId" AND r."provider" = a."provider" WHERE a."userId" = ${userId}`,
         visibility: await tx.$queryRaw<{ provider: string; guildId: string }[]>`SELECT "provider", "guildId" FROM "PersonalSocialVisibility" WHERE "userId" = ${userId}`,
       })),

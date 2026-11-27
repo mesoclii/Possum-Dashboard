@@ -14,6 +14,7 @@ type RadioBirthdayConfig = {
     broadcastChannelId: string;
     timezone: string;
     allowSelfSet: boolean;
+    durableRoleCleanup: boolean;
   };
 };
 
@@ -26,6 +27,7 @@ const DEFAULT_CFG: RadioBirthdayConfig = {
     broadcastChannelId: "",
     timezone: "America/Los_Angeles",
     allowSelfSet: true,
+    durableRoleCleanup: false,
   },
 };
 
@@ -248,6 +250,23 @@ export default function RadioBirthdayPage() {
                 />{" "}
                 Members can set their own birthday
               </label>
+            </div>
+
+            <div style={{ marginTop: 12, border: "1px solid rgba(255,120,160,.35)", borderRadius: 8, padding: 10 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={cfg.birthday.durableRoleCleanup === true}
+                  onChange={(e) =>
+                    setCfg((p) => ({ ...p, birthday: { ...p.birthday, durableRoleCleanup: e.target.checked } }))
+                  }
+                />{" "}
+                Keep birthday role cleanup after bot restarts
+              </label>
+              <div style={{ marginTop: 6, color: "#ffb3b3", fontSize: 12, lineHeight: 1.5 }}>
+                Opt in only for a dedicated birthday role. The bot needs access to audit logs to verify the grant.
+                If it cannot safely verify a removal, the role needs manual review. Disabling this can leave pending roles for manual review.
+              </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))", gap: 10, marginTop: 10 }}>

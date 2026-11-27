@@ -230,7 +230,7 @@ export async function exchangeTikTok(code: string) {
 }
 
 type SocialAccount = { id: string; label: string; url: string };
-type SocialTransaction = Prisma.TransactionClient;
+export type SocialTransaction = Prisma.TransactionClient;
 
 async function rotateSocialRevision(tx: SocialTransaction, provider: OAuthProvider, userId: string) {
   const revision = crypto.randomBytes(16).toString("hex");

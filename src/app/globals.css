@@ -649,6 +649,39 @@ body > div.min-h-screen {
   flex-wrap: wrap;
 }
 
+.site-project-banner {
+  padding: 20px clamp(16px, 4vw, 76px);
+  text-align: center;
+}
+
+.site-project-credit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.site-project-credit > span {
+  color: #ff65df;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
+
+.site-project-credit strong {
+  color: #ff4d9d;
+  background: linear-gradient(105deg, #ff3e53 0%, #ff59d8 28%, #ff3649 52%, #ff6adf 76%, #ff3d59 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: clamp(23px, 3.2vw, 42px);
+  line-height: 1.2;
+  filter: drop-shadow(0 0 12px rgba(255, 40, 100, .3));
+}
+
+.site-project-credit i { font-style: normal; }
+
 .site-project-times {
   grid-column: 1 / -1;
   display: grid;

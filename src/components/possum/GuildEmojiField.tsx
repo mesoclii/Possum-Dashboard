@@ -5,10 +5,12 @@ import GuildEmojiPicker, { type GuildEmoji } from "@/components/possum/GuildEmoj
 
 type TextControl = HTMLInputElement | HTMLTextAreaElement;
 
-export default function GuildEmojiField({ children, emojis, onInsert }: {
+export default function GuildEmojiField({ children, emojis, onInsert, loading, error }: {
   children: ReactElement<{ ref?: Ref<TextControl> }>;
   emojis: GuildEmoji[];
   onInsert: (value: string) => void;
+  loading?: boolean;
+  error?: string;
 }) {
   const control = useRef<TextControl>(null);
 
@@ -24,8 +26,8 @@ export default function GuildEmojiField({ children, emojis, onInsert }: {
     });
   }
 
-  return <>
+  return <div style={{ minWidth: 0 }}>
     {cloneElement(children, { ref: control })}
-    <GuildEmojiPicker emojis={emojis} onInsert={insert} />
-  </>;
+    <GuildEmojiPicker emojis={emojis} onInsert={insert} loading={loading} error={error} />
+  </div>;
 }

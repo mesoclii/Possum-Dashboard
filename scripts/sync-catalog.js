@@ -5,28 +5,47 @@
 const fs = require("fs");
 const path = require("path");
 
-const target = path.join(__dirname, "..", "src", "data", "dashboard-engines.json");
-const candidates = [
-  process.env.POSSUM_ENGINE_CATALOG,
-  path.join(__dirname, "..", "..", "docs", "dashboard-engines.json"),
-  path.join(__dirname, "..", "..", "Possum-Bot", "docs", "dashboard-engines.json"),
-].filter(Boolean);
-
-const source = candidates.find((candidate) => fs.existsSync(candidate));
-if (!source) {
-  console.log("[sync-catalog] canonical catalog not found next to this checkout; leaving the copy as-is");
-  process.exit(0);
+function catalogCandidates({ scriptDir = __dirname, env = process.env } = {}) {
+  return [
+    env.POSSUM_ENGINE_CATALOG,
+    // This local checkout is the user's current Bot source of truth. On the VPS
+    // this path is absent, so resolution falls through to the deployed repo below.
+    path.join(scriptDir, "..", "..", "..", "Negan Bot", "docs", "dashboard-engines.json"),
+    // Production deployments place Possum-Bot beside Possum-Dashboard.
+    path.join(scriptDir, "..", "..", "Possum-Bot", "docs", "dashboard-engines.json"),
+    // Local checkouts may place the Bot beside the workspace containing the Dashboard.
+    path.join(scriptDir, "..", "..", "..", "Possum-Bot", "docs", "dashboard-engines.json"),
+    // Compatibility fallback for older combined workspaces. Keep it after Bot sources
+    // so a stale workspace copy can never override the active Bot catalog.
+    path.join(scriptDir, "..", "..", "docs", "dashboard-engines.json"),
+  ].filter(Boolean);
 }
 
-const next = fs.readFileSync(source, "utf8").replace(/\r\n/g, "\n");
-const current = fs.existsSync(target) ? fs.readFileSync(target, "utf8").replace(/\r\n/g, "\n") : "";
-if (current === next) {
-  console.log("[sync-catalog] dashboard catalog already matches");
-  process.exit(0);
+function resolveCatalogSource(candidates = catalogCandidates()) {
+  return candidates.find((candidate) => fs.existsSync(candidate)) || "";
 }
 
-// Refuse to publish a catalog that does not parse; a broken catalog breaks the dashboard.
-JSON.parse(next);
-fs.mkdirSync(path.dirname(target), { recursive: true });
-fs.writeFileSync(target, next);
-console.log("[sync-catalog] dashboard catalog updated from", path.relative(process.cwd(), source));
+function syncCatalog({ source = resolveCatalogSource(), target = path.join(__dirname, "..", "src", "data", "dashboard-engines.json"), log = console.log } = {}) {
+  if (!source) {
+    log("[sync-catalog] canonical catalog not found next to this checkout; leaving the copy as-is");
+    return { updated: false, source: "" };
+  }
+
+  const next = fs.readFileSync(source, "utf8").replace(/\r\n/g, "\n");
+  const current = fs.existsSync(target) ? fs.readFileSync(target, "utf8").replace(/\r\n/g, "\n") : "";
+  if (current === next) {
+    log("[sync-catalog] dashboard catalog already matches");
+    return { updated: false, source };
+  }
+
+  // Refuse to publish a catalog that does not parse; a broken catalog breaks the dashboard.
+  JSON.parse(next);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, next);
+  log("[sync-catalog] dashboard catalog updated from", path.relative(process.cwd(), source));
+  return { updated: true, source };
+}
+
+if (require.main === module) syncCatalog();
+
+module.exports = { catalogCandidates, resolveCatalogSource, syncCatalog };

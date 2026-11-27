@@ -132,13 +132,23 @@ type RewardRoleOption = {
   proposedName: string;
 };
 
+type SetupProfile = {
+  id: string;
+  version: number;
+  name: string;
+  description: string;
+  featureIds: string[];
+};
+
 type SetupReport = {
   guildId?: string;
   panelSetupPolicy?: string;
   channelCreationPolicy?: string;
   ready?: boolean;
+  setupStatus?: string;
   reason?: string;
   featureCatalog?: Feature[];
+  setupProfiles?: SetupProfile[];
   panelGuides?: PanelGuide[];
   proposals?: Proposal[];
   rewardRoleOptions?: RewardRoleOption[];
@@ -152,6 +162,7 @@ type SetupReport = {
   createdResources?: SetupCreatedResource[];
   settings?: {
     mode?: string;
+    setupProfile?: string;
     autopilotEnabled?: boolean;
     automaticProvisioningEnabled?: boolean;
     trackedEngines?: string[] | null;
@@ -214,6 +225,7 @@ type PreviewSnapshot = {
   autopilotEnabled: boolean;
   automaticProvisioningEnabled: boolean;
   features: string[];
+  setupProfile: string;
   names: Record<string, string>;
   categoryNames: Record<string, string>;
   resourceCounts: Record<string, number>;
@@ -259,8 +271,21 @@ function isPanelDestinationName(name: string) {
   return /panel|selfroles?/i.test(name.replace(/[^a-z0-9]/gi, ""));
 }
 
-function savedFeatureSelection(report: SetupReport | null) {
+function setupProfileFor(report: SetupReport | null) {
+  const profiles = report?.setupProfiles || [];
+  const stored = String(report?.settings?.setupProfile || "");
+  if (report?.settings?.trackedEnginesConfigured === true) {
+    return profiles.some((profile) => profile.id === stored) ? stored : "custom";
+  }
+  if (stored && stored !== "custom" && profiles.some((profile) => profile.id === stored)) return stored;
+  return profiles.some((profile) => profile.id === "community") ? "community" : "custom";
+}
+
+function savedFeatureSelection(report: SetupReport | null, profileId = setupProfileFor(report)) {
   const configured = report?.settings?.trackedEngines;
+  if (report?.settings?.trackedEnginesConfigured === true && Array.isArray(configured)) return sorted(configured);
+  const profile = report?.setupProfiles?.find((entry) => entry.id === profileId);
+  if (profile) return sorted(profile.featureIds || []);
   return sorted(Array.isArray(configured) ? configured : (report?.featureCatalog || []).map((feature) => feature.id));
 }
 
@@ -344,6 +369,7 @@ export default function InfrastructureSetupWizard() {
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<SetupReport | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [setupProfile, setSetupProfile] = useState("custom");
   const [selectedRoleMappings, setSelectedRoleMappings] = useState<string[]>([]);
   const [rewardRoleSelections, setRewardRoleSelections] = useState<string[]>([]);
   const [customRoleText, setCustomRoleText] = useState("");
@@ -402,7 +428,9 @@ export default function InfrastructureSetupWizard() {
     const next = data.report || null;
     if (next) {
       setReport(next);
-      const saved = savedFeatureSelection(next);
+      const profile = setupProfileFor(next);
+      setSetupProfile(profile);
+      const saved = savedFeatureSelection(next, profile);
       setSelected(saved);
       setSelectedRoleMappings(roleSelectionsForFeatures(saved, sorted(next.settings?.selectedRoleMappings || [])));
       setRewardRoleSelections(sorted(next.settings?.rewardRoleSelections || []));
@@ -436,7 +464,9 @@ export default function InfrastructureSetupWizard() {
       .then((data) => {
         const next = data.report || null;
         setReport(next);
-        const saved = savedFeatureSelection(next);
+        const profile = setupProfileFor(next);
+        setSetupProfile(profile);
+        const saved = savedFeatureSelection(next, profile);
         setSelected(saved);
         setSelectedRoleMappings(roleSelectionsForFeatures(saved, sorted(next?.settings?.selectedRoleMappings || [])));
         setRewardRoleSelections(sorted(next?.settings?.rewardRoleSelections || []));
@@ -518,6 +548,7 @@ export default function InfrastructureSetupWizard() {
     ),
   ], [report?.directory]);
   const previewDirty = Boolean(previewSnapshot && (
+    setupProfile !== previewSnapshot.setupProfile ||
     autopilotEnabled !== previewSnapshot.autopilotEnabled ||
     automaticProvisioningEnabled !== previewSnapshot.automaticProvisioningEnabled ||
     selectedFeatures.join("\n") !== previewSnapshot.features.join("\n") ||
@@ -556,6 +587,7 @@ export default function InfrastructureSetupWizard() {
       ? sorted([...selected, ...ids])
       : selected.filter((entry) => !ids.includes(entry));
     setSelected(next);
+    setSetupProfile("custom");
     setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
   }
 
@@ -612,6 +644,7 @@ export default function InfrastructureSetupWizard() {
     try {
       const draft = {
         features: selectedFeatures,
+        setupProfile,
         names,
         categoryNames,
         resourceCounts,
@@ -632,6 +665,7 @@ export default function InfrastructureSetupWizard() {
         action: "plan-preview",
         settings: {
           trackedEngines: draft.features,
+          setupProfile: draft.setupProfile,
           resourceNameOverrides: draft.names,
           categoryNameOverrides: draft.categoryNames,
           resourceCounts: draft.resourceCounts,
@@ -844,7 +878,20 @@ export default function InfrastructureSetupWizard() {
       ? sorted([...selected, ...ids])
       : selected.filter((id) => !ids.includes(id));
     setSelected(next);
+    setSetupProfile("custom");
     setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
+    setError("");
+    setMessage("");
+  }
+
+  function selectSetupProfile(profileId: string) {
+    const profile = report?.setupProfiles?.find((entry) => entry.id === profileId);
+    if (!profile) return;
+    const next = sorted(profile.featureIds || []);
+    setSetupProfile(profile.id);
+    setSelected(next);
+    setSelectedRoleMappings((current) => roleSelectionsForFeatures(next, current));
+    setPreviewSnapshot(null);
     setError("");
     setMessage("");
   }
@@ -1029,6 +1076,27 @@ export default function InfrastructureSetupWizard() {
             </button>
           </div>
         </div>
+        {report?.setupProfiles?.length ? (
+          <div className="mt-4 grid gap-2 rounded-lg border border-pink-900/50 bg-black/30 p-3 sm:grid-cols-[minmax(12rem,0.75fr)_minmax(0,1.25fr)] sm:items-center">
+            <label htmlFor="setup-blueprint-profile" className="grid gap-1 text-sm font-bold text-pink-100">
+              Starting layout
+              <select
+                id="setup-blueprint-profile"
+                value={setupProfile}
+                onChange={(event) => selectSetupProfile(event.target.value)}
+                disabled={busy}
+                className="min-h-10 rounded-md border border-pink-900/50 bg-black px-2 text-sm text-pink-50"
+              >
+                {report.setupProfiles.map((profile) => (
+                  <option key={`${profile.id}:${profile.version}`} value={profile.id}>{profile.name}</option>
+                ))}
+              </select>
+            </label>
+            <p className="text-xs leading-relaxed text-pink-100/70">
+              {report.setupProfiles.find((profile) => profile.id === setupProfile)?.description || "Choose a starting layout, then adjust its features below."} Nothing changes until you review and approve the plan.
+            </p>
+          </div>
+        ) : null}
         <div role="tablist" aria-label="Setup feature categories" className="mt-4 flex flex-wrap gap-2">
           {GROUPS.map((group) => {
             const count = displayFeatures.filter((feature) => feature.group === group.id).length;

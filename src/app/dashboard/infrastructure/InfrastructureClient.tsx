@@ -42,7 +42,8 @@ type Report = {
   panelSetupPolicy?: string;
   channelCreationPolicy?: string;
   reason?: string;
-  healthScore?: number;
+  setupStatus?: string;
+  healthScore?: number | null;
   counts?: { critical: number; warning: number; notice: number; optional?: number; healthy: number };
   issues?: Finding[];
   findings?: Finding[];
@@ -161,7 +162,7 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     return {
       title: "Scan complete",
       lines: [
-        `Health ${report?.healthScore ?? "—"} · critical ${report?.counts?.critical ?? 0} · warning ${report?.counts?.warning ?? 0} · optional ${report?.counts?.optional ?? report?.counts?.notice ?? 0}`,
+        `${report?.setupStatus === "unconfigured" ? "Setup not configured" : `Health ${report?.healthScore ?? "—"}`} · critical ${report?.counts?.critical ?? 0} · warning ${report?.counts?.warning ?? 0} · optional ${report?.counts?.optional ?? report?.counts?.notice ?? 0}`,
         `Configured ${report?.setup?.configured ?? 0} · missing ${report?.setup?.missing ?? 0} · needs attention ${report?.setup?.needsAttention ?? 0}`,
         "No engine configuration was written.",
       ],
@@ -852,7 +853,7 @@ export default function InfrastructureClient() {
           <h1 className="mt-3 max-w-4xl text-3xl font-black uppercase leading-[1.04] tracking-[0.035em] text-white sm:text-4xl">Setup &amp; Infrastructure</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-rose-100/80 sm:text-base">Your server, understood. Possum maps the systems you enable to the roles, channels, categories, permissions, and configuration they depend on. Review the plan, approve the changes, and verify what was actually applied.</p>
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Health score</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.healthScore ?? "—"}<span className="ml-1 text-xs font-bold text-pink-100/50">/ 100</span></p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">{report?.setupStatus === "unconfigured" ? "Setup status" : "Health score"}</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.setupStatus === "unconfigured" ? "Not configured" : report?.healthScore ?? "—"}{report?.setupStatus === "unconfigured" ? null : <span className="ml-1 text-xs font-bold text-pink-100/50">/ 100</span>}</p></div>
             <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Configured</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.setup?.configured ?? "—"}</p></div>
             <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Needs attention</p><p className="mt-1 text-2xl font-black tabular-nums text-amber-200">{report?.setup?.needsAttention ?? report?.counts?.critical ?? "—"}</p></div>
             <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Systems tracked</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.trackedEngineCount ?? (report?.allEngines?.length ?? "—")}</p></div>

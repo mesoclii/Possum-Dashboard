@@ -12,7 +12,7 @@ const root = path.join(__dirname, "..");
 function loadTypeScript(relative, aliases = {}) {
   const source = fs.readFileSync(path.join(root, relative), "utf8");
   const compiled = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
+    compilerOptions: { testModule: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
   const loaded = { exports: {} };
   new Function("require", "module", "exports", compiled)(

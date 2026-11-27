@@ -5,6 +5,7 @@ import DashboardAccessGate from "@/components/possum/DashboardAccessGate";
 import GuildNameBootstrap from "@/components/possum/GuildNameBootstrap";
 import DashboardBanner from "@/components/possum/DashboardBanner";
 import DashboardAccountSummary from "@/components/possum/DashboardAccountSummary";
+import DashboardCommandPalette from "@/components/possum/DashboardCommandPalette";
 import "./dashboard-theme.css";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -31,6 +32,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               </Suspense>
 
               <div className="flex items-center gap-2">
+                <DashboardCommandPalette />
                 <Link
                   href="/guilds"
                   prefetch={false}

@@ -712,9 +712,13 @@ export default function InfrastructureSetupWizard() {
     setMessage("");
     setBatchProgress("Recovering the saved setup checkpoint…");
     try {
-      const recovered = await callApi({ action: "plan-resume", planId: saved.plan.id });
-      let plan = recovered.result?.plan;
-      if (!plan) throw new Error("The bot did not return the recovered setup plan.");
+      let plan = saved.plan;
+      if (["running", "partial", "failed", "recovery_required"].includes(plan.state)) {
+        const recovered = await callApi({ action: "plan-resume", planId: plan.id });
+        plan = recovered.result?.plan || plan;
+      } else if (plan.state !== "approved") {
+        throw new Error(`This setup plan cannot resume while it is ${plan.state}.`);
+      }
       setActivePlan({ plan, canResume: true, canCancel: true });
       for (let index = 0; index <= plan.actions.length; index += 1) {
         const completed = plan.actions.filter((action) => action.status === "completed").length;

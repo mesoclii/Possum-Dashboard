@@ -144,9 +144,7 @@ function settingsForInfrastructurePlan(report: Report | null): Record<string, un
     .map((feature) => feature.id);
   const trackedEngines = settings.trackedEnginesConfigured === true
     ? settings.trackedEngines || []
-    : selectedByCatalog.length
-      ? selectedByCatalog
-      : (report?.allEngines || []).map((feature) => feature.engine);
+    : selectedByCatalog;
   return {
     mode: "full-setup",
     trackedEngines,
@@ -581,7 +579,14 @@ export default function InfrastructureClient() {
           notify("err", "Panel deployment refused", "Infrastructure can map an approved destination channel but cannot deploy a panel message.");
           return;
         }
-        setPreview({ wrote: false, planned: rowsOf(json.result?.planned) as unknown as AdaptRow[], skipped: rowsOf(json.result?.skipped) as unknown as { id: string; reason: string }[] });
+        const planned = rowsOf(json.result?.planned) as unknown as AdaptRow[];
+        if (!planned.length) {
+          setPreview(null);
+          setConfirm("");
+          notify("err", json.result?.stale ? "Inventory changed; nothing to apply" : "No mappings to apply", String(json.result?.reason || "There are no unique empty mappings. Use Server Setup to review missing resources."));
+          return;
+        }
+        setPreview({ wrote: false, planned, skipped: rowsOf(json.result?.skipped) as unknown as { id: string; reason: string }[] });
         setConfirm("adapt");
         notify("err", "The inventory changed", String(json.result?.reason || "Review the new preview before applying."));
         return;
@@ -783,15 +788,6 @@ export default function InfrastructureClient() {
     }
   }
 
-  async function copyId(id: string) {
-    try {
-      await navigator.clipboard?.writeText(id);
-      notify("ok", "Copied", `Discord id ${id} is on the clipboard.`);
-    } catch {
-      notify("err", "Copy was blocked", "The browser did not allow copying that id. Select it from the directory instead.");
-    }
-  }
-
   const locked = Boolean(busyAction);
   const busyLabel = busyAction ? `Running ${busyAction.replace(/-/g, " ")}` : "";
 
@@ -802,8 +798,9 @@ export default function InfrastructureClient() {
       ...(directory?.channels || []),
       ...(directory?.roles || []).map((row) => ({ ...row, kind: "role" })),
     ];
+    const categoryNames = new Map((directory?.categories || []).map((row) => [row.id, row.name]));
     const needle = query.trim().toLowerCase();
-    return needle ? all.filter((row) => `${row.name} ${row.id} ${row.kind || ""}`.toLowerCase().includes(needle)) : all;
+    return needle ? all.filter((row) => `${row.name} ${row.kind || ""} ${categoryNames.get(row.parentId || "") || ""}`.toLowerCase().includes(needle)) : all;
   }, [report, query]);
   const engineRows = useMemo(() => {
     const summaries = new Map((report?.engines || []).map((engine) => [engine.engine, engine]));
@@ -825,6 +822,9 @@ export default function InfrastructureClient() {
   const planPermissionBlocked = Boolean(activePlan?.plan.actions.some((action) =>
     action.type === "create_resource" && action.permissionStatus !== "verified"
   ));
+  const selectedFeatureCount = report?.settings?.trackedEnginesConfigured === true
+    ? (report.settings.trackedEngines || []).length
+    : (report?.featureCatalog || []).filter((feature) => feature.selectionStatus === "selected").length;
 
   return (
     <div className="space-y-4">
@@ -860,12 +860,13 @@ export default function InfrastructureClient() {
         <p className="mt-2 text-sm text-pink-100/80">{report?.ready ? "Observed by the saved scan." : report?.reason || "Scan the server to build a read-only directory."}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
-          <ActionButton label="Build setup plan" tip="Create a saved, owner-reviewable plan for the selected systems. It can include missing resources and unique existing mappings. Nothing changes until approval." busy={busyAction === "setup-plan-preview"} busyLabel="Planning…" locked={locked || !report?.ready} onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report), flowChoices: { onboarding: "keep", verification: "keep", preOnboarding: "keep" } })} />
+          <ActionButton label="Build setup plan" tip={selectedFeatureCount ? "Create a saved, owner-reviewable plan for only the systems selected in Server Setup. Nothing changes until approval." : "Choose the systems this server uses in Server Setup first. Infrastructure will not assume every feature is enabled."} busy={busyAction === "setup-plan-preview"} busyLabel="Planning…" locked={locked || !report?.ready || selectedFeatureCount === 0} onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report), flowChoices: { onboarding: "keep", verification: "keep", preOnboarding: "keep" } })} />
+          {selectedFeatureCount === 0 ? <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-black uppercase">Choose systems in Server Setup</a> : null}
           <ActionButton label="Preview existing matches" tip="Auto-Adapt only fills empty mappings when exactly one existing resource is a safe match. It cannot create missing resources." busy={busyAction === "adapt-preview"} busyLabel="Previewing…" locked={locked || !report?.ready} onClick={() => post("adapt-preview", { action: "adapt" })} />
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.autopilotEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Autopilot is ${report?.settings?.autopilotEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.autopilotEnabled ? "●" : "○"}</span> Autopilot: {report?.settings?.autopilotEnabled ? "ON" : "OFF"}</span>
-          <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="Autopilot only reroutes to a unique, unused existing channel/category. It cannot create resources or touch protected flows." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
+          <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="Autopilot only reroutes to a unique, unused existing channel/category for selected systems. It cannot create resources or touch protected flows." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.autopilotEnabled && selectedFeatureCount === 0)} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.automaticProvisioningEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Automatic resource creation is ${report?.settings?.automaticProvisioningEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.automaticProvisioningEnabled ? "●" : "○"}</span> Auto-create: {report?.settings?.automaticProvisioningEnabled ? "ON" : "OFF"}</span>
-          <ActionButton label={report?.settings?.automaticProvisioningEnabled ? "Turn auto-create off" : "Turn auto-create on"} tip="Automatic resource creation is separate from a reviewed setup plan. It applies only to missing non-panel resources for tracked systems." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
+          <ActionButton label={report?.settings?.automaticProvisioningEnabled ? "Turn auto-create off" : "Turn auto-create on"} tip="Automatic resource creation is separate from a reviewed setup plan. It applies only to missing non-panel resources for selected systems." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.automaticProvisioningEnabled && selectedFeatureCount === 0)} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
           <span title="Deleted channel and category mappings stay untouched. Use Auto-Adapt to review a unique existing replacement." className="inline-flex min-h-10 items-center rounded-md border border-amber-800/60 px-3 py-2 text-xs font-black uppercase text-amber-100">Channel repair: manual review</span>
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
@@ -949,27 +950,17 @@ export default function InfrastructureClient() {
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Directory</h2>
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, roles, or IDs" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, or roles" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
         <div className="mt-3 space-y-2">
           {rows.map((row) => (
             <div key={`${row.kind}-${row.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-pink-900/40 px-3 py-2">
               <div>
                 <p className="text-sm font-bold text-pink-100">{row.name}</p>
                 <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">
-                  {row.kind} · {row.kind === "role" && row.id === guildId && /^\d{16,20}$/.test(row.id) ? (
-                    <a
-                      href={`/guilds?focusGuildId=${encodeURIComponent(row.id)}`}
-                      title="Inspect or join this server"
-                      className="underline decoration-pink-400 underline-offset-2 hover:text-pink-100"
-                    >
-                      {row.id}
-                    </a>
-                  ) : row.id}
-                  {row.parentId ? ` · parent ${row.parentId}` : ""}
+                  {row.kind}{row.parentId ? ` · ${report?.directory?.categories?.find((category) => category.id === row.parentId)?.name || "in a category"}` : ""}
                 </p>
                 <p className="text-xs text-red-100/70">{row.botPermissions?.flags?.length ? row.botPermissions.flags.join(", ") : row.botPermissions?.status || "role"}{report?.createdResources?.some((resource) => resource.id === row.id) ? " · Possum created" : ""}</p>
               </div>
-              <ActionButton label="Copy ID" tip={`Copy Discord id ${row.id}`} busy={false} locked={locked} onClick={() => { void copyId(row.id); }} />
             </div>
           ))}
         </div>
@@ -1048,7 +1039,7 @@ export default function InfrastructureClient() {
                     {proposal.matches.map((match) => <option key={match.id} value={match.id}>{match.name}</option>)}
                   </select>
                   <label className="inline-flex items-center gap-2 text-xs text-pink-100/80"><input type="checkbox" checked={allowSharedResources[proposal.id] === true} onChange={(event) => setAllowSharedResources((current) => ({ ...current, [proposal.id]: event.target.checked }))} /> Share destination with other features</label>
-                  <ActionButton label="Use this match" tip="Write the match you picked into this empty field." busy={false} locked={locked} onClick={() => ask({ title: "Use this match", detail: `${proposal.engine}.${proposal.field} will use the selected match. Shared destinations are allowed only when explicitly checked.`, confirmLabel: "Use this match", body: { action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] || "" }, allowSharedResource: allowSharedResources[proposal.id] === true } })} />
+                  <ActionButton label="Use this match" tip="Choose an existing channel or role before applying the mapping." busy={false} locked={locked || !choices[proposal.id]} onClick={() => ask({ title: "Use this match", detail: `${proposal.engine}.${proposal.field} will use the selected match. Shared destinations are allowed only when explicitly checked.`, confirmLabel: "Use this match", body: { action: "approve", proposalIds: [proposal.id], selections: { [proposal.id]: choices[proposal.id] || "" }, allowSharedResource: allowSharedResources[proposal.id] === true } })} />
                 </div>
               ) : null}
             </div>
@@ -1074,6 +1065,7 @@ export default function InfrastructureClient() {
         confirmLabel="Apply these mappings"
         busy={busyAction === "adapt-apply"}
         locked={locked && busyAction !== "adapt-apply"}
+        confirmDisabled={!preview?.planned?.length}
         onConfirm={() => void post("adapt-apply", { action: "adapt", confirmed: true, planned: preview?.planned || [] })}
         onCancel={() => { setConfirm(""); setPreview(null); }}
       >

@@ -444,7 +444,8 @@ export default function InfrastructureSetupWizard() {
     !(report?.directory?.channels || []).some((channel) => ["text", "announcement"].includes(channel.kind) && channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
   );
   const standalonePanelGuides = (report?.panelGuides || []).filter((item) =>
-    item.id.endsWith(":panel") && item.resourceType === "channel" && Boolean(item.suggestedName)
+    (item.id.endsWith(":panel") || item.id.startsWith("selfroles:panel:")) &&
+    item.resourceType === "channel" && Boolean(item.suggestedName)
   );
   const standalonePanelChannelAliases: Record<string, string[]> = {
     "selfroles:panel": ["selfroles", "roles", "selfrolespanel"],
@@ -454,7 +455,9 @@ export default function InfrastructureSetupWizard() {
     !item.configured &&
     !(report?.directory?.channels || []).some((channel) => {
       const name = channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "");
-      const aliases = standalonePanelChannelAliases[item.id] || [String(item.suggestedName || "").toLowerCase().replace(/[^a-z0-9]+/g, "")];
+      const aliases = item.id.startsWith("selfroles:panel:")
+        ? standalonePanelChannelAliases["selfroles:panel"]
+        : standalonePanelChannelAliases[item.id] || [String(item.suggestedName || "").toLowerCase().replace(/[^a-z0-9]+/g, "")];
       return ["text", "announcement"].includes(channel.kind) && aliases.includes(name);
     }) && !normalizedCustomChannelNames.some((name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "") === String(item.suggestedName || "").toLowerCase().replace(/[^a-z0-9]+/g, ""))
   );

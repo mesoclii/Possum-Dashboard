@@ -681,7 +681,18 @@ export default function InfrastructureClient() {
             <div key={`${row.kind}-${row.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-pink-900/40 px-3 py-2">
               <div>
                 <p className="text-sm font-bold text-pink-100">{row.name}</p>
-                <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">{row.kind} · {row.id}{row.parentId ? ` · parent ${row.parentId}` : ""}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-red-300/80">
+                  {row.kind} · {row.kind === "role" && row.id === guildId && /^\d{16,20}$/.test(row.id) ? (
+                    <a
+                      href={`/guilds?focusGuildId=${encodeURIComponent(row.id)}`}
+                      title="Inspect or join this server"
+                      className="underline decoration-pink-400 underline-offset-2 hover:text-pink-100"
+                    >
+                      {row.id}
+                    </a>
+                  ) : row.id}
+                  {row.parentId ? ` · parent ${row.parentId}` : ""}
+                </p>
                 <p className="text-xs text-red-100/70">{row.botPermissions?.flags?.length ? row.botPermissions.flags.join(", ") : row.botPermissions?.status || "role"}{report?.createdResources?.some((resource) => resource.id === row.id) ? " · Possum created" : ""}</p>
               </div>
               <ActionButton label="Copy ID" tip={`Copy Discord id ${row.id}`} busy={false} locked={locked} onClick={() => { void copyId(row.id); }} />

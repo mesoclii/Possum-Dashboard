@@ -27,6 +27,12 @@ type DiscordUser = {
   avatar: string | null;
 };
 
+type InspectionInvite = {
+  inviteUrl: string;
+  channelName: string;
+  expiresAt: string | null;
+};
+
 function badgeStyle(kind: "primary" | "ready" | "missing") {
   if (kind === "primary") {
     return {
@@ -109,6 +115,10 @@ export default function GuildsPage() {
   const [oauthLoggedIn, setOauthLoggedIn] = useState(false);
   const [oauthUser, setOauthUser] = useState<DiscordUser | null>(null);
   const [isControlOwner, setIsControlOwner] = useState(false);
+  const [focusGuildId, setFocusGuildId] = useState("");
+  const [inviteByGuild, setInviteByGuild] = useState<Record<string, InspectionInvite>>({});
+  const [inviteBusyGuildId, setInviteBusyGuildId] = useState("");
+  const [inviteErrorByGuild, setInviteErrorByGuild] = useState<Record<string, string>>({});
   const [policy, setPolicy] = useState<PolicyState>({
     primaryGuildId: "1431799056211906582",
     gamesBaselineGuildId: "1336178965202599936",
@@ -117,6 +127,8 @@ export default function GuildsPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
+      const requestedGuildId = String(params.get("focusGuildId") || "").trim();
+      if (/^\d{16,20}$/.test(requestedGuildId)) setFocusGuildId(requestedGuildId);
       const userId = String(
         params.get("userId") ||
           params.get("uid") ||
@@ -241,8 +253,10 @@ export default function GuildsPage() {
   }, []);
 
   const orderedGuilds = useMemo(() => {
-    return orderGuildsForDisplay(guilds, policy, isControlOwner);
-  }, [guilds, policy, isControlOwner]);
+    const ordered = orderGuildsForDisplay(guilds, policy, isControlOwner);
+    if (!focusGuildId) return ordered;
+    return [...ordered].sort((a, b) => Number(b.id === focusGuildId) - Number(a.id === focusGuildId));
+  }, [guilds, policy, isControlOwner, focusGuildId]);
 
   const summary = useMemo(() => {
     const installed = orderedGuilds.filter((guild) => guild.botPresent !== false).length;
@@ -265,6 +279,38 @@ export default function GuildsPage() {
     if (roleIds) next.set("roleIds", roleIds);
 
     window.location.href = `/dashboard?${next.toString()}`;
+  }
+
+  async function createInspectionInvite(guildId: string) {
+    setInviteBusyGuildId(guildId);
+    setInviteErrorByGuild((current) => ({ ...current, [guildId]: "" }));
+    try {
+      const response = await fetch("/api/guilds/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId }),
+        cache: "no-store",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data?.success !== true || typeof data?.inviteUrl !== "string") {
+        throw new Error(String(data?.error || "Possum could not create an invite for this server."));
+      }
+      setInviteByGuild((current) => ({
+        ...current,
+        [guildId]: {
+          inviteUrl: data.inviteUrl,
+          channelName: String(data.channelName || "server invite"),
+          expiresAt: data.expiresAt ? String(data.expiresAt) : null,
+        },
+      }));
+    } catch (error: any) {
+      setInviteErrorByGuild((current) => ({
+        ...current,
+        [guildId]: String(error?.message || "Could not create a Discord invite."),
+      }));
+    } finally {
+      setInviteBusyGuildId("");
+    }
   }
 
   return (
@@ -426,6 +472,11 @@ export default function GuildsPage() {
         {!loading && orderedGuilds.length === 0 ? (
           <p style={{ color: "#ffd7d7" }}>No accessible servers found. Sign in with Discord or invite the bot to a server you manage.</p>
         ) : null}
+        {!loading && focusGuildId && !guilds.some((guild) => guild.id === focusGuildId) ? (
+          <div role="status" style={{ marginBottom: 18, border: "1px solid #ff2a4d", borderRadius: 14, padding: 14, color: "#ffd7d7", background: "rgba(120,0,0,0.18)" }}>
+            The requested server is not in the servers this Discord account or Possum Bot can currently access. Discord requires a server member or administrator to provide an invite before you can join it.
+          </div>
+        ) : null}
         <div
           style={{
             display: "grid",
@@ -439,6 +490,8 @@ export default function GuildsPage() {
             const isInstalled = guild.botPresent !== false;
             const iconUrl = resolveGuildIcon(guild);
             const inviteHref = buildInviteUrl(baseInviteUrl, guild.id);
+            const isFocusedGuild = guild.id === focusGuildId;
+            const inspectionInvite = inviteByGuild[guild.id];
 
             const baselineLabel = isPrimary
               ? "Primary Baseline"
@@ -451,9 +504,11 @@ export default function GuildsPage() {
                 key={guild.id}
                 style={{
                   textAlign: "left",
-                  border: "1px solid #6f0000",
+                  border: isFocusedGuild ? "2px solid #ff2bd6" : "1px solid #6f0000",
                   borderRadius: 20,
-                  background: "linear-gradient(180deg, rgba(120,0,0,0.14), rgba(0,0,0,0.72))",
+                  background: isFocusedGuild
+                    ? "linear-gradient(180deg, rgba(255,43,214,0.18), rgba(0,0,0,0.72))"
+                    : "linear-gradient(180deg, rgba(120,0,0,0.14), rgba(0,0,0,0.72))",
                   color: "#ffd7d7",
                   padding: 20,
                   minHeight: 280,
@@ -478,6 +533,12 @@ export default function GuildsPage() {
                     <div style={{ fontSize: 12, opacity: 0.72 }}>Guild {guild.id}</div>
                   </div>
                 </div>
+
+                {isFocusedGuild ? (
+                  <div style={{ marginBottom: 10, color: "#ff9ee7", fontSize: 12, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                    Requested server
+                  </div>
+                ) : null}
 
                 <div style={{ fontSize: 14, opacity: 0.86, minHeight: 46, lineHeight: 1.6 }}>
                   {isInstalled
@@ -525,21 +586,41 @@ export default function GuildsPage() {
 
                 <div style={{ marginTop: "auto", display: "flex", gap: 10, flexWrap: "wrap", paddingTop: 18 }}>
                   {isInstalled ? (
-                    <button
-                      onClick={() => openGuild(guild.id, guild.name)}
-                      style={{
-                        borderRadius: 999,
-                        padding: "10px 16px",
-                        fontSize: 12,
-                        fontWeight: 900,
-                        cursor: "pointer",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        ...actionButtonStyle("secondary"),
-                      }}
-                    >
-                      Open
-                    </button>
+                    <>
+                      <button
+                        onClick={() => openGuild(guild.id, guild.name)}
+                        style={{
+                          borderRadius: 999,
+                          padding: "10px 16px",
+                          fontSize: 12,
+                          fontWeight: 900,
+                          cursor: "pointer",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                          ...actionButtonStyle("secondary"),
+                        }}
+                      >
+                        Inspect Dashboard
+                      </button>
+                      <a
+                        href={`https://discord.com/channels/${encodeURIComponent(guild.id)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ borderRadius: 999, padding: "10px 16px", fontSize: 12, fontWeight: 900, textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.08em", ...actionButtonStyle("secondary") }}
+                      >
+                        Open in Discord
+                      </a>
+                      {isControlOwner ? (
+                        <button
+                          type="button"
+                          onClick={() => void createInspectionInvite(guild.id)}
+                          disabled={inviteBusyGuildId === guild.id}
+                          style={{ borderRadius: 999, padding: "10px 16px", fontSize: 12, fontWeight: 900, cursor: inviteBusyGuildId === guild.id ? "wait" : "pointer", textTransform: "uppercase", letterSpacing: "0.08em", opacity: inviteBusyGuildId === guild.id ? 0.65 : 1, ...actionButtonStyle("oauth") }}
+                        >
+                          {inviteBusyGuildId === guild.id ? "Creating invite…" : "Create join invite"}
+                        </button>
+                      ) : null}
+                    </>
                   ) : inviteHref ? (
                     <a
                       href={inviteHref}
@@ -576,6 +657,21 @@ export default function GuildsPage() {
                     </a>
                   ) : null}
                 </div>
+                {inspectionInvite ? (
+                  <div style={{ marginTop: 12, border: "1px solid rgba(255,43,214,0.45)", borderRadius: 14, padding: 12, background: "rgba(0,0,0,0.35)" }}>
+                    <div style={{ color: "#ffd7d7", fontSize: 13, marginBottom: 8 }}>
+                      One-use invite created through #{inspectionInvite.channelName}{inspectionInvite.expiresAt ? ` · expires ${new Date(inspectionInvite.expiresAt).toLocaleString()}` : " · expires within 24 hours"}.
+                    </div>
+                    <a href={inspectionInvite.inviteUrl} target="_blank" rel="noreferrer" style={{ color: "#ff9ee7", fontWeight: 900, overflowWrap: "anywhere" }}>
+                      Join this server in Discord
+                    </a>
+                  </div>
+                ) : null}
+                {inviteErrorByGuild[guild.id] ? (
+                  <div role="alert" style={{ marginTop: 10, color: "#ffaaaa", fontSize: 13, lineHeight: 1.5 }}>
+                    {inviteErrorByGuild[guild.id]} Open in Discord works if you already belong to the server; otherwise ask a server member for an invite.
+                  </div>
+                ) : null}
               </div>
             );
           })}

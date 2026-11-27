@@ -7,7 +7,7 @@ const ts = require("typescript");
 
 function load(file, mocks) {
   const js = ts.transpileModule(fs.readFileSync(path.join(__dirname, "..", "src", ...file.split("/")), "utf8"), {
-    compilerOptions: { testModule: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
   const testModule = { exports: {} };
   new Function("require", "module", "exports", js)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), testModule, testModule.exports);

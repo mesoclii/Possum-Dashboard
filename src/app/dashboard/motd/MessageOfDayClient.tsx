@@ -148,7 +148,7 @@ export default function MessageOfDayClient() {
 
   async function publishPanel() {
     if (!cfg.panelChannelId) return;
-    await editor.runAction("deployPanel", { channelId: panelChannelId });
+    await editor.runAction("deployPanel", { channelId: cfg.panelChannelId });
   }
 
   const canSubmit = Boolean(draft.date && draft.time && draft.channelId && (draft.content.trim() || draft.title.trim() || draft.imageUrl.trim()));
@@ -231,7 +231,7 @@ export default function MessageOfDayClient() {
         <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto_auto] sm:items-end">
           <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Panel channel<select className={fieldClass} value={cfg.panelChannelId} onChange={(event) => editor.setConfig({ ...cfg, panelChannelId: event.target.value })}><option value="">Choose a text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
           <button type="button" className={buttonClass} disabled={!cfg.panelChannelId || editor.saving || editor.loading} onClick={() => void savePanelDestination()}>Save panel channel</button>
-          <button type="button" className={primaryClass} disabled={!panelChannelId || editor.saving || editor.loading} onClick={() => void publishPanel()}>Post / refresh panel</button>
+          <button type="button" className={primaryClass} disabled={!cfg.panelChannelId || editor.saving || editor.loading} onClick={() => void publishPanel()}>Post / refresh panel</button>
         </div>
         <p className="mt-2 text-xs text-pink-100/60">The deployed panel uses the existing WoW MOTD interaction and does not publish or overwrite any scheduled post.</p>
       </PossumCard>

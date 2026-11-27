@@ -818,15 +818,19 @@ export default function InfrastructureSetupWizard() {
 
   return (
     <main className="space-y-4 text-red-100">
-      <section className="rounded-xl border possum-divider bg-black/55 p-4 possum-border sm:p-6">
-        <p className="text-xs uppercase tracking-[0.2em] possum-soft">Server setup</p>
-        <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed">
-          Start with the panel checklist, then choose features, connect existing resources, and create the missing roles, channels, and categories you approve.
-        </p>
-        <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup reuses clear existing channel matches and can create only the missing destinations you approve. It never posts panel messages, and it leaves protected onboarding, pre-onboarding, and verification settings unchanged.
-        </p>
+      <section className="relative overflow-hidden rounded-2xl border border-pink-700/40 bg-gradient-to-br from-[#260b16] via-[#12070d] to-black p-5 shadow-[0_18px_70px_rgba(110,12,48,0.18)] possum-border sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border border-pink-300/10 bg-pink-400/[0.05] blur-2xl" />
+        <div className="relative">
+          <p className="text-[11px] font-black uppercase tracking-[0.28em] text-pink-200/80">Possum · Guided deployment</p>
+          <h1 className="mt-3 max-w-4xl text-3xl font-black uppercase leading-[1.04] tracking-[0.035em] text-white sm:text-4xl">Build your server. Understand every decision.</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-rose-100/80 sm:text-base">This is more than a channel creator. Possum helps you shape the systems your community needs, understand the resources behind each feature, reuse what you already have, and review a complete deployment before anything is applied.</p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-xs font-black uppercase tracking-wider text-pink-200">01 · Discover</p><p className="mt-1 text-sm text-white">Inspect your server and identify existing roles, channels, categories, and configuration.</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-xs font-black uppercase tracking-wider text-pink-200">02 · Design</p><p className="mt-1 text-sm text-white">Choose feature systems, tune names, and see dependencies, permissions, and protected settings.</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-xs font-black uppercase tracking-wider text-pink-200">03 · Deploy</p><p className="mt-1 text-sm text-white">Approve the exact plan, follow durable checkpoints, and verify each applied change.</p></div>
+          </div>
+          <p className="mt-4 rounded-xl border border-amber-500/25 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-100/90"><strong>Safety is built into the workflow:</strong> existing resources are reused when matches are clear; missing resources are shown for approval; protected onboarding, pre-onboarding, and verification flows are never silently rewritten; panel messages are published from their feature pages, not guessed or spammed by setup.</p>
+        </div>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">

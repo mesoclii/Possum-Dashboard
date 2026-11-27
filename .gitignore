@@ -13,3 +13,7 @@ prisma/*.db-wal
 *.bak
 *.bak.*
 *.tsbuildinfo
+
+# Runtime setup stores and audit history remain on the deployment host.
+/data/setup/*.json
+/data/setup/*.ndjson

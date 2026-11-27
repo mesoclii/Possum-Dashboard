@@ -9,9 +9,9 @@ function load(file, mocks) {
   const js = ts.transpileModule(fs.readFileSync(path.join(__dirname, "..", "src", ...file.split("/")), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true },
   }).outputText;
-  const module = { exports: {} };
-  new Function("require", "module", "exports", js)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports);
-  return module.exports;
+  const testModule = { exports: {} };
+  new Function("require", "module", "exports", js)((name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), testModule, testModule.exports);
+  return testModule.exports;
 }
 
 test("Discord login redirects public host to canonical host before setting state cookies", async () => {

@@ -99,7 +99,17 @@ type ApiJson = {
 
 type Notice = { id: number; tone: "ok" | "err"; title: string; detail?: string };
 type PendingWrite = { title: string; detail: string; confirmLabel: string; body: Record<string, unknown> };
-type DialogKind = "repair" | "adapt" | "setup-plan" | "";
+type CompensationItem = { actionId: string; status: string; reason?: string; resourceId?: string };
+type CompensationPreview = {
+  ok: boolean;
+  planId: string;
+  planState: string;
+  previewToken: string;
+  items: CompensationItem[];
+  canExecute: boolean;
+  deletesResources: false;
+};
+type DialogKind = "repair" | "adapt" | "setup-plan" | "compensation" | "";
 
 function isPanelField(row: { engine: string; field: string }) {
   return /deploy/i.test(`${row.engine}:${row.field}`);
@@ -184,7 +194,7 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
         title: `Infrastructure Autopilot ${body.autopilotEnabled ? "enabled" : "disabled"}`,
         lines: [
           body.autopilotEnabled
-            ? "Unique, unambiguous channel/category reroutes may run automatically. Channel repair is disabled."
+            ? "Unique, unambiguous reroutes may run automatically. If Repair is enabled, only previously setup-owned resources with verified deletion receipts and no name collision can be recreated; ambiguous cases require owner review."
             : "Infrastructure will monitor and report findings without automatic repairs.",
           "Roles, permissions, protected flows, and healthy mappings are never changed automatically.",
         ],
@@ -241,7 +251,19 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     const names = nameList(result.repaired);
     return {
       title: `Repair recreated ${countOf(result.repaired)} resource${countOf(result.repaired) === 1 ? "" : "s"}`,
-      lines: [...(names.length ? [`Recreated: ${names.join(", ")}`] : []), ...(result.message ? [String(result.message)] : [])],
+      lines: [...(names.length ? [`Recreated: ${names.join(", ")}`] : []), ...(result.message ? [String(result.message)] : []), ...rowsOf(result.failed).slice(0, 4).map((row) => String(row.error || row.reason || "Manual review required."))],
+    };
+  }
+  if (action === "plan-compensate") {
+    const summary = (result.compensation || {}) as Record<string, number>;
+    return {
+      title: result.completed === true ? "Previous setup state restored" : "Restore finished with items for review",
+      lines: [
+        `${summary.completed || 0} changes restored`,
+        `${summary.alreadyCompensated || 0} already restored`,
+        `${summary.retainedResources || 0} created resources retained (not deleted)`,
+        `${(summary.conflicts || 0) + (summary.manualReview || 0) + (summary.failed || 0)} items need review`,
+      ],
     };
   }
   if (action === "approve") {
@@ -426,6 +448,7 @@ export default function InfrastructureClient() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [confirm, setConfirm] = useState<DialogKind>("");
   const [preview, setPreview] = useState<AdaptPreview | null>(null);
+  const [compensationPreview, setCompensationPreview] = useState<CompensationPreview | null>(null);
   const [pending, setPending] = useState<PendingWrite | null>(null);
   const inFlight = useRef(false);
   const loadSequence = useRef(0);
@@ -470,6 +493,7 @@ export default function InfrastructureClient() {
       setReport(null);
       setActivePlan(null);
       setPlanProgress("");
+      setCompensationPreview(null);
       if (!nextGuild) return;
       fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(nextGuild)}&userId=${encodeURIComponent(nextUser)}`, { cache: "no-store" })
         .then(async (response) => {
@@ -543,7 +567,33 @@ export default function InfrastructureClient() {
       const json = await readJson(response);
       if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) return;
       if (!response.ok || json.success === false) {
+        if (["plan-run", "plan-resume", "plan-cancel", "plan-compensate"].includes(String(body.action))) {
+          const refreshedResponse = await fetch(
+            `/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`,
+            { cache: "no-store" },
+          ).catch(() => null);
+          if (refreshedResponse?.ok) {
+            const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
+            if (readDashboardGuildId() === guildId && readDashboardUserId() === userId) {
+              if (refreshed.activePlan?.plan) setActivePlan(refreshed.activePlan);
+              else setActivePlan(null);
+              if (refreshed.report?.guildId === guildId) setReport(refreshed.report);
+            }
+          }
+        }
         notify("err", `Request failed (${response.status})`, json.error || "The bot API did not return an error message.");
+        return;
+      }
+      if (body.action === "plan-compensation-preview") {
+        const next = json.result as unknown as CompensationPreview | undefined;
+        if (!next?.ok || !next.previewToken) {
+          notify("err", "Compensation preview unavailable", json.error || "The saved plan cannot be safely restored.");
+          return;
+        }
+        setCompensationPreview(next);
+        setConfirm("compensation");
+        notify("ok", "Restore preview ready",
+          `${next.items.filter((item) => item.status === "ready").length} changes can be restored. Discord resources will not be deleted.`);
         return;
       }
       if (body.action === "plan-preview") {
@@ -598,6 +648,7 @@ export default function InfrastructureClient() {
       setPreview(null);
       setConfirm("");
       setPending(null);
+      if (body.action === "plan-compensate") setCompensationPreview(null);
       const refreshedResponse = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
@@ -690,14 +741,18 @@ export default function InfrastructureClient() {
         const completed = currentPlan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
         setPlanProgress(`Running checkpoint ${Math.min(completed + 1, total)} of ${total} · ${completed} verified.`);
         const { response, json } = await sendPlanRequest("plan-run");
-        const result = json.result as { plan?: SetupPlan; completed?: boolean; error?: string; resumable?: boolean; action?: SetupPlanAction } | undefined;
+        const result = json.result as { plan?: SetupPlan; completed?: boolean; error?: string; resumable?: boolean; leaseLost?: boolean; action?: SetupPlanAction } | undefined;
         if (result?.plan) {
           currentPlan = result.plan;
           setActivePlan({ plan: currentPlan, canResume: result.resumable !== false, canCancel: true });
         }
         if (json.report) setReport(json.report);
         if (!response.ok || json.success === false) {
-          notify("err", "Setup plan paused", json.error || result?.error || "The bot rejected the next checkpoint. Completed work remains saved.");
+          if (result?.leaseLost) {
+            notify("err", "Setup worker changed — checkpoint preserved", result.error || json.error || "This worker lost its execution lease. The saved plan is shown below; wait for the previous lease to expire, then resume so Possum can reconcile Discord before continuing.");
+          } else {
+            notify("err", "Setup plan paused", json.error || result?.error || "The bot rejected the next checkpoint. Completed work remains saved.");
+          }
           break;
         }
         if (result?.error) {
@@ -842,11 +897,23 @@ export default function InfrastructureClient() {
         ))}
       </div>
 
-<section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
-        <p className="text-xs uppercase tracking-[0.22em] possum-soft">Infrastructure</p>
-        <h1 className="mt-1 text-2xl font-black uppercase tracking-[0.08em] possum-red">Server Directory</h1>
-        <p className="mt-2 text-sm text-red-100/80">Health {report?.healthScore ?? "—"} · Critical {report?.counts?.critical ?? 0} · Warning {report?.counts?.warning ?? 0} · Optional {report?.counts?.optional ?? report?.counts?.notice ?? 0}</p>
-        <p className="mt-1 text-sm text-pink-100/80">Configured {report?.setup?.configured ?? 0} · Missing {report?.setup?.missing ?? 0} · Needs attention {report?.setup?.needsAttention ?? 0} · Tracking {report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)} feature{(report?.trackedEngineCount ?? (report?.allEngines?.length ?? 0)) === 1 ? "" : "s"}</p>
+<section className="relative overflow-hidden rounded-2xl border border-pink-700/40 bg-gradient-to-br from-[#240912] via-[#10070d] to-black p-5 shadow-[0_18px_70px_rgba(110,12,48,0.18)] possum-border sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-28 h-72 w-72 rounded-full border border-pink-400/10 bg-pink-500/[0.04] blur-2xl" />
+        <div className="relative">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-pink-200/80">Possum · Server Intelligence</p>
+            <span className="inline-flex items-center gap-2 rounded-full border border-pink-500/30 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-pink-100"><span className="h-1.5 w-1.5 rounded-full bg-pink-300 shadow-[0_0_12px_rgba(249,168,212,0.9)]" /> {report?.ready ? "Live inventory" : "Awaiting first scan"}</span>
+          </div>
+          <h1 className="mt-3 max-w-4xl text-3xl font-black uppercase leading-[1.04] tracking-[0.035em] text-white sm:text-4xl">Setup &amp; Infrastructure</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-rose-100/80 sm:text-base">Your server, understood. Possum maps the systems you enable to the roles, channels, categories, permissions, and configuration they depend on. Review the plan, approve the changes, and verify what was actually applied.</p>
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Health score</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.healthScore ?? "—"}<span className="ml-1 text-xs font-bold text-pink-100/50">/ 100</span></p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Configured</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.setup?.configured ?? "—"}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Needs attention</p><p className="mt-1 text-2xl font-black tabular-nums text-amber-200">{report?.setup?.needsAttention ?? report?.counts?.critical ?? "—"}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-pink-200/65">Systems tracked</p><p className="mt-1 text-2xl font-black tabular-nums text-white">{report?.trackedEngineCount ?? (report?.allEngines?.length ?? "—")}</p></div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-rose-100/65"><span>{report?.counts?.critical ?? 0} critical</span><span>{report?.counts?.warning ?? 0} warnings</span><span>{report?.counts?.optional ?? report?.counts?.notice ?? 0} optional</span><span>{report?.setup?.missing ?? 0} missing mappings</span></div>
+        </div>
         {report?.onboarding?.status === "needs-choice" ? (
           <p className="mt-2 text-sm text-pink-100">This server was just discovered. Open Server Setup to choose systems, review resource names, and approve setup.</p>
         ) : null}
@@ -861,10 +928,12 @@ export default function InfrastructureClient() {
             onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report) })} />
           <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-black uppercase">Guided Server Setup</a>
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.autopilotEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Autopilot is ${report?.settings?.autopilotEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.autopilotEnabled ? "●" : "○"}</span> Autopilot: {report?.settings?.autopilotEnabled ? "ON" : "OFF"}</span>
-          <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="Autopilot only reroutes to a unique, unused existing channel/category for selected systems. It cannot create resources or touch protected flows." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.autopilotEnabled && selectedFeatureCount === 0)} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
+          <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="Autopilot only reroutes to unique existing destinations or repairs previously setup-owned resources after verified deletion. It never changes protected onboarding, verification, pre-onboarding, or Heist flows." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.autopilotEnabled && selectedFeatureCount === 0)} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.automaticProvisioningEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Automatic resource creation is ${report?.settings?.automaticProvisioningEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.automaticProvisioningEnabled ? "●" : "○"}</span> Auto-create: {report?.settings?.automaticProvisioningEnabled ? "ON" : "OFF"}</span>
           <ActionButton label={report?.settings?.automaticProvisioningEnabled ? "Turn auto-create off" : "Turn auto-create on"} tip="Automatic resource creation is separate from a reviewed setup plan. It applies only to missing non-panel resources for selected systems." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.automaticProvisioningEnabled && selectedFeatureCount === 0)} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
-          <span title="Deleted channel and category mappings stay untouched. Use Auto-Adapt to review a unique existing replacement." className="inline-flex min-h-10 items-center rounded-md border border-amber-800/60 px-3 py-2 text-xs font-black uppercase text-amber-100">Channel repair: manual review</span>
+          <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.repairEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Setup-owned resource repair is ${report?.settings?.repairEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.repairEnabled ? "●" : "○"}</span> Repair: {report?.settings?.repairEnabled ? "ON" : "OFF"}</span>
+          <ActionButton label={report?.settings?.repairEnabled ? "Turn repair off" : "Turn repair on"} tip="Repair only recreates resources Possum previously created and recorded. It first verifies the exact old Discord resource is gone and refuses to create if a same-name resource exists." busy={busyAction === "repair-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.repairEnabled && selectedFeatureCount === 0 && !(report?.settings?.customRoleNames?.length || report?.settings?.customChannelNames?.length))} onClick={() => post("repair-toggle", { action: "settings", repairEnabled: !report?.settings?.repairEnabled })} />
+          <ActionButton label="Repair missing resources" tip="Recreate only setup-owned resources with a matching durable create receipt after Discord confirms the old resource is deleted. Same-name collisions and uncertain receipts require manual review." busy={busyAction === "repair"} busyLabel="Repairing…" locked={locked || report?.settings?.repairEnabled !== true} onClick={() => ask({ title: "Repair missing setup resources?", detail: "Possum will refresh this server's channels and roles, verify each setup-owned resource is actually gone, and check that no same-name replacement already exists. Only then will it recreate that resource and verify the new receipt. Uncertain creates, owner-created resources, protected flows, and ambiguous collisions are left untouched for manual review.", confirmLabel: "Repair verified resources", body: { action: "repair", confirmed: true } })} />
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
           <ActionButton label="TXT" tip="Download the directory as text." busy={busyAction === "export-txt"} busyLabel="Exporting…" locked={locked} onClick={() => download("txt")} />
@@ -887,12 +956,34 @@ export default function InfrastructureClient() {
                 ? `${activePlanSummary.creates} created · ${activePlanSummary.mappings} existing destinations connected`
                 : `${activePlanSummary.creates} to create · ${activePlanSummary.mappings} existing destinations to connect`}</p>
               <p className="mt-1 text-sm text-red-100/80">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length} of {activePlan.plan.actions.length} checkpoints verified{planProgress ? ` · ${planProgress}` : ""}</p>
+              {activePlan.plan.updatedAt ? <p className="mt-1 text-[11px] text-pink-100/55">Last checkpoint update: {new Date(activePlan.plan.updatedAt).toLocaleString()}</p> : null}
+              {activePlan.plan.finishedAt ? <p className="mt-1 text-[11px] text-pink-100/55">Plan closed: {new Date(activePlan.plan.finishedAt).toLocaleString()}</p> : null}
               <p className="mt-1 text-xs text-pink-100/70">Each bot request runs one checkpoint. The plan is saved on the bot, so an interrupted run can resume from its last verified action.</p>
+              {activePlan.plan.state === "rolling_back" ? <p role="status" className="mt-2 text-xs font-bold text-amber-200">Restore is currently owned by a rollback worker. Its durable lease prevents a second restore from starting; refresh this page to see the final checkpoint.</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">
               {activePlan.plan.state === "draft" && activePlan.canResume && activePlanSummary.total > 0 ? <ActionButton label="Review and apply" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
               {activePlan.canResume && activePlan.plan.state !== "draft" ? <ActionButton label="Resume plan" tip="Continue the saved plan from its next safe checkpoint." busy={busyAction === "setup-plan"} busyLabel="Running…" locked={locked} onClick={() => void executeSetupPlan()} /> : null}
               {activePlan.canCancel ? <ActionButton label="Cancel plan" tip="Cancel pending actions. Anything already created stays and remains recorded." busy={false} locked={locked} onClick={() => ask({ title: "Cancel this saved plan?", detail: "Pending actions will stop. Anything already created stays in the server and is listed in the saved plan.", confirmLabel: "Cancel plan", body: { action: "plan-cancel", planId: activePlan.plan.id } })} /> : null}
+              {activePlan.canCompensate ? <ActionButton label="Preview restore" tip="Review which previous settings and mappings can be restored. This never deletes Discord resources." busy={busyAction === "plan-compensation-preview"} busyLabel="Checking…" locked={locked} onClick={() => post("plan-compensation-preview", { action: "plan-compensation-preview", planId: activePlan.plan.id })} /> : null}
+            </div>
+          </div>
+          <div className="mt-4" aria-label="Deployment checkpoint progress">
+            <div className="mb-1 flex items-center justify-between text-[11px] uppercase tracking-wider text-pink-100/65">
+              <span>Verified deployment progress</span>
+              <span>{activePlan.plan.actions.length ? Math.round((activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length / activePlan.plan.actions.length) * 100) : 100}%</span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={activePlan.plan.actions.length ? Math.round((activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length / activePlan.plan.actions.length) * 100) : 100}
+            >
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-[width]"
+                style={{ width: `${activePlan.plan.actions.length ? (activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length / activePlan.plan.actions.length) * 100 : 100}%` }}
+              />
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -900,8 +991,28 @@ export default function InfrastructureClient() {
               <div key={action.id} className="rounded-lg border border-red-900/40 px-3 py-2">
                 <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.status.replace(/_/g, " ")} · {action.type.replace(/_/g, " ")}</p>
                 <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Setup settings"}</p>
+                {action.attempts ? <p className="mt-1 text-[11px] text-pink-100/55">Execution attempts: {action.attempts}</p> : null}
+                {action.updatedAt ? <p className="mt-1 text-[11px] text-pink-100/45">Updated {new Date(action.updatedAt).toLocaleString()}</p> : null}
+                {action.dependencies?.length ? <p className="mt-1 text-[11px] text-pink-100/55">Depends on: {action.dependencies.join(", ")}</p> : null}
                 {action.missingPermissions?.length ? <p className="mt-1 text-xs text-amber-200">Needs bot permission: {action.missingPermissions.join(", ")}</p> : null}
-                {action.result?.error ? <p className="mt-1 text-xs text-red-200">{action.result.error}</p> : null}
+                {action.result?.retryable === true ? <p className="mt-1 text-[11px] font-bold uppercase text-amber-200">Safe retry available</p> : null}
+                {action.result?.recoveryRequired === true ? <p className="mt-1 text-[11px] font-bold uppercase text-red-200">Manual reconciliation required</p> : null}
+                {action.result?.error || action.result?.reason || action.lastError ? <p className="mt-1 text-xs text-red-200">{action.result?.error || action.result?.reason || action.lastError}</p> : null}
+                {action.result?.skipReason ? <p className="mt-1 text-xs text-amber-100">Skipped intentionally: {action.result.skipReason}</p> : null}
+                {action.history?.length ? (
+                  <div className="mt-2 border-t border-red-900/30 pt-2">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-pink-100/60">Previous execution attempts</p>
+                    <div className="mt-1 space-y-1">
+                      {action.history.slice(-3).map((entry, index) => (
+                        <p key={`${action.id}-history-${index}`} className="text-[11px] text-pink-100/65">
+                          Attempt {entry.attempts || index + 1}: {String(entry.status || "unknown").replace(/_/g, " ")}
+                          {entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}
+                          {entry.result?.error || entry.result?.reason ? ` · ${entry.result.error || entry.result.reason}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -1053,7 +1164,7 @@ export default function InfrastructureClient() {
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <h2 className="text-lg font-black uppercase text-red-200">Continuous watch</h2>
         <p className="mt-2 text-sm text-red-100/80">Last check {report?.watch?.checkedAt ? new Date(report.watch.checkedAt).toLocaleString() : "—"} · Critical {report?.watch?.counts?.critical ?? 0} · Warning {report?.watch?.counts?.warning ?? 0} · Added {report?.watch?.added ?? 0} · Cleared {report?.watch?.resolved ?? 0}</p>
-        <p className="mt-1 text-xs text-pink-100/70">{report?.settings?.autopilotEnabled ? "Autopilot is on: it uses only unique, unused existing channel/category matches. Channel repair is disabled; ambiguous changes need owner review." : "Read-only monitoring. Channel repair is disabled."} {report?.settings?.automaticProvisioningEnabled ? "Automatic non-panel creation is also on for tracked engines." : "Missing resources are reported only; automatic creation is off."}</p>
+        <p className="mt-1 text-xs text-pink-100/70">{report?.settings?.autopilotEnabled ? "Autopilot can reroute to unique existing resources and repair only setup-owned resources with verified deletion receipts. Ambiguous collisions and uncertain creates stay in owner review." : "Read-only monitoring unless owner-approved repair is enabled."} {report?.settings?.automaticProvisioningEnabled ? "Automatic non-panel creation is also on for tracked engines." : "Missing resources are reported only; automatic creation is off."}</p>
         <div className="mt-3 space-y-2">
           {(report?.watch?.items || []).filter((entry) => !isPanelField(entry)).slice(0, 20).map((entry) => (
             <div key={entry.id} className="rounded-lg border border-red-900/40 px-3 py-2">
@@ -1098,6 +1209,35 @@ export default function InfrastructureClient() {
             <p key={row.id} className="text-xs text-red-100">{row.engine}.{row.field} → {row.resourceName} ({row.resourceId})</p>
           ))}
           {(preview?.planned?.length || 0) > 40 ? <p className="text-xs text-pink-100/70">+{(preview?.planned?.length || 0) - 40} more.</p> : null}
+        </div>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm === "compensation" && Boolean(compensationPreview)}
+        title="Restore the previous setup state?"
+        detail="This restores only settings and mappings that still match the saved plan's safety checks. Discord resources created by the plan are retained; this operation does not delete channels or roles. Conflicts and uncertain changes remain for manual review."
+        confirmLabel="Restore previous settings"
+        busy={busyAction === "plan-compensate"}
+        locked={locked && busyAction !== "plan-compensate"}
+        confirmDisabled={!compensationPreview?.canExecute || !compensationPreview.items.some((item) => item.status === "ready")}
+        onConfirm={() => {
+          if (!compensationPreview) return;
+          void post("plan-compensate", {
+            action: "plan-compensate",
+            planId: compensationPreview.planId,
+            previewToken: compensationPreview.previewToken,
+          });
+        }}
+        onCancel={() => { setConfirm(""); setCompensationPreview(null); }}
+      >
+        <div className="max-h-64 space-y-2 overflow-y-auto">
+          {(compensationPreview?.items || []).map((item) => (
+            <div key={item.actionId} className="rounded-lg border border-red-900/40 px-3 py-2">
+              <p className="text-xs font-black uppercase text-pink-200">{item.status.replace(/_/g, " ")}</p>
+              <p className="text-sm text-red-100">{item.actionId}</p>
+              {item.reason ? <p className="mt-1 text-xs text-pink-100/70">{item.reason}</p> : null}
+            </div>
+          ))}
         </div>
       </ConfirmDialog>
 

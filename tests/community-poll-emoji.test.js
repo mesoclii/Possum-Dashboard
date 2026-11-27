@@ -41,9 +41,9 @@ test("poll option picker and manual input update only the selected option and sa
   };
   const source = fs.readFileSync(path.join(__dirname, "..", "src", "app", "dashboard", "community-studio", "CommunityStudioClient.tsx"), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  const module = { exports: {} };
-  new Function("require", "module", "exports", js)((name) => mocks[name] || require(name), module, module.exports);
-  const render = () => nodes(module.exports.default());
+  const testModule = { exports: {} };
+  new Function("require", "module", "exports", js)((name) => mocks[name] || require(name), testModule, testModule.exports);
+  const render = () => nodes(testModule.exports.default());
   let tree = render();
   const pickers = tree.filter((node) => node.type === "picker");
   assert.equal(pickers.length, 2);

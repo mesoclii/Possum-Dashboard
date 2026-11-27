@@ -163,6 +163,7 @@ type ApiResponse = {
   error?: string;
   report?: SetupReport;
   plan?: SetupPlan;
+  activePlan?: { plan: SetupPlan; canResume?: boolean; canCancel?: boolean; canCompensate?: boolean } | null;
   preview?: { planned?: AdaptRow[]; skipped?: { id: string; reason: string }[] };
   undoPreview?: UndoPreview;
   result?: {
@@ -333,6 +334,7 @@ export default function InfrastructureSetupWizard() {
   const [automaticProvisioningEnabled, setAutomaticProvisioningEnabled] = useState(false);
   const [activeGroup, setActiveGroup] = useState(GROUPS[0].id);
   const [previewSnapshot, setPreviewSnapshot] = useState<PreviewSnapshot | null>(null);
+  const [activePlan, setActivePlan] = useState<ApiResponse["activePlan"]>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [undoPreview, setUndoPreview] = useState<UndoPreview | null>(null);
   const [undoConfirmOpen, setUndoConfirmOpen] = useState(false);
@@ -371,6 +373,7 @@ export default function InfrastructureSetupWizard() {
       { cache: "no-store" }
     );
     const data = await readJson(response);
+    setActivePlan(data.activePlan || null);
     const next = data.report || null;
     if (next) {
       setReport(next);
@@ -404,6 +407,7 @@ export default function InfrastructureSetupWizard() {
     fetch(`/api/bot/infrastructure?${params.toString()}`, { cache: "no-store" })
       .then(readJson)
       .then((data) => {
+        setActivePlan(data.activePlan || null);
         const next = data.report || null;
         setReport(next);
         const saved = savedFeatureSelection(next);
@@ -654,14 +658,16 @@ export default function InfrastructureSetupWizard() {
       const approved = await callApi({ action: "plan-approve", planId: draft.id, digest: draft.digest });
       let plan = approved.result?.plan;
       if (!plan) throw new Error("The bot did not return an approved setup plan.");
+      setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
       running = true;
       for (let index = 0; index <= draft.actions.length; index += 1) {
-        const completed = plan.actions.filter((action) => action.status === "completed").length;
+        const completed = plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
         setBatchProgress(`Applying setup · ${completed} of ${plan.actions.length} checkpoints complete…`);
         const step = await callApi({ action: "plan-run", planId: plan.id });
         const updated = step.result?.plan;
         if (!updated) throw new Error("The bot did not return the next setup checkpoint.");
         plan = updated;
+        setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
         const summary = summarizeSetupPlan(plan.actions, true);
         setCreated(plan.actions.filter((action) =>
           action.type === "create_resource" && action.status === "completed").map((action) => ({
@@ -676,6 +682,7 @@ export default function InfrastructureSetupWizard() {
         }
         if (step.result?.completed || plan.state === "succeeded") {
           setPreviewSnapshot(null);
+          setActivePlan(null);
           setMessage(summary.creates || summary.mappings
             ? `Setup applied · ${summary.creates} resources created and verified · ${summary.mappings} existing destinations connected.`
             : "Setup applied the reviewed settings. No Discord resources needed creation or mapping.");
@@ -686,10 +693,90 @@ export default function InfrastructureSetupWizard() {
       throw new Error("Setup stopped before the final checkpoint.");
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : "Setup stopped before all approved actions completed.";
-      setError(running ? `${detail} Open Infrastructure to review or resume the saved plan.` : detail);
-      if (running) setPreviewSnapshot(null);
+      setError(running ? `${detail} The saved checkpoint is retained below so you can resume without rebuilding the preview.` : detail);
+      if (running) {
+        setPreviewSnapshot(null);
+        await loadReport().catch(() => null);
+      }
     } finally {
       setBatchProgress("");
+      setBusy(false);
+    }
+  }
+
+  async function resumeActiveSetup() {
+    const saved = activePlan;
+    if (!saved?.plan?.id || busy) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setBatchProgress("Recovering the saved setup checkpoint…");
+    try {
+      let plan = saved.plan;
+      if (["running", "partial", "failed", "recovery_required"].includes(plan.state)) {
+        const recovered = await callApi({ action: "plan-resume", planId: plan.id });
+        if (recovered.success === false || !recovered.result?.plan) {
+          throw new Error(recovered.error || recovered.result?.error || "The saved setup checkpoint could not be resumed safely.");
+        }
+        plan = recovered.result.plan;
+      } else if (plan.state !== "approved") {
+        throw new Error(`This setup plan cannot resume while it is ${plan.state}.`);
+      }
+      setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
+      for (let index = 0; index <= plan.actions.length; index += 1) {
+        const completed = plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
+        setBatchProgress(`Resuming setup · ${completed} of ${plan.actions.length} checkpoints complete…`);
+        const step = await callApi({ action: "plan-run", planId: plan.id });
+        const updated = step.result?.plan;
+        if (!updated) throw new Error("The bot did not return the next recovered checkpoint.");
+        plan = updated;
+        setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
+        setCreated(plan.actions.filter((action) => action.type === "create_resource" && action.status === "completed").map((action) => ({
+          id: action.result?.resourceId || action.id, name: action.name, engine: action.engine, field: action.field,
+        })));
+        setCreationFailures(plan.actions.filter((action) => action.result?.error).map((action) => ({
+          id: action.id, name: action.name || action.resourceName || action.field || action.type,
+          error: action.result?.error || "Setup stopped at this action.",
+        })));
+        if (step.result?.error || ["partial", "failed", "recovery_required"].includes(plan.state)) {
+          throw new Error(step.result?.error || "Setup needs attention before it can continue.");
+        }
+        if (step.result?.completed || plan.state === "succeeded") {
+          const summary = summarizeSetupPlan(plan.actions, true);
+          setActivePlan(null);
+          setMessage(summary.creates || summary.mappings
+            ? `Setup completed · ${summary.creates} resources created and verified · ${summary.mappings} existing destinations connected.`
+            : "Setup completed and the approved settings were verified.");
+          await loadReport();
+          return;
+        }
+      }
+      throw new Error("Setup stopped before the final checkpoint.");
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "The saved setup could not be resumed.");
+      await loadReport().catch(() => null);
+    } finally {
+      setBatchProgress("");
+      setBusy(false);
+    }
+  }
+
+  async function cancelActiveSetup() {
+    const saved = activePlan;
+    if (!saved?.plan?.id || busy || !saved.canCancel) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await callApi({ action: "plan-cancel", planId: saved.plan.id });
+      setActivePlan(null);
+      setPreviewSnapshot(null);
+      setMessage("The saved setup plan was cancelled. No further actions will run.");
+      await loadReport();
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "The setup plan could not be cancelled.");
+      await loadReport().catch(() => null);
+    } finally {
       setBusy(false);
     }
   }
@@ -818,15 +905,19 @@ export default function InfrastructureSetupWizard() {
 
   return (
     <main className="space-y-4 text-red-100">
-      <section className="rounded-xl border possum-divider bg-black/55 p-4 possum-border sm:p-6">
-        <p className="text-xs uppercase tracking-[0.2em] possum-soft">Server setup</p>
-        <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed">
-          Start with the panel checklist, then choose features, connect existing resources, and create the missing roles, channels, and categories you approve.
-        </p>
-        <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup reuses clear existing channel matches and can create only the missing destinations you approve. It never posts panel messages, and it leaves protected onboarding, pre-onboarding, and verification settings unchanged.
-        </p>
+      <section className="relative overflow-hidden rounded-2xl border border-pink-700/40 bg-gradient-to-br from-[#260b16] via-[#12070d] to-black p-5 shadow-[0_18px_70px_rgba(110,12,48,0.18)] possum-border sm:p-7">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border border-pink-300/10 bg-pink-400/[0.05] blur-2xl" />
+        <div className="relative">
+          <p className="text-[11px] font-black uppercase tracking-[0.28em] text-pink-200/80">Possum · Guided deployment</p>
+          <h1 className="mt-3 max-w-4xl text-3xl font-black uppercase leading-[1.04] tracking-[0.035em] text-white sm:text-4xl">Build your server. Understand every decision.</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-rose-100/80 sm:text-base">This is more than a channel creator. Possum helps you shape the systems your community needs, understand the resources behind each feature, reuse what you already have, and review a complete deployment before anything is applied.</p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-xs font-black uppercase tracking-wider text-pink-200">01 · Discover</p><p className="mt-1 text-sm text-white">Inspect your server and identify existing roles, channels, categories, and configuration.</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-xs font-black uppercase tracking-wider text-pink-200">02 · Design</p><p className="mt-1 text-sm text-white">Choose feature systems, tune names, and see dependencies, permissions, and protected settings.</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/35 p-3"><p className="text-xs font-black uppercase tracking-wider text-pink-200">03 · Deploy</p><p className="mt-1 text-sm text-white">Approve the exact plan, follow durable checkpoints, and verify each applied change.</p></div>
+          </div>
+          <p className="mt-4 rounded-xl border border-amber-500/25 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-100/90"><strong>Safety is built into the workflow:</strong> existing resources are reused when matches are clear; missing resources are shown for approval; protected onboarding, pre-onboarding, and verification flows are never silently rewritten; panel messages are published from their feature pages, not guessed or spammed by setup.</p>
+        </div>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
@@ -954,6 +1045,56 @@ export default function InfrastructureSetupWizard() {
       {error ? <div role="alert" className="rounded-lg border border-red-700/60 bg-red-950/50 p-3 text-sm text-red-100">{error}</div> : null}
       {message ? <div role="status" className="rounded-lg border border-pink-700/60 bg-pink-950/40 p-3 text-sm text-pink-100">{message}</div> : null}
       {batchProgress ? <div role="status" aria-live="polite" className="rounded-lg border possum-divider bg-black/60 p-3 text-sm text-pink-100">{batchProgress}</div> : null}
+      {activePlan?.plan ? (
+        <section className="rounded-xl border border-amber-600/40 bg-amber-950/20 p-4 possum-border sm:p-5" aria-labelledby="active-setup-plan-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-wider text-amber-200">{activePlan.plan.state === "succeeded" ? "Deployment report" : "Saved deployment checkpoint"}</p>
+              <h2 id="active-setup-plan-title" className="mt-1 text-lg font-black uppercase text-white">Setup {activePlan.plan.state.replace(/_/g, " ")}</h2>
+              <p className="mt-1 text-xs text-amber-100/75">{activePlan.plan.state === "succeeded" ? "The approved plan completed. Its verified checkpoint history is retained here." : "This plan is saved on the bot. You can leave this page and return without losing its checkpoint."}</p>
+              {activePlan.plan.state === "recovery_required" && !activePlan.canResume ? (
+                <p role="alert" className="mt-2 max-w-3xl rounded-md border border-amber-500/40 bg-black/30 p-2 text-xs text-amber-100">
+                  Setup paused because an action could not be safely retried. Review the failed checkpoint below. If the server resources or settings changed, cancel this plan and refresh the setup preview before approving a new plan. Completed checkpoints are retained and will be recognized during the new inventory scan.
+                </p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {activePlan.canResume ? <button type="button" disabled={busy} onClick={() => void resumeActiveSetup()} className="possum-btn min-h-10 rounded-lg px-4 text-sm font-black uppercase disabled:opacity-50">{busy ? "Working…" : "Resume setup"}</button> : null}
+              {activePlan.canCancel ? <button type="button" disabled={busy} onClick={() => void cancelActiveSetup()} className="min-h-10 rounded-lg border border-amber-500/50 px-4 text-sm font-bold text-amber-100 disabled:opacity-50">Cancel plan</button> : null}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Resolved</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length}</p></div>
+            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Remaining</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => !["completed", "skipped"].includes(action.status)).length}</p></div>
+            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Total checkpoints</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.length}</p></div>
+          </div>
+          <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto text-sm">
+            {activePlan.plan.actions.map((action) => (
+              <li key={action.id} className="flex items-start gap-2 rounded-md border border-white/5 px-2 py-2">
+                <span className={action.status === "completed" ? "text-emerald-300" : action.status === "failed" ? "text-red-300" : action.status === "running" ? "text-amber-200" : "text-pink-100/45"}>{action.status === "completed" ? "✓" : action.status === "failed" ? "!" : action.status === "running" ? "…" : "○"}</span>
+                <span className="min-w-0 flex-1">
+                  <strong>{action.name || action.resourceName || action.field || action.type}</strong>
+                  <span className="ml-2 text-xs text-pink-100/55">{action.type.replace(/_/g, " ")}</span>
+                  {action.attempts ? <span className="ml-2 text-[11px] text-pink-100/45">Attempt {action.attempts}</span> : null}
+                  {action.result?.error || action.result?.reason ? <span className="mt-1 block text-xs text-red-200">{action.result.error || action.result.reason}</span> : null}
+                  {action.result?.skipReason ? <span className="mt-1 block text-xs text-amber-100">Skipped intentionally: {action.result.skipReason}</span> : null}
+                  {action.history?.length ? (
+                    <span className="mt-1 block text-[11px] text-pink-100/55">
+                      Previous attempts: {action.history.slice(-3).map((entry) =>
+                        `${entry.attempts || "?"} · ${String(entry.status || "unknown").replace(/_/g, " ")}${entry.recovery ? ` · ${entry.recovery.replace(/_/g, " ")}` : ""}${entry.result?.error || entry.result?.reason ? ` · ${entry.result.error || entry.result.reason}` : ""}`
+                      ).join(" | ")}
+                    </span>
+                  ) : null}
+                  {action.dependencies?.length ? <span className="mt-1 block text-[11px] text-pink-100/45">Waits for: {action.dependencies.join(", ")}</span> : null}
+                  {action.missingPermissions?.length ? <span className="mt-1 block text-[11px] text-amber-200">Missing permissions: {action.missingPermissions.join(", ")}</span> : null}
+                </span>
+                <span className="shrink-0 text-xs capitalize text-pink-100/60">{action.status.replace(/_/g, " ")}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
       {creationFailures.length ? (
         <section role="alert" className="rounded-lg border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-100">
           <h2 className="font-black uppercase">Resources needing attention</h2>

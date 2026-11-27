@@ -10,7 +10,7 @@ const { renderToStaticMarkup } = require("react-dom/server");
 function render(customChannels) {
   const source = fs.readFileSync(path.join(__dirname, "../src/app/dashboard/infrastructure/InfrastructureSetupWizard.tsx"), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  const module = { exports: {} };
+  const testModule = { exports: {} };
   let stateIndex = 0;
   new Function("require", "module", "exports", js)((name) => {
     if (name === "react") return {
@@ -25,8 +25,8 @@ function render(customChannels) {
     };
     if (name === "@/lib/dashboardContext") return {};
     return require(name);
-  }, module, module.exports);
-  return renderToStaticMarkup(module.exports.default());
+  }, testModule, testModule.exports);
+  return renderToStaticMarkup(testModule.exports.default());
 }
 
 test("custom channels alone enable both setup preview buttons", () => {

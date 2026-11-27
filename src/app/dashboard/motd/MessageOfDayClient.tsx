@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import GuildEmojiField from "@/components/possum/GuildEmojiField";
 import { PossumCard } from "@/components/possum/PossumCard";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -75,10 +75,9 @@ function makeBlankEntry(timezone: string): QueueEntry {
 
 export default function MessageOfDayClient() {
   const editor = useGuildEngineEditor<Config>("messageOfDay", DEFAULTS);
-  const [deviceTimezone, setDeviceTimezone] = useState("UTC");
-  const [draft, setDraft] = useState<QueueEntry>(() => makeBlankEntry(""));
+  const [deviceTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [draft, setDraft] = useState<QueueEntry>(() => makeBlankEntry(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"));
   const [editingId, setEditingId] = useState("");
-  const [panelChannelId, setPanelChannelId] = useState("");
 
   const cfg = useMemo<Config>(() => {
     const raw = (editor.config || {}) as Partial<Config>;
@@ -98,20 +97,6 @@ export default function MessageOfDayClient() {
     const bb = b.nextAt || `${b.date}T${b.time}`;
     return aa.localeCompare(bb);
   }), [cfg.queue]);
-
-  useEffect(() => {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    setDeviceTimezone(zone);
-    setDraft((current) => current.date ? current : makeBlankEntry(zone));
-  }, []);
-
-  useEffect(() => {
-    setPanelChannelId(cfg.panelChannelId || "");
-  }, [cfg.panelChannelId]);
-
-  useEffect(() => {
-    if (!draft.date && timezone) setDraft((current) => ({ ...current, date: localDateForTimezone(new Date(), timezone) }));
-  }, [draft.date, timezone]);
 
   function patchDraft(patch: Partial<QueueEntry>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -158,12 +143,12 @@ export default function MessageOfDayClient() {
   }
 
   async function savePanelDestination() {
-    await editor.runAction("savePanel", { channelId: panelChannelId });
+    await editor.runAction("savePanel", { channelId: cfg.panelChannelId });
   }
 
   async function publishPanel() {
-    if (!panelChannelId) return;
-    await editor.runAction("deployPanel", { channelId: panelChannelId });
+    if (!cfg.panelChannelId) return;
+    await editor.runAction("deployPanel", { channelId: cfg.panelChannelId });
   }
 
   const canSubmit = Boolean(draft.date && draft.time && draft.channelId && (draft.content.trim() || draft.title.trim() || draft.imageUrl.trim()));
@@ -244,9 +229,9 @@ export default function MessageOfDayClient() {
 
       <PossumCard title="Discord MOTD panel" description="Manage the existing WoW MOTD panel from this page, alongside the server-wide dated schedule">
         <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto_auto] sm:items-end">
-          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Panel channel<select className={fieldClass} value={panelChannelId} onChange={(event) => setPanelChannelId(event.target.value)}><option value="">Choose a text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
-          <button type="button" className={buttonClass} disabled={!panelChannelId || editor.saving || editor.loading} onClick={() => void savePanelDestination()}>Save panel channel</button>
-          <button type="button" className={primaryClass} disabled={!panelChannelId || editor.saving || editor.loading} onClick={() => void publishPanel()}>Post / refresh panel</button>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Panel channel<select className={fieldClass} value={cfg.panelChannelId} onChange={(event) => editor.setConfig({ ...cfg, panelChannelId: event.target.value })}><option value="">Choose a text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
+          <button type="button" className={buttonClass} disabled={!cfg.panelChannelId || editor.saving || editor.loading} onClick={() => void savePanelDestination()}>Save panel channel</button>
+          <button type="button" className={primaryClass} disabled={!cfg.panelChannelId || editor.saving || editor.loading} onClick={() => void publishPanel()}>Post / refresh panel</button>
         </div>
         <p className="mt-2 text-xs text-pink-100/60">The deployed panel uses the existing WoW MOTD interaction and does not publish or overwrite any scheduled post.</p>
       </PossumCard>

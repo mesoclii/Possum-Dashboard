@@ -14,10 +14,34 @@ export type SetupPlanAction = {
   permissionStatus?: string;
   missingPermissions?: string[];
   permissionReason?: string;
-  result?: { error?: string; resourceId?: string; reconciled?: boolean } | null;
+  dependencies?: string[];
+  attempts?: number;
+  history?: {
+    status?: string;
+    attempts?: number;
+    completedAt?: string | null;
+    recovery?: string;
+    result?: { error?: string; reason?: string; retryable?: boolean } | null;
+  }[];
+  startedAt?: string | null;
+  updatedAt?: string | null;
+  completedAt?: string | null;
+  lastError?: string;
+  result?: { error?: string; reason?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean; recoveryRequired?: boolean; skipReason?: string } | null;
 };
 
-export type SetupPlan = { id: string; digest: string; state: string; intent?: string; actions: SetupPlanAction[] };
+export type SetupPlan = {
+  id: string;
+  digest: string;
+  state: string;
+  intent?: string;
+  createdAt?: string;
+  updatedAt?: string | null;
+  expiresAt?: string;
+  finishedAt?: string | null;
+  result?: Record<string, unknown> | null;
+  actions: SetupPlanAction[];
+};
 
 export function summarizeSetupPlan(actions: SetupPlanAction[], completed = false) {
   const relevant = completed ? actions.filter((action) => action.status === "completed") : actions;

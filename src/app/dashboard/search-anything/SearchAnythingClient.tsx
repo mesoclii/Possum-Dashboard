@@ -111,7 +111,7 @@ export default function SearchAnythingClient() {
         {message ? <div style={{ color: "#ffb3f0", marginTop: 8 }}>{message}</div> : null}
         {loading ? <section style={card}>Loading Search Anything...</section> : (
           <section style={card}>
-            {!cfg.enabled ? <p style={micro}>Search Anything has not been enabled by this server's administrators yet.</p> : (
+            {!cfg.enabled ? <p style={micro}>Search Anything has not been enabled by this server&apos;s administrators yet.</p> : (
               <>
                 <label style={{ display: "block", marginBottom: 8 }}>Search provider
                   <select style={{ ...input, marginTop: 6 }} value={previewProvider || cfg.defaultProvider} onChange={(event) => setPreviewProvider(event.target.value)}>

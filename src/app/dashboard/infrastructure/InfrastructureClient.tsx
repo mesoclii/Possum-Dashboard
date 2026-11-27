@@ -936,6 +936,8 @@ export default function InfrastructureClient() {
                 ? `${activePlanSummary.creates} created · ${activePlanSummary.mappings} existing destinations connected`
                 : `${activePlanSummary.creates} to create · ${activePlanSummary.mappings} existing destinations to connect`}</p>
               <p className="mt-1 text-sm text-red-100/80">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length} of {activePlan.plan.actions.length} checkpoints verified{planProgress ? ` · ${planProgress}` : ""}</p>
+              {activePlan.plan.updatedAt ? <p className="mt-1 text-[11px] text-pink-100/55">Last checkpoint update: {new Date(activePlan.plan.updatedAt).toLocaleString()}</p> : null}
+              {activePlan.plan.finishedAt ? <p className="mt-1 text-[11px] text-pink-100/55">Plan closed: {new Date(activePlan.plan.finishedAt).toLocaleString()}</p> : null}
               <p className="mt-1 text-xs text-pink-100/70">Each bot request runs one checkpoint. The plan is saved on the bot, so an interrupted run can resume from its last verified action.</p>
             </div>
             <div className="flex flex-wrap gap-2">

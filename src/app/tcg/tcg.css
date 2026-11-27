@@ -40,3 +40,17 @@
 @media(max-width:600px){.tcg-shell .tcg-opening{min-height:580px;padding:36px 16px 25px}.tcg-pack-stage{height:395px}.tcg-pack{transform:scale(.9)}.tcg-reveal-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tcg-card-back,.tcg-card-front .tcg-card{min-height:360px}.tcg-card-back{padding:12px}.tcg-card-back strong{font-size:24px}.tcg-card-back-mark{width:70px;height:70px;font-size:38px}}
 @media(max-width:420px){.tcg-reveal-grid{grid-template-columns:minmax(0,320px)}}
 @media(prefers-reduced-motion:reduce){.tcg-pack,.tcg-pack-tearing .tcg-pack-top,.tcg-pack-tearing .tcg-pack-body,.tcg-pack-burst i{animation:none}.tcg-flip-inner{transition:none}.tcg-pack-sealed:hover{transform:none}}
+
+.tcg-gallery-intro{max-width:720px;color:#c8b9cf;line-height:1.65;font-size:14px}
+.tcg-gallery-controls{display:grid;grid-template-columns:minmax(220px,2fr) repeat(2,minmax(145px,1fr));gap:12px;margin:20px 0 24px;padding:16px;border:1px solid #654a6b;border-radius:14px;background:#19111f}
+.tcg-gallery-controls label{display:grid;gap:7px;color:#e3c9df;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.tcg-gallery-controls input,.tcg-gallery-controls select{min-width:0;width:100%;padding:10px 11px;border:1px solid #735679;border-radius:8px;background:#0e0a13;color:#fff;font:inherit;text-transform:none;letter-spacing:normal}
+.tcg-gallery-controls input:focus-visible,.tcg-gallery-controls select:focus-visible{outline:2px solid #ffe4a8;outline-offset:2px}
+.tcg-gallery-grid .tcg-card{height:100%}
+.tcg-gallery-state{padding:24px;color:#d7b3d4;text-align:center}
+.tcg-gallery-pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;color:#d7b3d4;font-size:12px}
+.tcg-gallery-pager>div{display:flex;gap:8px}
+.tcg-gallery-pager .tcg-secondary{margin:0;padding:9px 13px}
+.tcg-gallery-retry{margin-left:10px;border:0;background:none;color:#ffe1b3;text-decoration:underline;cursor:pointer}
+@media(max-width:680px){.tcg-gallery-controls{grid-template-columns:1fr 1fr}.tcg-gallery-controls label:first-child{grid-column:1/-1}}
+@media(max-width:420px){.tcg-gallery-pager{align-items:flex-start;flex-direction:column}.tcg-gallery-controls{grid-template-columns:1fr}.tcg-gallery-controls label:first-child{grid-column:auto}}

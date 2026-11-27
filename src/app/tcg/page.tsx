@@ -1,21 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TradePanel from "./TradePanel";
 import BattlePanel from "./BattlePanel";
 import "./tcg.css";
 
 type Snapshot = { name: string; rarity: string; kind: string; power: number; ability: string; story: string };
 type Card = { id: string; cardKey: string; finish: string; cardSnapshot: Snapshot };
+type CatalogCard = { id: string; name: string; kind: string; rarity: string; power: number; ability: string; story: string };
 type Edition = Card & { quantity: number };
 type CardStack = { cardKey: string; quantity: number; editions: Edition[] };
 type Rules = { specialWeights: Record<string, number>; rarityWeights: Record<string, Record<string, number>> };
-type Result = { success?: boolean; error?: string; status?: string; replayed?: boolean; nextAvailableAt?: string; stacks?: CardStack[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
+type Result = { success?: boolean; error?: string; status?: string; replayed?: boolean; nextAvailableAt?: string; stacks?: CardStack[]; cards?: CatalogCard[]; nextCursor?: string | null; unlimitedTestPacks?: boolean; pack?: { cards: Card[] }; rules?: Rules; rulesetId?: string | null };
 type PackPhase = "idle" | "sealed" | "tearing" | "reveal";
 
 const rarities = ["common", "uncommon", "rare", "epic", "legendary", "mythical", "celestial"];
 const specials = ["support", "rare", "holo", "shiny"];
 const slots = ["standard", ...specials];
+const GALLERY_PAGE_SIZE = 24;
+
+function isCatalogCard(value: unknown): value is CatalogCard {
+  if (!value || typeof value !== "object") return false;
+  const card = value as Partial<CatalogCard>;
+  return typeof card.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(card.id) &&
+    typeof card.name === "string" && typeof card.kind === "string" &&
+    typeof card.rarity === "string" && Number.isInteger(card.power) &&
+    typeof card.ability === "string" && typeof card.story === "string";
+}
 
 function CardView({ card, artwork }: { card: Card; artwork?: string }) {
   const details = card.cardSnapshot;
@@ -46,6 +57,13 @@ function StackView({ stack, artwork }: { stack: CardStack; artwork?: string }) {
 
 export default function TcgPage() {
   const [stacks, setStacks] = useState<CardStack[]>([]);
+  const [catalog, setCatalog] = useState<CatalogCard[]>([]);
+  const [catalogState, setCatalogState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [catalogRetry, setCatalogRetry] = useState(0);
+  const [gallerySearch, setGallerySearch] = useState("");
+  const [galleryKind, setGalleryKind] = useState("all");
+  const [galleryRarity, setGalleryRarity] = useState("all");
+  const [galleryPage, setGalleryPage] = useState(0);
   const [artwork, setArtwork] = useState<Record<string, string>>({});
   const [artworkMessage, setArtworkMessage] = useState("");
   const artworkRequested = useRef(new Set<string>());
@@ -70,8 +88,9 @@ export default function TcgPage() {
   const packStage = useRef<HTMLElement | null>(null);
   const opening = packPhase !== "idle" && revealedCount < opened.length;
 
-  const loadArtwork = useCallback(async (newCards: Card[]) => {
-    const keys = [...new Set(newCards.map((card) => card.cardKey))].filter((key) => !artworkRequested.current.has(key));
+  const loadArtwork = useCallback(async (newCards: Array<Card | string>) => {
+    const keys = [...new Set(newCards.map((card) => typeof card === "string" ? card : card.cardKey))]
+      .filter((key) => !artworkRequested.current.has(key));
     for (let offset = 0; offset < keys.length; offset += 50) {
       const batch = keys.slice(offset, offset + 50);
       batch.forEach((key) => artworkRequested.current.add(key));
@@ -123,6 +142,48 @@ export default function TcgPage() {
       if (!data.rulesetId) setRulesMessage("Save the draft odds to initialize private test packs.");
     }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "TCG is unavailable."));
   }, [loadCollection]);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    setCatalogState("loading");
+    setArtworkMessage("");
+    void fetch("/api/tcg?action=catalog", { cache: "no-store" })
+      .then(async (response) => {
+        const data: Result = await response.json();
+        if (!response.ok || !data.success || !Array.isArray(data.cards) || !data.cards.every(isCatalogCard) ||
+            new Set(data.cards.map((card) => card.id)).size !== data.cards.length) {
+          if (response.status === 401) setSignIn(true);
+          throw new Error(data.error || "The card gallery could not be loaded.");
+        }
+        if (!cancelled) {
+          setCatalog(data.cards);
+          setCatalogState("ready");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setCatalogState("error");
+          setArtworkMessage(error instanceof Error ? error.message : "The card gallery could not be loaded.");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [ready, catalogRetry]);
+
+  const galleryCards = useMemo(() => {
+    const query = gallerySearch.trim().toLowerCase();
+    return catalog.filter((card) => (galleryKind === "all" || card.kind === galleryKind) &&
+      (galleryRarity === "all" || card.rarity === galleryRarity) &&
+      (!query || [card.name, card.kind, card.rarity, card.ability, card.story].some((value) => value.toLowerCase().includes(query))))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [catalog, galleryKind, galleryRarity, gallerySearch]);
+  const visibleGalleryCards = useMemo(() => galleryCards.slice(galleryPage * GALLERY_PAGE_SIZE, (galleryPage + 1) * GALLERY_PAGE_SIZE), [galleryCards, galleryPage]);
+  const galleryPageCount = Math.max(1, Math.ceil(galleryCards.length / GALLERY_PAGE_SIZE));
+  const galleryKinds = useMemo(() => [...new Set(catalog.map((card) => card.kind))].sort(), [catalog]);
+
+  useEffect(() => {
+    if (catalogState === "ready") void loadArtwork(visibleGalleryCards.map((card) => card.id));
+  }, [catalogState, loadArtwork, visibleGalleryCards]);
 
   useEffect(() => () => {
     if (tearTimer.current !== null) window.clearTimeout(tearTimer.current);
@@ -283,6 +344,23 @@ export default function TcgPage() {
     {ready && !opening && <section className="tcg-section"><div className="tcg-section-heading"><div><p className="tcg-eyebrow">YOUR CARDS</p><h2>The collection</h2></div><span>{stacks.length} unique cards · {stacks.reduce((total, stack) => total + stack.quantity, 0)} copies loaded</span></div>
       {stacks.length ? <div className="tcg-grid">{stacks.map((stack) => <StackView key={stack.cardKey} stack={stack} artwork={artwork[stack.cardKey]} />)}</div> : <div className="tcg-empty">Your story starts with your first pack.</div>}
       {cursor && <button className="tcg-secondary" disabled={busy} onClick={() => void loadCollection(cursor).catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Could not load more cards."))}>Load more cards</button>}
+    </section>}
+    {ready && !opening && <section className="tcg-section tcg-gallery" aria-labelledby="tcg-gallery-title">
+      <div className="tcg-section-heading"><div><p className="tcg-eyebrow">THE CITY MEETS THE WILDS</p><h2 id="tcg-gallery-title">Card gallery</h2></div>
+        <span>{catalogState === "ready" ? `${galleryCards.length} of ${catalog.length} cards` : "Full set preview"}</span></div>
+      <p className="tcg-gallery-intro">Explore the full card set and its artwork, whether or not a card is in your collection. Preview artwork is still in progress.</p>
+      <div className="tcg-gallery-controls">
+        <label>Search cards<input type="search" value={gallerySearch} onChange={(event) => { setGallerySearch(event.target.value); setGalleryPage(0); }} placeholder="Name, story, ability..." /></label>
+        <label>Card type<select value={galleryKind} onChange={(event) => { setGalleryKind(event.target.value); setGalleryPage(0); }}><option value="all">All types</option>{galleryKinds.map((kind) => <option value={kind} key={kind}>{kind}</option>)}</select></label>
+        <label>Rarity<select value={galleryRarity} onChange={(event) => { setGalleryRarity(event.target.value); setGalleryPage(0); }}><option value="all">All rarities</option>{rarities.map((rarity) => <option value={rarity} key={rarity}>{rarity}</option>)}</select></label>
+      </div>
+      {catalogState === "loading" && <p className="tcg-gallery-state" role="status">Loading the card gallery...</p>}
+      {catalogState === "error" && <div className="tcg-empty" role="status">{artworkMessage || "The card gallery is unavailable."} <button type="button" className="tcg-gallery-retry" onClick={() => setCatalogRetry((retry) => retry + 1)}>Try again</button></div>}
+      {catalogState === "ready" && (visibleGalleryCards.length ? <div className="tcg-grid tcg-gallery-grid">{visibleGalleryCards.map((card) => <CardView key={card.id} card={{ id: card.id, cardKey: card.id, finish: "standard", cardSnapshot: card }} artwork={artwork[card.id]} />)}</div> : <div className="tcg-empty">No cards match those filters.</div>)}
+      {catalogState === "ready" && galleryCards.length > 0 && <div className="tcg-gallery-pager"><span>Page {galleryPage + 1} of {galleryPageCount}</span><div>
+        <button type="button" className="tcg-secondary" disabled={galleryPage === 0} onClick={() => setGalleryPage((page) => Math.max(0, page - 1))}>Previous</button>
+        <button type="button" className="tcg-secondary" disabled={galleryPage + 1 >= galleryPageCount} onClick={() => setGalleryPage((page) => Math.min(galleryPageCount - 1, page + 1))}>Next</button>
+      </div></div>}
     </section>}
     {ready && !opening && <TradePanel stacks={stacks} refreshCollection={loadCollection} />}
     {ready && !opening && <BattlePanel stacks={stacks} refreshCollection={loadCollection} artwork={artwork} loadArtwork={loadArtwork} />}

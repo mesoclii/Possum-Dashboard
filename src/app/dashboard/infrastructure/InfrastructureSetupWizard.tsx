@@ -73,6 +73,22 @@ type SetupCreatedResource = {
   resourceKey?: string;
 };
 
+type PanelGuide = {
+  id: string;
+  engine?: string;
+  selected?: boolean;
+  label: string;
+  href: string;
+  page: string;
+  resourceType: string;
+  suggestedName?: string;
+  destination: string;
+  configured: boolean;
+  editable?: boolean;
+  protectedFlow?: boolean;
+  created?: boolean;
+};
+
 type UndoResource = {
   id: string;
   name: string;
@@ -113,7 +129,7 @@ type SetupReport = {
   ready?: boolean;
   reason?: string;
   featureCatalog?: Feature[];
-  panelGuides?: { id: string; label: string; href: string; page: string; resourceType: string; suggestedName?: string; destination: string; configured: boolean }[];
+  panelGuides?: PanelGuide[];
   proposals?: Proposal[];
   rewardRoleOptions?: RewardRoleOption[];
   vipRole?: { id: string; name: string } | null;
@@ -940,8 +956,8 @@ export default function InfrastructureSetupWizard() {
 
   function addPanelChannelsToSetup() {
     const additions = missingStandalonePanelGuides
-      .map((item) => item.suggestedName?.trim())
-      .filter((name): name is string => Boolean(name))
+      .map((item) => String(names[item.id] || item.suggestedName || "").trim())
+      .filter((name): name is string => Boolean(name) && !normalizedCustomChannelNames.some((existing) => existing.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, "")))
       .slice(0, Math.max(0, 100 - normalizedCustomChannelNames.length));
     if (!additions.length) {
       setMessage("The recommended self-role and giveaway channels already exist, are configured, or are staged.");
@@ -951,6 +967,15 @@ export default function InfrastructureSetupWizard() {
     setCustomChannelText(next.join("\n"));
     setError("");
     setMessage(`${additions.length} missing panel destination channel(s) added to the setup review. Preview and approve to create them; setup will not publish panels.`);
+  }
+
+  function updatePanelGuideName(item: PanelGuide, value: string) {
+    updateResourceName(item.id, value);
+    const previousName = String(item.suggestedName || "").trim();
+    if (!previousName) return;
+    const lines = customChannelText.split(/\r?\n/);
+    const updated = lines.map((name) => name.trim().toLowerCase() === previousName.toLowerCase() ? value : name);
+    if (updated.some((name, index) => name !== lines[index])) setCustomChannelText(updated.join("\n"));
   }
 
   if (loading) {
@@ -970,7 +995,7 @@ export default function InfrastructureSetupWizard() {
   return (
     <main className="space-y-4 text-red-100">
       <section className="rounded-xl border possum-divider bg-black/55 p-4 possum-border sm:p-6">
-        <p className="text-xs uppercase tracking-[0.2em] possum-soft">Infrastructure</p>
+        <p className="text-xs uppercase tracking-[0.2em] possum-soft">Server setup</p>
         <h1 className="mt-1 text-2xl font-black uppercase possum-red sm:text-3xl">Guided Server Setup</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed">
           Start with the panel checklist, then choose features, connect existing resources, and create the missing roles, channels, and categories you approve.
@@ -984,10 +1009,10 @@ export default function InfrastructureSetupWizard() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase">Panel and member-entry destinations</h2>
-            <p className="mt-1 max-w-3xl text-sm text-pink-100/75">Clear existing matches are reused. Missing tracked destinations appear in the reviewed setup plan; self-role and giveaway channels can be staged below. Setup never sends a panel message. Protected member-entry flows remain on their own pages.</p>
+            <p className="mt-1 max-w-3xl text-sm text-pink-100/75">This is the destination checklist for the selected server. Rename missing channels or categories here before choosing systems below. Existing destinations stay mapped; protected member-entry flows stay on their own pages. Setup prepares destinations only and never publishes a panel.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={busy || !missingStandalonePanelGuides.length} onClick={addPanelChannelsToSetup} className="possum-btn min-h-10 rounded-lg px-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Add {missingStandalonePanelGuides.length} missing panel channel{missingStandalonePanelGuides.length === 1 ? "" : "s"} to setup</button>
+            <button type="button" disabled={busy || !missingStandalonePanelGuides.length} onClick={addPanelChannelsToSetup} className="possum-btn min-h-10 rounded-lg px-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Stage {missingStandalonePanelGuides.length} extra panel destination{missingStandalonePanelGuides.length === 1 ? "" : "s"}</button>
             <a href="/dashboard/channels" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-bold">Review channels</a>
           </div>
         </div>
@@ -997,11 +1022,23 @@ export default function InfrastructureSetupWizard() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <strong>{item.label}</strong>
                 <span className={`rounded px-2 py-0.5 text-xs ${item.configured ? "bg-emerald-950/50 text-emerald-200" : "bg-amber-950/40 text-amber-100"}`}>
-                  {item.id.endsWith(":flow") ? "Configure on page" : !report?.ready ? "Scan to inspect" : item.configured ? "Destination found" : "Needs a destination"}
+                  {item.configured ? "Mapped" : item.protectedFlow || item.id.endsWith(":flow") ? "Manage on its page · unchanged" : item.created ? "Created · select on its page" : item.selected || selected.includes(item.engine || "") ? "Selected system · needs destination" : "Optional · enable system below"}
                 </span>
               </div>
               <p className="mt-2 text-sm text-pink-100/70">{item.destination}</p>
-              {item.suggestedName ? <p className="mt-1 text-xs text-pink-100/65">Suggested channel: <strong>#{item.suggestedName}</strong>{(report?.directory?.channels || []).some((channel) => ["text", "announcement"].includes(channel.kind) && channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "") === item.suggestedName?.toLowerCase().replace(/[^a-z0-9]+/g, "")) ? " · matching channel already exists" : ""}</p> : null}
+              {item.suggestedName && item.editable !== false && !item.configured && !item.created && !item.protectedFlow && !item.id.endsWith(":flow") ? (
+                <label className="mt-2 block text-xs text-pink-100/75">
+                  {item.resourceType === "category" ? "Category name" : "Channel name"}
+                  <input
+                    value={names[item.id] ?? item.suggestedName}
+                    onChange={(event) => updatePanelGuideName(item, event.target.value)}
+                    maxLength={90}
+                    aria-label={`${item.resourceType === "category" ? "Category" : "Channel"} name for ${item.label}`}
+                    className="mt-1 min-h-10 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
+                  />
+                  <span className="mt-1 block text-pink-100/55">Used when this system is selected and included in the approved setup preview.</span>
+                </label>
+              ) : item.suggestedName ? <p className="mt-1 text-xs text-pink-100/65">Suggested destination: <strong>{item.resourceType === "category" ? "" : "#"}{item.suggestedName}</strong></p> : null}
               <a href={item.href} className="mt-2 inline-flex min-h-9 items-center font-bold text-pink-200 underline">Configure in {item.page} →</a>
             </article>
           ))}

@@ -113,7 +113,7 @@ type SetupReport = {
   ready?: boolean;
   reason?: string;
   featureCatalog?: Feature[];
-  panelGuides?: { id: string; label: string; href: string; page: string; resourceType: string; destination: string; configured: boolean }[];
+  panelGuides?: { id: string; label: string; href: string; page: string; resourceType: string; suggestedName?: string; destination: string; configured: boolean }[];
   proposals?: Proposal[];
   rewardRoleOptions?: RewardRoleOption[];
   vipRole?: { id: string; name: string } | null;
@@ -410,9 +410,23 @@ export default function InfrastructureSetupWizard() {
     Boolean(name.replace(/[^a-z0-9]+/gi, "")) && all.findIndex((other) => other.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, "")) === index
   ).slice(0, 100);
   const pendingCustomChannels = normalizedCustomChannelNames.filter((name) =>
-    !isPanelDestinationName(name) &&
     !(report?.createdResources || []).some((resource) => resource.resourceKey === `custom-channel:${name.toLowerCase().replace(/[^a-z0-9]+/g, "")}`) &&
     !(report?.directory?.channels || []).some((channel) => ["text", "announcement"].includes(channel.kind) && channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
+  );
+  const standalonePanelGuides = (report?.panelGuides || []).filter((item) =>
+    item.id.endsWith(":panel") && item.resourceType === "channel" && Boolean(item.suggestedName)
+  );
+  const standalonePanelChannelAliases: Record<string, string[]> = {
+    "selfroles:panel": ["selfroles", "roles", "selfrolespanel"],
+    "giveaways:panel": ["giveaways", "giveaway", "contests"],
+  };
+  const missingStandalonePanelGuides = standalonePanelGuides.filter((item) =>
+    !item.configured &&
+    !(report?.directory?.channels || []).some((channel) => {
+      const name = channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      const aliases = standalonePanelChannelAliases[item.id] || [String(item.suggestedName || "").toLowerCase().replace(/[^a-z0-9]+/g, "")];
+      return ["text", "announcement"].includes(channel.kind) && aliases.includes(name);
+    }) && !normalizedCustomChannelNames.some((name) => name.toLowerCase().replace(/[^a-z0-9]+/g, "") === String(item.suggestedName || "").toLowerCase().replace(/[^a-z0-9]+/g, ""))
   );
   const availableRewardRoleOptions = (report?.rewardRoleOptions || []).filter((option) => selected.includes(option.engine));
   const selectedRewardRoleOptions = availableRewardRoleOptions.filter((option) => previewRewardRoleSelections.includes(option.id));
@@ -420,7 +434,7 @@ export default function InfrastructureSetupWizard() {
     () => proposals.filter((proposal) =>
       (selected.includes(proposal.engine) || `${proposal.engine}:${proposal.field}` === "moderator:logging.logChannelId") &&
       !proposal.protectedFlow &&
-      !/panel|deploy/i.test(`${proposal.engine}:${proposal.field}`) &&
+      !/deploy/i.test(`${proposal.engine}:${proposal.field}`) &&
       (proposal.resourceType !== "role" || previewRoleSelections.includes(proposal.id)) &&
       (
         proposal.status === "missing" ||
@@ -430,8 +444,7 @@ export default function InfrastructureSetupWizard() {
     [proposals, previewRoleSelections, selected]
   );
   const createProposals = useMemo(
-    () => editableCreateProposals.filter((proposal) =>
-      proposal.resourceType === "role" || !isPanelDestinationName(resourceName(proposal, names))),
+    () => editableCreateProposals,
     [editableCreateProposals, names]
   );
   const roleProposals = useMemo(
@@ -566,8 +579,8 @@ export default function InfrastructureSetupWizard() {
     setPreviewOpen(false);
     try {
       const scan = await callApi({ action: "scan" });
-      if (scan.report?.panelSetupPolicy !== "manual-only-v1") {
-        throw new Error("The bot does not report the manual-only panel setup policy. Update the bot before running setup.");
+      if (scan.report?.panelSetupPolicy !== "channel-destinations-v2") {
+        throw new Error("The bot does not report the approved channel-only panel setup policy. Update the bot before running setup.");
       }
       if (scan.report?.channelCreationPolicy !== "single-post-v1") {
         throw new Error("The bot does not confirm the single-request creation policy. Update the bot before running setup.");
@@ -587,8 +600,8 @@ export default function InfrastructureSetupWizard() {
         setupTuning,
       });
       const adapt = await callApi({ action: "adapt" });
-      if ((adapt.preview?.planned || []).some((row) => /panel|deploy/i.test(`${row.engine}:${row.field}`))) {
-        throw new Error("The bot returned a panel mapping in its setup preview. Update the bot before running setup; configure panels separately.");
+      if ((adapt.preview?.planned || []).some((row) => /deploy/i.test(`${row.engine}:${row.field}`))) {
+        throw new Error("The bot returned a panel deployment action in its setup preview. Update the bot before running setup.");
       }
       const next = adapt.report || await loadReport();
       if (!next) throw new Error("The scan completed without returning a setup report.");
@@ -654,8 +667,8 @@ export default function InfrastructureSetupWizard() {
 
   async function approveSetup() {
     if (!previewSnapshot || previewDirty) return;
-    if (previewSnapshot.report.panelSetupPolicy !== "manual-only-v1") {
-      setError("The bot does not report the manual-only panel setup policy. Update the bot before running setup.");
+    if (previewSnapshot.report.panelSetupPolicy !== "channel-destinations-v2") {
+      setError("The bot does not report the approved channel-only panel setup policy. Update the bot before running setup.");
       return;
     }
     if (previewSnapshot.report.channelCreationPolicy !== "single-post-v1") {
@@ -906,6 +919,21 @@ export default function InfrastructureSetupWizard() {
     setMessage("");
   }
 
+  function addPanelChannelsToSetup() {
+    const additions = missingStandalonePanelGuides
+      .map((item) => item.suggestedName?.trim())
+      .filter((name): name is string => Boolean(name))
+      .slice(0, Math.max(0, 100 - normalizedCustomChannelNames.length));
+    if (!additions.length) {
+      setMessage("The recommended self-role and giveaway channels already exist, are configured, or are staged.");
+      return;
+    }
+    const next = [...normalizedCustomChannelNames, ...additions];
+    setCustomChannelText(next.join("\n"));
+    setError("");
+    setMessage(`${additions.length} missing panel destination channel(s) added to the setup review. Preview and approve to create them; setup will not publish panels.`);
+  }
+
   if (loading) {
     return <main className="rounded-xl border possum-divider bg-black/50 p-5 text-pink-100">Loading infrastructure setup…</main>;
   }
@@ -929,7 +957,7 @@ export default function InfrastructureSetupWizard() {
           Start with the panel checklist, then choose features, connect existing resources, and create the missing roles, channels, and categories you approve.
         </p>
         <p className="mt-3 rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">
-          Setup never posts or publishes panels. It shows the channel destinations each panel needs and links to the feature page where you choose them. Resource setup can create approved roles, channels, and categories, but it will not rewrite existing mappings or protected onboarding settings.
+          Setup reuses clear existing channel matches and can create only the missing destinations you approve. It never posts panel messages, and it leaves protected onboarding, pre-onboarding, and verification settings unchanged.
         </p>
       </section>
 
@@ -937,9 +965,12 @@ export default function InfrastructureSetupWizard() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase">Panel and member-entry destinations</h2>
-            <p className="mt-1 max-w-3xl text-sm text-pink-100/75">Set each panel&apos;s destination before publishing it from its feature page. The list also links to protected member-entry flows. Setup only guides and links; it never sends a panel message.</p>
+            <p className="mt-1 max-w-3xl text-sm text-pink-100/75">Clear existing matches are reused. Missing tracked destinations appear in the reviewed setup plan; self-role and giveaway channels can be staged below. Setup never sends a panel message. Protected member-entry flows remain on their own pages.</p>
           </div>
-          <a href="/dashboard/channels" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-bold">Review channels</a>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={busy || !missingStandalonePanelGuides.length} onClick={addPanelChannelsToSetup} className="possum-btn min-h-10 rounded-lg px-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">Add {missingStandalonePanelGuides.length} missing panel channel{missingStandalonePanelGuides.length === 1 ? "" : "s"} to setup</button>
+            <a href="/dashboard/channels" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-bold">Review channels</a>
+          </div>
         </div>
         <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {(report?.panelGuides || []).map((item) => (
@@ -951,6 +982,7 @@ export default function InfrastructureSetupWizard() {
                 </span>
               </div>
               <p className="mt-2 text-sm text-pink-100/70">{item.destination}</p>
+              {item.suggestedName ? <p className="mt-1 text-xs text-pink-100/65">Suggested channel: <strong>#{item.suggestedName}</strong>{(report?.directory?.channels || []).some((channel) => ["text", "announcement"].includes(channel.kind) && channel.name.toLowerCase().replace(/[^a-z0-9]+/g, "") === item.suggestedName?.toLowerCase().replace(/[^a-z0-9]+/g, "")) ? " · matching channel already exists" : ""}</p> : null}
               <a href={item.href} className="mt-2 inline-flex min-h-9 items-center font-bold text-pink-200 underline">Configure in {item.page} →</a>
             </article>
           ))}
@@ -959,7 +991,7 @@ export default function InfrastructureSetupWizard() {
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <h2 className="text-lg font-black uppercase">Previous panel setup records</h2>
-        <p className="mt-2 text-sm">Setup does not create, map, or deploy panels. Configure each panel separately as needed. Previous creation records remain available for manual review.</p>
+        <p className="mt-2 text-sm">Setup may create or map an approved destination channel. It never publishes a panel. Previous creation records remain available for manual review.</p>
         <div className="mt-3 flex flex-wrap gap-3">
           <button type="button" disabled={busy} onClick={() => void inspectPanelJournal()} className="min-h-11 rounded-lg border possum-divider px-4 font-bold disabled:opacity-50">Check creation journal</button>
         </div>
@@ -1217,7 +1249,7 @@ export default function InfrastructureSetupWizard() {
               <span><strong>Custom text channels</strong><span className="block text-xs text-pink-100/60">One name per line, up to 100. Existing matching channels are skipped.</span></span>
               <textarea value={customChannelText} onChange={(event) => setCustomChannelText(event.target.value)} maxLength={10100} rows={3} aria-label="Optional custom channel names" placeholder={"community-chat\nannouncements"} className="min-h-24 w-full rounded-md border border-pink-900/50 bg-black px-3 py-2 text-sm text-pink-50" />
               <span className="text-xs text-pink-100/60">{normalizedCustomChannelNames.length}/100 custom channels</span>
-              {normalizedCustomChannelNames.some(isPanelDestinationName) ? <span className="text-xs text-amber-200">Panel-like names are retained but are not created by setup.</span> : null}
+              {normalizedCustomChannelNames.some(isPanelDestinationName) ? <span className="text-xs text-amber-200">Selected panel destination channels appear in the approval plan. Setup creates the channel only; configure and publish the panel from its feature page.</span> : null}
             </label>
       </section>
 
@@ -1226,7 +1258,7 @@ export default function InfrastructureSetupWizard() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Review proposed resources. Panel destinations and messages are configured separately; panel-like names are excluded.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Review proposed resources. Clear channel matches are mapped; approved missing destinations can be created. Setup never publishes panel messages.</p>
             </div>
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">
               {resourcesToCreate} resources to create · {roleProposals.reduce((count, proposal) => count + (
@@ -1267,7 +1299,7 @@ export default function InfrastructureSetupWizard() {
                           className="min-h-11 w-full rounded-md border border-pink-900/50 bg-black px-3 text-sm text-pink-50"
                         />
                         {proposal.resourceType !== "role" && isPanelDestinationName(resourceName(proposal, names)) ? (
-                          <span className="text-xs text-amber-200 sm:col-span-2">Panel-like names are excluded from setup.</span>
+                          <span className="text-xs text-amber-200 sm:col-span-2">Destination channel only; the panel itself is never posted by setup.</span>
                         ) : null}
                         {report?.vipRole && (proposal.resourceType === "channel" || proposal.resourceType === "category") ? (
                           <label className="flex items-center gap-2 text-xs text-pink-100/75 sm:col-span-2">
@@ -1394,7 +1426,7 @@ export default function InfrastructureSetupWizard() {
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
             <p className="mt-2 text-sm text-pink-100/80">Possum will connect {mappingCount} existing mapping(s) and create up to {resourcesToCreate} resources. Uncertain creates require manual review; repair remains disabled. Nothing will be deleted.</p>
-            <p className="mt-2 text-sm text-pink-100/80">Setup does not create panel channels, map panel destinations, or deploy panel messages. Configure each panel separately when needed.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Setup may create or map approved panel destination channels; it never posts panel messages. Protected onboarding settings and existing mappings stay unchanged.</p>
             <details className="mt-3 rounded-lg border border-pink-900/40 p-3">
               <summary className="cursor-pointer text-sm font-bold">Show the full creation and mapping list</summary>
               <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-sm">

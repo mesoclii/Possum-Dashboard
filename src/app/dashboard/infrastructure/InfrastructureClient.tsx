@@ -47,7 +47,7 @@ type Report = {
   events?: { at: string; type: string; message: string }[];
   onboarding?: { status?: string; choices?: string[] } | null;
   proposals?: Proposal[];
-  panelGuides?: { id: string; label: string; href: string; page: string; destination: string; configured: boolean }[];
+  panelGuides?: { id: string; label: string; href: string; page: string; resourceType?: string; suggestedName?: string; destination: string; configured: boolean }[];
   settings?: { mode: string; repairEnabled: boolean; autopilotEnabled?: boolean; automaticProvisioningEnabled?: boolean; trackedEnginesConfigured?: boolean; trackedEngines?: string[]; resourceNameOverrides?: Record<string, string> };
   featureCatalog?: FeatureOption[];
   allEngines?: { engine: string; label: string; requirements: number }[];
@@ -81,7 +81,7 @@ type PendingWrite = { title: string; detail: string; confirmLabel: string; body:
 type DialogKind = "repair" | "adapt" | "";
 
 function isPanelField(row: { engine: string; field: string }) {
-  return /panel|deploy/i.test(`${row.engine}:${row.field}`);
+  return /deploy/i.test(`${row.engine}:${row.field}`);
 }
 
 async function readJson(response: Response): Promise<ApiJson> {
@@ -451,8 +451,8 @@ export default function InfrastructureClient() {
     const needsPanelPolicy = ["approve", "provision", "repair", "decide"].includes(String(body.action)) ||
       (body.action === "adapt" && body.confirmed === true) ||
       (body.action === "settings" && (body.autopilotEnabled === true || body.automaticProvisioningEnabled === true));
-    if (needsPanelPolicy && report?.panelSetupPolicy !== "manual-only-v1") {
-      notify("err", "Update the bot first", "This bot has not confirmed that setup leaves panels for separate configuration.");
+    if (needsPanelPolicy && report?.panelSetupPolicy !== "channel-destinations-v2") {
+      notify("err", "Update the bot first", "This bot has not confirmed the owner-approved panel destination channel policy.");
       return;
     }
     if (needsPanelPolicy && report?.channelCreationPolicy !== "single-post-v1") {
@@ -475,7 +475,7 @@ export default function InfrastructureClient() {
       }
       if (json.result?.duplicate === true || json.result?.stale === true) {
         if ((rowsOf(json.result?.planned) as unknown as AdaptRow[]).some(isPanelField)) {
-          notify("err", "Panel mapping refused", "Update the bot before running setup; configure panels separately.");
+          notify("err", "Panel deployment refused", "Infrastructure can map an approved destination channel but cannot deploy a panel message.");
           return;
         }
         setPreview({ wrote: false, planned: rowsOf(json.result?.planned) as unknown as AdaptRow[], skipped: rowsOf(json.result?.skipped) as unknown as { id: string; reason: string }[] });

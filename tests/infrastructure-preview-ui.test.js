@@ -8,15 +8,21 @@ const ts = require("typescript");
 const { renderToStaticMarkup } = require("react-dom/server");
 
 function render(customChannels) {
-  const source = fs.readFileSync(path.join(__dirname, "../src/app/dashboard/infrastructure/InfrastructureSetupWizard.tsx"), "utf8");
+  const sourcePath = path.join(__dirname, "../src/app/dashboard/infrastructure/InfrastructureSetupWizard.tsx");
+  const source = fs.readFileSync(sourcePath, "utf8");
+  const helperPath = path.join(path.dirname(sourcePath), "setupPlan.ts");
+  const helperSource = fs.readFileSync(helperPath, "utf8");
+  const helperJs = ts.transpileModule(helperSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  const helperModule = { exports: {} };
+  new Function("require", "module", "exports", helperJs)(require, helperModule, helperModule.exports);
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  const module = { exports: {} };
+  const compiledModule = { exports: {} };
   let stateIndex = 0;
   new Function("require", "module", "exports", js)((name) => {
     if (name === "react") return {
       useState: (initial) => {
         const index = stateIndex++;
-        const value = index === 0 ? "123456789012345678" : index === 8 ? customChannels : index === 24 ? false : initial;
+        const value = index === 0 ? "123456789012345678" : index === 7 ? customChannels : index === 23 || index === 24 ? false : initial;
         return [value, () => {}];
       },
       useCallback: (callback) => callback,
@@ -24,9 +30,10 @@ function render(customChannels) {
       useEffect: () => {},
     };
     if (name === "@/lib/dashboardContext") return {};
+    if (name === "./setupPlan") return helperModule.exports;
     return require(name);
-  }, module, module.exports);
-  return renderToStaticMarkup(module.exports.default());
+  }, compiledModule, compiledModule.exports);
+  return renderToStaticMarkup(compiledModule.exports.default());
 }
 
 test("custom channels alone enable both setup preview buttons", () => {

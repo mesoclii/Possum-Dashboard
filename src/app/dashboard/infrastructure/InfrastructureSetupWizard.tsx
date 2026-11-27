@@ -501,11 +501,6 @@ export default function InfrastructureSetupWizard() {
   const activeFeatures = displayFeatures.filter((feature) => feature.group === activeFeatureGroup.id);
   const activeSelectable = activeFeatures.filter((feature) => feature.selectable);
   const activeGroupAllOn = activeSelectable.length > 0 && activeSelectable.every((feature) => featureSelected(feature.id));
-  const reviewOnly = proposals.filter((proposal) =>
-    selected.includes(proposal.engine) &&
-    proposal.protectedFlow &&
-    proposal.status !== "populated"
-  );
 
   function setFeatureEnabled(id: string, enabled: boolean) {
     setError("");

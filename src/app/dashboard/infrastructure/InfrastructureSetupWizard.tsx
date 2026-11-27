@@ -661,7 +661,7 @@ export default function InfrastructureSetupWizard() {
       setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
       running = true;
       for (let index = 0; index <= draft.actions.length; index += 1) {
-        const completed = plan.actions.filter((action) => action.status === "completed").length;
+        const completed = plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
         setBatchProgress(`Applying setup · ${completed} of ${plan.actions.length} checkpoints complete…`);
         const step = await callApi({ action: "plan-run", planId: plan.id });
         const updated = step.result?.plan;
@@ -724,7 +724,7 @@ export default function InfrastructureSetupWizard() {
       }
       setActivePlan({ plan, canResume: ["approved", "running"].includes(plan.state) || (["partial", "failed", "recovery_required"].includes(plan.state) && plan.actions.some((action) => action.status === "failed" && action.result?.retryable === true)), canCancel: !plan.actions.some((action) => action.status === "running") && ["draft", "approved", "running", "resources_complete", "partial", "failed", "recovery_required"].includes(plan.state) });
       for (let index = 0; index <= plan.actions.length; index += 1) {
-        const completed = plan.actions.filter((action) => action.status === "completed").length;
+        const completed = plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length;
         setBatchProgress(`Resuming setup · ${completed} of ${plan.actions.length} checkpoints complete…`);
         const step = await callApi({ action: "plan-run", planId: plan.id });
         const updated = step.result?.plan;
@@ -1064,7 +1064,7 @@ export default function InfrastructureSetupWizard() {
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Completed</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => action.status === "completed").length}</p></div>
+            <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Completed</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length}</p></div>
             <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Remaining</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.filter((action) => !["completed", "skipped"].includes(action.status)).length}</p></div>
             <div className="rounded-lg border border-white/10 bg-black/30 p-3"><p className="text-xs text-pink-100/60">Total checkpoints</p><p className="mt-1 text-xl font-black tabular-nums">{activePlan.plan.actions.length}</p></div>
           </div>

@@ -11,6 +11,15 @@ export type SetupPlanAction = {
   groupCategoryId?: string;
   groupCategoryName?: string;
   groupCategorySelection?: string;
+  /** System whose own/existing/top-level placement this channel follows. */
+  featureEngine?: string;
+  /** "create" | "reuse" | "top-level" when the owner chose a placement. */
+  featurePlacement?: string;
+  /** route_logging: the shared main log channel, or the plan step that creates it. */
+  mainChannelId?: string;
+  mainChannelName?: string;
+  mainFromAction?: string;
+  targets?: { proposalId: string; engine: string; field: string; label: string }[];
   resourceId?: string;
   resourceName?: string;
   flow?: string;
@@ -89,12 +98,17 @@ export function describeBlueprintResource(action: SetupPlanAction, actions: Setu
       "everyone-denied-bot-allowed": "Private channel: @everyone is denied; the bot is allowed; the server owner retains access.",
       "vip-role-only": "Private channel: visibility is limited to the selected VIP role and the bot.",
       "rare-spawn-access-role": "Private category: visibility is limited to the configured access role and the bot.",
+      "feature-access-role": "Private category: visibility is limited to the system's new access role and the bot.",
     }[configuration.permissionProfile || "guild-default"];
+    if (action.featurePlacement === "top-level") details.push("Category: none. The channel sits at the top of the channel list.");
     if (access) details.push(`Access: ${access}`);
   } else if (blueprint.resourceType === "category") {
     details.push("Discord resource type: category.");
     if (configuration.positionPolicy === "append") details.push("Order: append after existing categories.");
     if (configuration.permissionProfile === "vip-role-only") details.push("Access: private to the selected VIP role and the bot.");
+    if (configuration.permissionProfile === "feature-access-role" || configuration.permissionProfile === "rare-spawn-access-role") {
+      details.push("Access: private to its access role and the bot. Give members the role to let them in.");
+    }
   } else if (blueprint.resourceType === "role") {
     const permissions = configuration.permissions || [];
     details.push(`Role permissions: ${permissions.length ? permissions.join(", ") : "none granted"}.`);
@@ -118,6 +132,7 @@ export function summarizeSetupPlan(actions: SetupPlanAction[], completed = false
   const panelActions = relevant.filter((action) => action.type === "deploy_panel");
   const panels = panelActions.reduce((total, action) => total + Math.max(1, Number(action.panelCount || 0)), 0);
   const settings = relevant.filter((action) => action.type === "configure_protected_flow" ||
+    action.type === "route_logging" ||
     action.changes?.some((change) => change.key !== "mode")).length;
   return {
     creates: creates.length,

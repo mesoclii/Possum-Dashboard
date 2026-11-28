@@ -1,5 +1,5 @@
-import InfrastructureSetupWizard from "../infrastructure/InfrastructureSetupWizard";
+import ServerSetupShell from "./ServerSetupShell";
 
 export default function ServerSetupPage() {
-  return <InfrastructureSetupWizard />;
+  return <ServerSetupShell />;
 }

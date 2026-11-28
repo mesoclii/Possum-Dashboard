@@ -22,7 +22,7 @@ function render(customChannels) {
     if (name === "react") return {
       useState: (initial) => {
         const index = stateIndex++;
-        const value = index === 0 ? "123456789012345678" : index === 8 ? customChannels : index === 27 || index === 28 ? false : initial;
+        const value = index === 0 ? "123456789012345678" : index === 9 ? customChannels : index === 27 || index === 28 ? false : initial;
         return [value, () => {}];
       },
       useCallback: (callback) => callback,
@@ -42,4 +42,18 @@ test("custom channels alone enable both setup preview buttons", () => {
     assert.equal(buttons.length, 2);
     for (const button of buttons) assert.equal(/\bdisabled=""/.test(button[1]), disabled);
   }
+});
+
+
+test("setup recovery retries definite rejections and reconciles uncertain Discord creates", () => {
+  const helperPath = path.join(__dirname, "../src/app/dashboard/infrastructure/setupPlan.ts");
+  const helperSource = fs.readFileSync(helperPath, "utf8");
+  const helperJs = ts.transpileModule(helperSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  const helperModule = { exports: {} };
+  new Function("require", "module", "exports", helperJs)(require, helperModule, helperModule.exports);
+  const recoveryMode = helperModule.exports.setupActionRecoveryMode;
+  assert.equal(recoveryMode({ type: "create_resource", status: "failed", result: { retryable: true } }), "retry");
+  assert.equal(recoveryMode({ type: "create_resource", status: "failed", result: { retryable: false, recoveryRequired: true } }), "reconcile");
+  assert.equal(recoveryMode({ type: "create_resource", status: "completed", result: { retryable: true } }), null);
+  assert.equal(recoveryMode({ type: "configure_autopilot", status: "failed", result: { retryable: true } }), null);
 });

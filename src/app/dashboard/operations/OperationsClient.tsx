@@ -132,6 +132,8 @@ export default function OperationsClient() {
   const [logSource, setLogSource] = useState("all");
   const [logSeverity, setLogSeverity] = useState("all");
   const [busy, setBusy] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [incidentMessage, setIncidentMessage] = useState("");
 
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
@@ -267,6 +269,35 @@ export default function OperationsClient() {
     }
   }
 
+  async function refreshAll() {
+    setRefreshing(true);
+    try {
+      await Promise.all([loadOverview(), loadIncidents(), loadAlerts(), loadMetrics(), loadLogs()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function clearResolvedIncidents() {
+    const count = Number(overview?.incidents?.resolved || 0);
+    if (!count || busy) return;
+    if (!window.confirm(`Clear ${count} resolved incident${count === 1 ? "" : "s"} from Operations history? Active incidents will remain.`)) return;
+    setBusy("clear-resolved");
+    setIncidentMessage("");
+    try {
+      const response = await fetch("/api/ops/incidents?status=resolved", { method: "DELETE" });
+      const body = await response.json();
+      if (!response.ok || !body?.success) throw new Error(body?.error || `Could not clear resolved incidents (HTTP ${response.status}).`);
+      const cleared = Number(body?.data?.cleared || 0);
+      setIncidentMessage(`${cleared} resolved incident${cleared === 1 ? "" : "s"} cleared.`);
+      await Promise.all([loadIncidents(), loadOverview()]);
+    } catch (cause) {
+      setIncidentMessage(cause instanceof Error ? cause.message : "Could not clear resolved incidents.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const host = overview?.host;
   const services = overview?.services || [];
   const counts = overview?.incidents || {};
@@ -294,6 +325,7 @@ export default function OperationsClient() {
           <Stat title="Open incidents" value={String((counts.open || 0) + (counts.acknowledged || 0))} />
           <Stat title="Host memory" value={fmtPercent(host?.memory?.usedPct)} />
           <Stat title="Root disk" value={fmtPercent(host?.disk?.root?.usedPct)} />
+          <button type="button" disabled={refreshing} onClick={() => void refreshAll()} style={actionButton}>{refreshing ? "Refreshing…" : "Refresh"}</button>
         </div>
       </header>
 
@@ -396,10 +428,17 @@ export default function OperationsClient() {
       <section style={panel}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div style={label}>Incident center</div>
-          <div style={{ fontSize: 12, color: "#c99090" }}>
-            {openIncidents.length} active · {counts.resolved || 0} resolved
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 12, color: "#c99090" }}>
+              {openIncidents.length} active · {counts.resolved || 0} resolved
+            </div>
+            <button type="button" disabled={refreshing} onClick={() => void Promise.all([loadIncidents(), loadOverview()])} style={actionButton}>Refresh incidents</button>
+            <button type="button" disabled={!counts.resolved || busy === "clear-resolved"} onClick={() => void clearResolvedIncidents()} style={actionButton}>
+              {busy === "clear-resolved" ? "Clearing…" : "Clear resolved"}
+            </button>
           </div>
         </div>
+        {incidentMessage ? <div role="status" style={{ marginTop: 8, color: incidentMessage.toLowerCase().includes("could not") ? "#ff8a8a" : "#c99090", fontSize: 12 }}>{incidentMessage}</div> : null}
 
         <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
           {incidents.length === 0 ? (

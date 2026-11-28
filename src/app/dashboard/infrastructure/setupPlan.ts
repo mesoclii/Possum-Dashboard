@@ -30,7 +30,7 @@ export type SetupPlanAction = {
   missingPermissions?: string[];
   permissionReason?: string;
   blueprintResource?: BlueprintResource | null;
-  result?: { error?: string; resourceId?: string; reconciled?: boolean } | null;
+  result?: { error?: string; resourceId?: string; reconciled?: boolean; retryable?: boolean; recoveryRequired?: boolean } | null;
 };
 
 export type BlueprintResource = {
@@ -128,4 +128,9 @@ export function summarizeSetupPlan(actions: SetupPlanAction[], completed = false
     panels,
     total: creates.length + mappings + settings + panelActions.length,
   };
+}
+
+export function setupActionRecoveryMode(action: SetupPlanAction): "retry" | "reconcile" | null {
+  if (action.status !== "failed" || action.type !== "create_resource") return null;
+  return action.result?.retryable === true ? "retry" : "reconcile";
 }

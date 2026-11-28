@@ -36,7 +36,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 
 function buildUnlockedFeatureBaseline(): Record<string, boolean> {
   return CANONICAL_FEATURE_KEYS.reduce<Record<string, boolean>>((out, key) => {
-    out[key] = true;
+    if (key !== "catDropEnabled" && key !== "rareDropEnabled") out[key] = true;
     return out;
   }, {});
 }

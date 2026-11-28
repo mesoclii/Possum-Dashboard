@@ -34,7 +34,7 @@ type Finding = {
 };
 type AdaptRow = { id: string; engine: string; field: string; resourceId: string; resourceName: string };
 type AdaptPreview = { wrote?: boolean; planned?: AdaptRow[]; skipped?: { id: string; reason: string }[]; reason?: string };
-type ActiveSetupPlan = { plan: SetupPlan; canResume?: boolean; canCancel?: boolean; canCompensate?: boolean };
+type ActiveSetupPlan = { plan: SetupPlan; canApprove?: boolean; canResume?: boolean; canCancel?: boolean; canCompensate?: boolean };
 
 type Report = {
   guildId?: string;
@@ -89,6 +89,7 @@ type Report = {
 type ApiJson = {
   success?: boolean;
   error?: string;
+  alreadyConfigured?: boolean;
   report?: Report;
   result?: Record<string, unknown>;
   preview?: AdaptPreview;
@@ -543,8 +544,8 @@ export default function InfrastructureClient() {
     const needsPanelPolicy = ["approve", "provision", "repair", "decide"].includes(String(body.action)) ||
       (body.action === "adapt" && body.confirmed === true) ||
       (body.action === "settings" && (body.autopilotEnabled === true || body.automaticProvisioningEnabled === true));
-    if (needsPanelPolicy && report?.panelSetupPolicy !== "channel-destinations-v2") {
-      notify("err", "Update the bot first", "This bot has not confirmed the owner-approved panel destination channel policy.");
+    if (needsPanelPolicy && report?.panelSetupPolicy !== "infrastructure-structure-only-v1") {
+      notify("err", "Update the bot first", "This bot has not confirmed that setup creates server structure without publishing panel messages.");
       return;
     }
     if (needsPanelPolicy && report?.channelCreationPolicy !== "single-post-v1") {
@@ -580,14 +581,24 @@ export default function InfrastructureClient() {
         return;
       }
       if (body.action === "plan-preview") {
+        if (json.alreadyConfigured) {
+          if (json.report?.guildId === guildId) setReport(json.report);
+          notify("ok", "Automation settings already match", "No infrastructure settings needed to change.");
+          return;
+        }
         if (!json.plan) {
           notify("err", "Setup plan was not returned", "The bot did not save a reviewable plan, so nothing was changed.");
           return;
         }
-        const nextPlan: ActiveSetupPlan = { plan: json.plan, canResume: true, canCancel: true, canCompensate: false };
+        const nextPlan: ActiveSetupPlan = { plan: json.plan, canApprove: true, canResume: false, canCancel: true, canCompensate: false };
         setActivePlan(nextPlan);
         setPlanProgress("");
         const summary = summarizeSetupPlan(json.plan.actions);
+        if (json.plan.intent === "automation-settings") {
+          if (summary.total) setConfirm("setup-plan");
+          notify("ok", "Automation changes ready for approval", "Review and approve the automation setting change. This plan will not create Discord resources or publish panels.");
+          return;
+        }
         if (summary.total) setConfirm("setup-plan");
         notify("ok", summary.total ? "Plan ready for approval" : "No changes to apply",
           summary.total
@@ -707,13 +718,13 @@ export default function InfrastructureClient() {
         if (!response.ok || json.success === false || !approval?.plan) {
           if (approval?.plan) {
             currentPlan = approval.plan;
-            setActivePlan({ plan: currentPlan, canResume: false, canCancel: true });
+            setActivePlan({ plan: currentPlan, canApprove: currentPlan.state === "draft", canResume: false, canCancel: true });
           }
           notify("err", "Setup plan was not approved", json.error || approval?.error || "The server rejected the saved plan; no action was started.");
           return;
         }
         currentPlan = approval.plan;
-        setActivePlan({ plan: currentPlan, canResume: true, canCancel: true });
+        setActivePlan({ plan: currentPlan, canApprove: false, canResume: true, canCancel: true });
       } else if (["partial", "failed", "recovery_required"].includes(currentPlan.state)) {
         const { response, json } = await sendPlanRequest("plan-resume");
         const resumed = json.result as { plan?: SetupPlan; error?: string } | undefined;
@@ -728,7 +739,7 @@ export default function InfrastructureClient() {
       }
 
       setPlanProgress(`Approved · ${currentPlan.actions.filter((action) => action.status === "completed" || action.status === "skipped").length} of ${total} checkpoints complete.`);
-      setActivePlan({ plan: currentPlan, canResume: true, canCancel: true });
+      setActivePlan({ plan: currentPlan, canApprove: false, canResume: true, canCancel: true });
 
       // The bot API executes exactly one durable, verified action per request.
       // Keep requests sequential so dependencies and checkpoints are respected.
@@ -919,9 +930,9 @@ export default function InfrastructureClient() {
             onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report) })} />
           <a href="/dashboard/server-setup" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-black uppercase">Guided Server Setup</a>
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.autopilotEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Autopilot is ${report?.settings?.autopilotEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.autopilotEnabled ? "●" : "○"}</span> Autopilot: {report?.settings?.autopilotEnabled ? "ON" : "OFF"}</span>
-          <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="Autopilot only reroutes to a unique, unused existing channel/category for selected systems. It cannot create resources or touch protected flows." busy={busyAction === "autopilot-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.autopilotEnabled && selectedFeatureCount === 0)} onClick={() => post("autopilot-toggle", { action: "settings", autopilotEnabled: !report?.settings?.autopilotEnabled })} />
+          <ActionButton label={report?.settings?.autopilotEnabled ? "Turn autopilot off" : "Turn autopilot on"} tip="This change requires an owner-approved settings plan. Autopilot only reroutes to a unique, unused existing channel/category for selected systems." busy={busyAction === "autopilot-toggle"} busyLabel="Preparing approval…" locked={locked || (!report?.settings?.autopilotEnabled && selectedFeatureCount === 0)} onClick={() => post("autopilot-toggle", { action: "plan-preview", settingsOnly: "automation", settings: { autopilotEnabled: !report?.settings?.autopilotEnabled } })} />
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-xs font-black uppercase ${report?.settings?.automaticProvisioningEnabled ? "border-emerald-700/70 bg-emerald-950/50 text-emerald-100" : "border-red-900/60 bg-black/40 text-red-200"}`} aria-label={`Automatic resource creation is ${report?.settings?.automaticProvisioningEnabled ? "on" : "off"}`}><span aria-hidden="true">{report?.settings?.automaticProvisioningEnabled ? "●" : "○"}</span> Auto-create: {report?.settings?.automaticProvisioningEnabled ? "ON" : "OFF"}</span>
-          <ActionButton label={report?.settings?.automaticProvisioningEnabled ? "Turn auto-create off" : "Turn auto-create on"} tip="Automatic resource creation is separate from a reviewed setup plan. It applies only to missing non-panel resources for selected systems." busy={busyAction === "provisioning-toggle"} busyLabel="Saving…" locked={locked || (!report?.settings?.automaticProvisioningEnabled && selectedFeatureCount === 0)} onClick={() => post("provisioning-toggle", { action: "settings", automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled })} />
+          <ActionButton label={report?.settings?.automaticProvisioningEnabled ? "Turn auto-create off" : "Turn auto-create on"} tip="This change requires an owner-approved settings plan. Automatic creation applies only to missing non-panel resources for selected systems." busy={busyAction === "provisioning-toggle"} busyLabel="Preparing approval…" locked={locked || (!report?.settings?.automaticProvisioningEnabled && selectedFeatureCount === 0)} onClick={() => post("provisioning-toggle", { action: "plan-preview", settingsOnly: "automation", settings: { automaticProvisioningEnabled: !report?.settings?.automaticProvisioningEnabled } })} />
           <span title="Deleted channel and category mappings stay untouched. Use Auto-Adapt to review a unique existing replacement." className="inline-flex min-h-10 items-center rounded-md border border-amber-800/60 px-3 py-2 text-xs font-black uppercase text-amber-100">Channel repair: manual review</span>
           <ActionButton label="JSON" tip="Download the directory as JSON." busy={busyAction === "export-json"} busyLabel="Exporting…" locked={locked} onClick={() => download("json")} />
           <ActionButton label="CSV" tip="Download the directory as CSV." busy={busyAction === "export-csv"} busyLabel="Exporting…" locked={locked} onClick={() => download("csv")} />
@@ -937,18 +948,24 @@ export default function InfrastructureClient() {
         <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border" aria-labelledby="setup-plan-heading">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.18em] possum-soft">Persistent setup execution</p>
+              <p className="text-xs uppercase tracking-[0.18em] possum-soft">{activePlan.plan.intent === "automation-settings" ? "Persistent infrastructure settings" : "Persistent setup execution"}</p>
               <h2 id="setup-plan-heading" className="mt-1 text-lg font-black uppercase text-red-200">
-                {activePlan.plan.state === "succeeded" ? "Setup applied" : activePlan.plan.state === "draft" ? "Awaiting approval" : `Setup · ${activePlan.plan.state.replace(/_/g, " ")}`}
+                {activePlan.plan.state === "succeeded"
+                  ? activePlan.plan.intent === "automation-settings" ? "Automation settings applied" : "Setup applied"
+                  : activePlan.plan.state === "draft"
+                    ? activePlan.plan.intent === "automation-settings" ? "Automation settings awaiting approval" : "Awaiting approval"
+                    : `${activePlan.plan.intent === "automation-settings" ? "Automation settings" : "Setup"} · ${activePlan.plan.state.replace(/_/g, " ")}`}
               </h2>
-              <p className="mt-1 text-sm text-pink-100/80">{activePlan.plan.state === "succeeded"
+              <p className="mt-1 text-sm text-pink-100/80">{activePlan.plan.intent === "automation-settings"
+                ? "Only the selected automation setting will change; no Discord resources or panels are created."
+                : activePlan.plan.state === "succeeded"
                 ? `${activePlanSummary.creates} created · ${activePlanSummary.mappings} existing destinations connected`
                 : `${activePlanSummary.creates} to create · ${activePlanSummary.mappings} existing destinations to connect`}</p>
               <p className="mt-1 text-sm text-red-100/80">{activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length} of {activePlan.plan.actions.length} checkpoints verified{planProgress ? ` · ${planProgress}` : ""}</p>
               <p className="mt-1 text-xs text-pink-100/70">Each bot request runs one checkpoint. The plan is saved on the bot, so an interrupted run can resume from its last verified action.</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {activePlan.plan.state === "draft" && activePlan.canResume && activePlanSummary.total > 0 ? <ActionButton label="Review and apply" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
+              {activePlan.plan.state === "draft" && activePlan.canApprove && activePlanSummary.total > 0 ? <ActionButton label={activePlan.plan.intent === "automation-settings" ? "Review and authorize" : "Review and apply"} tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
               {activePlan.canResume && activePlan.plan.state !== "draft" ? <ActionButton label="Resume plan" tip="Continue the saved plan from its next safe checkpoint." busy={busyAction === "setup-plan"} busyLabel="Running…" locked={locked} onClick={() => void executeSetupPlan()} /> : null}
               {activePlan.canCancel ? <ActionButton label="Cancel plan" tip="Cancel pending actions. Anything already created stays and remains recorded." busy={false} locked={locked} onClick={() => ask({ title: "Cancel this saved plan?", detail: "Pending actions will stop. Anything already created stays in the server and is listed in the saved plan.", confirmLabel: "Cancel plan", body: { action: "plan-cancel", planId: activePlan.plan.id } })} /> : null}
               {activePlan.canCompensate ? <ActionButton label="Preview settings restore" tip="Review which previous settings can be restored. This never deletes Discord resources." busy={busyAction === "plan-rollback-preview"} busyLabel="Checking..." locked={locked} onClick={() => post("plan-rollback-preview", { action: "plan-rollback-preview", planId: activePlan.plan.id })} /> : null}
@@ -1051,12 +1068,12 @@ export default function InfrastructureClient() {
 
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <div>
-          <h2 className="text-lg font-black uppercase text-red-200">Need to plan panel destinations?</h2>
-          <p className="mt-1 max-w-3xl text-sm text-red-100/75">Guided Server Setup owns the panel checklist. Infrastructure stays focused on scanning server resources, health, and saved mappings.</p>
+          <h2 className="text-lg font-black uppercase text-red-200">Set up feature structure and panels</h2>
+          <p className="mt-1 max-w-3xl text-sm text-red-100/75">Guided setup creates the selected categories, channels, roles, permissions, and destinations. It never posts panel messages; manage the master panel here and publish each feature panel from its own controls.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href="/dashboard/panels" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">View panel destinations</a>
-          <a href="/dashboard/server-setup#setup-panels" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">Edit panel setup</a>
+          <a href="/dashboard/panels" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">Open Panel Control Center</a>
+          <a href="/dashboard/server-setup#setup-panels" className="inline-flex min-h-10 items-center rounded-md border possum-divider px-3 text-sm font-bold">Set up server structure</a>
         </div>
       </section>
 
@@ -1166,11 +1183,13 @@ export default function InfrastructureClient() {
 
       <ConfirmDialog
         open={confirm === "setup-plan" && Boolean(activePlan?.plan)}
-        title={`Review ${activePlan?.plan.actions.length || 0} setup checkpoint${activePlan?.plan.actions.length === 1 ? "" : "s"}`}
-        detail={activePlan?.plan.intent === "connect-existing"
+        title={activePlan?.plan.intent === "automation-settings" ? "Review automation setting change" : `Review ${activePlan?.plan.actions.length || 0} setup checkpoint${activePlan?.plan.actions.length === 1 ? "" : "s"}`}
+        detail={activePlan?.plan.intent === "automation-settings"
+          ? "Review the selected AutoPilot or Auto-create change. Approval changes only those settings; no categories, channels, roles, permissions, or panels will be created or changed."
+          : activePlan?.plan.intent === "connect-existing"
           ? "Review the destinations the bot found in this server. Apply the plan to connect them to the listed feature settings."
           : `Review the exact resources to create and the existing destinations to connect.${activePlanSummary.panels ? ` The approved plan will also publish or refresh ${activePlanSummary.panels} configured ticket and self-role panel messages.` : ""}`}
-        confirmLabel="Apply reviewed plan"
+        confirmLabel={activePlan?.plan.intent === "automation-settings" ? "Approve setting change" : "Apply reviewed plan"}
         busy={busyAction === "setup-plan"}
         locked={locked && busyAction !== "setup-plan"}
         confirmDisabled={planPermissionBlocked || activePlanSummary.total === 0}

@@ -56,7 +56,7 @@ export default function PokemonCatchingPage() {
     message,
     save,
     runAction,
-  } = useGuildEngineEditor<PokemonConfig>("pokemon", DEFAULT_POKEMON_CONFIG);
+  } = useGuildEngineEditor<PokemonConfig>("pokemon", DEFAULT_POKEMON_CONFIG, { fresh: true });
 
   const cfg = useMemo(() => normalizePokemonConfig(rawCfg), [rawCfg]);
   const channelRows = useMemo(

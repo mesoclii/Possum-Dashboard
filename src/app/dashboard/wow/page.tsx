@@ -1,15 +1,5 @@
-import { Suspense } from "react";
-import WowClient from "./WowClient";
-
-
-function Loading() {
-  return <div style={{ color: "#ff4444", padding: 16 }}>Loading...</div>;
-}
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <WowClient />
-    </Suspense>
-  );
+  redirect("/dashboard/gaming-admin");
 }

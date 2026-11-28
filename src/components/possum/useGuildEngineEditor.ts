@@ -31,12 +31,13 @@ function resolveViewerUserId() {
   return userId;
 }
 
-export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { enabled?: boolean } = {}) {
+export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { enabled?: boolean; fresh?: boolean } = {}) {
   const enabled = options.enabled !== false;
+  const fresh = options.fresh === true;
   const initialGuildId = typeof window === "undefined" ? "" : resolveGuildId();
   const initialViewerUserId = typeof window === "undefined" ? "" : resolveViewerUserId();
-  const initialRuntime = typeof window === "undefined" ? null : peekRuntimeEngine(initialGuildId, engine, initialViewerUserId);
-  const initialGuild = typeof window === "undefined" ? null : peekGuildData(initialGuildId, initialViewerUserId);
+  const initialRuntime = typeof window === "undefined" || fresh ? null : peekRuntimeEngine(initialGuildId, engine, initialViewerUserId);
+  const initialGuild = typeof window === "undefined" || fresh ? null : peekGuildData(initialGuildId, initialViewerUserId);
   const defaultsRef = useRef(defaults);
   const contextRef = useRef({ guildId: initialGuildId, viewerUserId: initialViewerUserId });
   const loadRequestRef = useRef(0);
@@ -119,9 +120,9 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
       return;
     }
     if (contextRef.current.guildId !== targetGuildId || contextRef.current.viewerUserId !== targetUserId) return;
-    const warmRuntime = peekRuntimeEngine(targetGuildId, engine, targetUserId);
+    const warmRuntime = fresh ? null : peekRuntimeEngine(targetGuildId, engine, targetUserId);
     const revisionAtLoad = editRevision.current;
-    const warmGuild = peekGuildData(targetGuildId, targetUserId);
+    const warmGuild = fresh ? null : peekGuildData(targetGuildId, targetUserId);
     const hasWarmPayload = Boolean(warmRuntime || warmGuild);
 
     if (warmRuntime) {
@@ -149,8 +150,8 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
     setMessage("");
     try {
       const [runtimeResult, guildResult] = await Promise.allSettled([
-        fetchRuntimeEngine(targetGuildId, engine, targetUserId),
-        fetchGuildData(targetGuildId, targetUserId),
+        fetchRuntimeEngine(targetGuildId, engine, targetUserId, { fresh }),
+        fetchGuildData(targetGuildId, targetUserId, { fresh }),
       ]);
 
       if (requestId !== loadRequestRef.current ||
@@ -198,7 +199,7 @@ export function useGuildEngineEditor<T>(engine: string, defaults: T, options: { 
       if (requestId === loadRequestRef.current &&
           contextRef.current.guildId === targetGuildId && contextRef.current.viewerUserId === targetUserId) setLoading(false);
     }
-  }, [enabled, engine, guildId, viewerUserId]);
+  }, [enabled, engine, guildId, viewerUserId, fresh]);
 
   useEffect(() => {
     if (enabled) void reload();

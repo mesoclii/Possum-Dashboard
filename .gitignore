@@ -1,5 +1,6 @@
 node_modules
 .next
+.next.building
 .next.previous
 .next.rollback.json
 .env

@@ -143,21 +143,23 @@ export function peekRuntimeEngine(guildId: string, engine: string, userId = "") 
   return runtimeEngineCache.get(cacheKey)?.value || null;
 }
 
-export async function fetchGuildData(guildId: string, explicitUserId = "") {
+export async function fetchGuildData(guildId: string, explicitUserId = "", options: { fresh?: boolean } = {}) {
   const userId = resolveViewerUserId(explicitUserId);
-  const cacheKey = `${String(guildId || "").trim()}:${userId}`;
+  const cacheKey = String(guildId || "").trim() + ":" + userId;
+  const requestKey = options.fresh ? cacheKey + ":fresh" : cacheKey;
   const cached = guildDataCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!options.fresh && cached && cached.expiresAt > Date.now()) {
     return cached.value;
   }
-  const inflight = guildDataInflight.get(cacheKey);
+  const inflight = guildDataInflight.get(requestKey);
   if (inflight) return inflight;
 
   const request = (async () => {
     try {
-      const json = await fetchJsonOrThrow(
-        `/api/bot/guild-data?guildId=${encodeURIComponent(guildId)}${userId ? `&userId=${encodeURIComponent(userId)}` : ""}`
-      );
+      const query = new URLSearchParams({ guildId: String(guildId || "").trim() });
+      if (userId) query.set("userId", userId);
+      if (options.fresh) query.set("fresh", "1");
+      const json = await fetchJsonOrThrow("/api/bot/guild-data?" + query.toString());
       const roles = Array.isArray(json?.roles) ? json.roles : [];
       roles.sort((a: GuildRole, b: GuildRole) => (Number(b.position || 0) - Number(a.position || 0)) || a.name.localeCompare(b.name));
       const value = {
@@ -168,22 +170,22 @@ export async function fetchGuildData(guildId: string, explicitUserId = "") {
         botUser: json?.botUser || null,
       } as GuildDataPayload & { botUser?: unknown };
       guildDataCache.set(cacheKey, { value, expiresAt: Date.now() + GUILD_DATA_TTL_MS });
-      guildDataInflight.delete(cacheKey);
+      guildDataInflight.delete(requestKey);
       return value;
     } catch (error) {
       const stale = guildDataCache.get(cacheKey);
-      if (stale?.value) {
-        guildDataInflight.delete(cacheKey);
+      if (!options.fresh && stale?.value) {
+        guildDataInflight.delete(requestKey);
         return stale.value;
       }
       throw error;
     }
   })().catch((error) => {
-    guildDataInflight.delete(cacheKey);
+    guildDataInflight.delete(requestKey);
     throw error;
   });
 
-  guildDataInflight.set(cacheKey, request);
+  guildDataInflight.set(requestKey, request);
   return request;
 }
 

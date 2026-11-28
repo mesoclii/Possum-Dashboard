@@ -158,6 +158,10 @@ async function saveDashboardFeature(guildId: string, key: string, value: boolean
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ guildId, patch: { features: { [key]: value } }, userId }),
   });
+  invalidateDashboardConfig(guildId);
+}
+
+function invalidateDashboardConfig(guildId: string) {
   for (const cacheKey of dashboardConfigCache.keys()) {
     if (cacheKey.startsWith(`${String(guildId || "").trim()}:`)) {
       dashboardConfigCache.delete(cacheKey);
@@ -349,7 +353,6 @@ function getCardSection(card: Card): DashboardSection {
   if (
     href === "/dashboard/games" ||
     href === "/dashboard/gaming-admin" ||
-    href === "/dashboard/wow" ||
     href === "/dashboard/podcast" ||
     href === "/dashboard/community-studio" ||
     href === "/dashboard/bump-reminder" ||
@@ -425,24 +428,32 @@ const birthdayController: ToggleController = {
   },
 };
 
-const rareSpawnController: ToggleController = {
-  async read(guildId, userId) {
-    const [dashboardConfig, engineConfig] = await Promise.all([
-      getDashboardConfig(guildId, userId),
-      getEngineConfig(guildId, "rareSpawn", userId),
-    ]);
-    return readBoolPath(dashboardConfig, ["features", "rareDropEnabled"], false) && readBoolPath(engineConfig, ["enabled"], false);
-  },
-  async write(guildId, next, userId) {
-    await Promise.all([
-      saveDashboardFeature(guildId, "rareDropEnabled", next, userId),
-      saveEngineConfig(guildId, "rareSpawn", { enabled: next }, userId),
-    ]);
-  },
-  readLocal(dashboardConfig, engineConfigs) {
-    return readBoolPath(dashboardConfig, ["features", "rareDropEnabled"], false) && readBoolPath(engineConfigs?.rareSpawn || {}, ["enabled"], false);
-  },
-};
+function dropsController(engine: "catDrop" | "rareSpawn"): ToggleController {
+  const featureKey = engine === "catDrop" ? "catDropEnabled" : "rareDropEnabled";
+
+  function isEnabled(dashboardConfig: unknown, engineConfig: unknown) {
+    return readBoolPath(dashboardConfig, ["features", featureKey], false) &&
+      readBoolPath(engineConfig, ["enabled"], false);
+  }
+
+  return {
+    async read(guildId, userId) {
+      const [dashboardConfig, engineConfig] = await Promise.all([
+        getDashboardConfig(guildId, userId),
+        getEngineConfig(guildId, engine, userId),
+      ]);
+      return isEnabled(dashboardConfig, engineConfig);
+    },
+    async write(guildId, next, userId) {
+      const result = await saveEngineConfig(guildId, engine, { enabled: next }, userId);
+      invalidateDashboardConfig(guildId);
+      return result;
+    },
+    readLocal(dashboardConfig, engineConfigs) {
+      return isEnabled(dashboardConfig, engineConfigs?.[engine]);
+    },
+  };
+}
 
 const musicController: ToggleController = {
   async read(guildId, userId) {
@@ -559,13 +570,12 @@ const CARDS: Card[] = [
   { href: "/dashboard/halloffame", title: "Hall of Fame", description: "Recognition layer for top achievers and prestige-ready members.", toggle: engineController("hallOfFame") },
   { href: "/dashboard/achievements", title: "Achievements", description: "Milestone grant rules, badge sync, and achievement reward logic.", toggle: engineController("achievements", ["active"]) },
   { href: "/dashboard/loyalty", title: "Loyalty", description: "Retention timing, tenure rewards, and VIP-adjacent loyalty benefits.", toggle: engineController("loyalty", ["active"]) },
-  { href: "/dashboard/games", title: "Gaming Hub", description: "Link Steam, Epic, Xbox, Battle.net, PlayStation, Rockstar, and other launcher accounts for live gamer profiles and squads.", goOnly: true, goLabel: "Go" },
-  { href: "/dashboard/wow", title: "WoW Groups", description: "World of Warcraft 5-man, 10-man, and 25-man signup lanes with MOTD control.", toggle: engineController("wowGuild", ["enabled"]) },
+  { href: "/dashboard/games", title: "Gaming Hub", description: "Link game accounts, find groups, and manage every LFG activity from one place.", goOnly: true, goLabel: "Go" },
   { href: "/dashboard/crew", title: "Crew", description: "Crew create/join/leave/vault controls.", toggle: engineController("crew") },
   { href: "/dashboard/dominion", title: "Dominion", description: "Dominion raid/alliance/war settings.", toggle: engineController("dominion") },
   { href: "/dashboard/contracts", title: "Contracts", description: "Objective progression, task tracking, and contract reward flow.", toggle: engineController("contracts") },
-  { href: "/dashboard/catdrop", title: "Cat Drop", description: "Cat spawn/catch and drop tuning.", toggle: engineController("catDrop") },
-  { href: "/dashboard/rarespawn", title: "Rare Spawn", description: "Rare event spawn/claim settings.", toggle: rareSpawnController },
+  { href: "/dashboard/catdrop", title: "Cat Drop", description: "Cat spawn/catch and drop tuning.", toggle: dropsController("catDrop") },
+  { href: "/dashboard/rarespawn", title: "Rare Spawn", description: "Rare event spawn/claim settings.", toggle: dropsController("rareSpawn") },
   { href: "/dashboard/range", title: "Range", description: "Range game interactions and limits.", toggle: engineController("range") },
   { href: "/dashboard/truthdare", title: "Truth Or Dare", description: "Truth/Dare prompts, channel locks, and bet controls.", toggle: engineController("truthDare") },
   { href: "/dashboard/pokemon-catching", title: "Pokemon Catching", description: "Wild spawn lanes, catch rates, reward tuning, and catch logs.", toggle: pokemonCatchingController, pokemonOperatorOnly: true },

@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readDashboardGuildId, readDashboardUserId } from "@/lib/dashboardContext";
-import { describeBlueprintResource, summarizeSetupPlan, type SetupPlan } from "./setupPlan";
+import { describeBlueprintResource, setupActionRecoveryMode, summarizeSetupPlan, type SetupPlan } from "./setupPlan";
+
+type ActiveSetupPlan = {
+  plan: SetupPlan;
+  canApprove?: boolean;
+  canResume: boolean;
+  canCancel: boolean;
+  canCompensate?: boolean;
+} | null;
 
 type Feature = {
   id: string;
@@ -185,11 +193,19 @@ type ApiResponse = {
   success?: boolean;
   error?: string;
   report?: SetupReport;
+  activePlan?: ActiveSetupPlan;
   plan?: SetupPlan;
+  adaptiveDiscovery?: {
+    strategy?: string;
+    selectedFeatureIds?: string[];
+    detectedFeatureIds?: string[];
+    addedFeatureIds?: string[];
+  } | null;
   preview?: { planned?: AdaptRow[]; skipped?: { id: string; reason: string }[] };
   undoPreview?: UndoPreview;
   result?: {
     plan?: SetupPlan;
+      recovered?: string;
     completed?: boolean;
     error?: string;
     wrote?: boolean;
@@ -223,6 +239,8 @@ type CreationFailure = {
 
 type PreviewSnapshot = {
   plan: SetupPlan;
+  adaptive: boolean;
+  detectedFeatureIds: string[];
   autopilotEnabled: boolean;
   automaticProvisioningEnabled: boolean;
   features: string[];
@@ -369,6 +387,7 @@ export default function InfrastructureSetupWizard() {
   const [guildId, setGuildId] = useState("");
   const [userId, setUserId] = useState("");
   const [report, setReport] = useState<SetupReport | null>(null);
+  const [activePlan, setActivePlan] = useState<ActiveSetupPlan>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [setupProfile, setSetupProfile] = useState("custom");
   const [selectedRoleMappings, setSelectedRoleMappings] = useState<string[]>([]);
@@ -427,6 +446,7 @@ export default function InfrastructureSetupWizard() {
     );
     const data = await readJson(response);
     const next = data.report || null;
+    setActivePlan(data.activePlan || null);
     if (next) {
       setReport(next);
       const profile = setupProfileFor(next);
@@ -464,6 +484,7 @@ export default function InfrastructureSetupWizard() {
       .then(readJson)
       .then((data) => {
         const next = data.report || null;
+        setActivePlan(data.activePlan || null);
         setReport(next);
         const profile = setupProfileFor(next);
         setSetupProfile(profile);
@@ -509,6 +530,10 @@ export default function InfrastructureSetupWizard() {
   const vipPrivateSetupKeysSorted = sorted(vipPrivateSetupKeys);
   const planActions = previewSnapshot?.plan.actions || [];
   const planSummary = summarizeSetupPlan(planActions);
+  const savedPlanSummary = summarizeSetupPlan(activePlan?.plan.actions || []);
+  const savedDraftBlocked = Boolean(activePlan?.plan.actions.some((action) =>
+    ["create_resource", "deploy_panel"].includes(action.type) && action.permissionStatus !== "verified"
+  ));
   const hasChanges = planSummary.total > 0;
   const createIds = new Set(planActions.filter((action) => action.type === "create_resource")
     .map((action) => action.id.slice("resource:".length).split("#")[0]));
@@ -529,6 +554,8 @@ export default function InfrastructureSetupWizard() {
   const blockedCreations = planActions.filter((action) =>
     ["create_resource", "deploy_panel"].includes(action.type) && action.permissionStatus !== "verified");
   const skippedMappingCount = previewSnapshot?.skippedMappings.length || 0;
+  const previewBlockedByActivePlan = Boolean(activePlan?.plan &&
+    !["draft", "succeeded", "cancelled", "stale"].includes(activePlan.plan.state));
   const namesDirty = Boolean(previewSnapshot && !sameNames(names, previewSnapshot.names));
   const categoryNamesDirty = Boolean(previewSnapshot && !sameNames(categoryNames, previewSnapshot.categoryNames));
   const resourceCountsDirty = Boolean(previewSnapshot && !sameCounts(resourceCounts, previewSnapshot.resourceCounts));
@@ -626,13 +653,17 @@ export default function InfrastructureSetupWizard() {
     }
   }
 
-  async function preparePreview() {
+  async function preparePreview(adaptive = false) {
     if (!guildId) {
       setError("Choose a server before starting setup.");
       return;
     }
-    if (!selectedFeatures.length && !normalizedCustomRoleNames.length && !normalizedCustomChannelNames.length) {
+    if (!adaptive && !selectedFeatures.length && !normalizedCustomRoleNames.length && !normalizedCustomChannelNames.length) {
       setError("Select a system or enter a custom role or channel to preview setup.");
+      return;
+    }
+    if (previewBlockedByActivePlan) {
+      setError("Finish or cancel the saved setup plan above before preparing another preview. Recovery stays on this page.");
       return;
     }
     setBusy(true);
@@ -642,6 +673,7 @@ export default function InfrastructureSetupWizard() {
     setCreationFailures([]);
     setPreviewSnapshot(null);
     setPreviewOpen(false);
+    setBatchProgress(adaptive ? "Refreshing this server's channels, roles, and saved feature mappings..." : "");
     try {
       const draft = {
         features: selectedFeatures,
@@ -683,27 +715,67 @@ export default function InfrastructureSetupWizard() {
         resourceMappings: draft.resourceMappings,
         allowSharedResourceIds: draft.allowSharedResourceIds,
         categorySelections: draft.categorySelections,
+        adaptive,
       });
       if (!data.report || !data.plan) throw new Error("The bot did not return a setup plan.");
-      if (data.report.panelSetupPolicy !== "channel-destinations-v2" || data.report.channelCreationPolicy !== "single-post-v1") {
-        throw new Error("The bot did not confirm the setup resource creation policy.");
+      if (data.report.panelSetupPolicy !== "infrastructure-structure-only-v1" || data.report.channelCreationPolicy !== "single-post-v1") {
+        const panelPolicy = data.report.panelSetupPolicy || "not reported";
+        const channelPolicy = data.report.channelCreationPolicy || "not reported";
+        throw new Error(`Setup paused before execution because the bot reported panel policy "${panelPolicy}" and channel policy "${channelPolicy}". Refresh the dashboard and try the preview again; no Discord changes were applied.`);
+      }
+      if (adaptive && data.adaptiveDiscovery?.strategy !== "live-configuration-and-unambiguous-resource-matches") {
+        throw new Error("The bot did not confirm that it inspected this server before adapting setup. No Discord changes were applied.");
+      }
+      const detectedFeatureIds = adaptive ? sorted(data.adaptiveDiscovery?.detectedFeatureIds || []) : [];
+      const adaptedFeatureIds = adaptive
+        ? sorted(data.report.settings?.trackedEngines || draft.features)
+        : draft.features;
+      const adaptedProfile = adaptive
+        ? String(data.report.settings?.setupProfile || (detectedFeatureIds.some((id) => !draft.features.includes(id)) ? "custom" : draft.setupProfile))
+        : draft.setupProfile;
+      const adaptedRoleSelections = adaptive
+        ? roleSelectionsForFeatures(adaptedFeatureIds, previewRoleSelections)
+        : previewRoleSelections;
+      if (adaptive) {
+        setSelected(adaptedFeatureIds);
+        setSetupProfile(adaptedProfile);
+        setSelectedRoleMappings(adaptedRoleSelections);
       }
       setReport(data.report);
       setPreviewSnapshot({
         ...draft,
+        adaptive,
+        detectedFeatureIds,
+        features: adaptedFeatureIds,
+        setupProfile: adaptedProfile,
+        selectedRoleMappings: adaptedRoleSelections,
         plan: data.plan,
         report: data.report,
         mappings: data.preview?.planned || [],
         skippedMappings: data.preview?.skipped || [],
       });
-      setMessage(data.preview?.skipped?.length
-        ? `${data.preview.skipped.length} setup decision(s) still need your review before the plan can be approved.`
-        : summarizeSetupPlan(data.plan.actions).total
-          ? "Plan ready for review. Approve it below to apply the listed changes."
-          : "The plan has no changes to apply. Review any unresolved destinations below.");
+      if (adaptive) {
+        const addedFeatureNames = (data.adaptiveDiscovery?.addedFeatureIds || []).map((id) =>
+          data.report?.featureCatalog?.find((feature) => feature.id === id)?.name || id
+        );
+        const discoverySummary = addedFeatureNames.length
+          ? `Added ${addedFeatureNames.length} detected system(s) to the selection: ${addedFeatureNames.join(", ")}.`
+          : "No additional configured systems were detected beyond your current selection.";
+        const decisionSummary = data.preview?.skipped?.length
+          ? ` ${data.preview.skipped.length} decision(s) still need review.`
+          : "";
+        setMessage(`${discoverySummary} Existing matches and missing resources are combined in this reviewed setup plan.${decisionSummary}`);
+      } else {
+        setMessage(data.preview?.skipped?.length
+          ? `${data.preview.skipped.length} setup decision(s) still need your review before the plan can be approved.`
+          : summarizeSetupPlan(data.plan.actions).total
+            ? "Plan ready for review. Approve it below to apply the listed changes."
+            : "The plan has no changes to apply. Review any unresolved destinations below.");
+      }
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "Could not prepare the setup preview.");
     } finally {
+      setBatchProgress("");
       setBusy(false);
     }
   }
@@ -723,8 +795,11 @@ export default function InfrastructureSetupWizard() {
     }
   }
 
-  async function approveSetup() {
-    if (!previewSnapshot || previewDirty || !hasChanges || blockedCreations.length) return;
+  async function approveSetup(savedDraft?: SetupPlan) {
+    const draft = savedDraft || previewSnapshot?.plan;
+    if (!draft || (savedDraft
+      ? savedDraft.state !== "draft" || !activePlan?.canApprove || savedDraftBlocked || savedPlanSummary.total === 0
+      : previewDirty || !hasChanges || blockedCreations.length)) return;
     setPreviewOpen(false);
     setBusy(true);
     setError("");
@@ -732,13 +807,13 @@ export default function InfrastructureSetupWizard() {
     setCreated([]);
     setCreationFailures([]);
     setBatchProgress("Approving the reviewed plan…");
-    const draft = previewSnapshot.plan;
     let running = false;
     try {
       const approved = await callApi({ action: "plan-approve", planId: draft.id, digest: draft.digest });
       let plan = approved.result?.plan;
       if (!plan) throw new Error("The bot did not return an approved setup plan.");
       running = true;
+      setActivePlan({ plan, canApprove: false, canResume: true, canCancel: true });
       for (let index = 0; index <= draft.actions.length; index += 1) {
         const completed = plan.actions.filter((action) => action.status === "completed").length;
         setBatchProgress(`Applying setup · ${completed} of ${plan.actions.length} checkpoints complete…`);
@@ -746,6 +821,7 @@ export default function InfrastructureSetupWizard() {
         const updated = step.result?.plan;
         if (!updated) throw new Error("The bot did not return the next setup checkpoint.");
         plan = updated;
+        setActivePlan({ plan, canApprove: false, canResume: !["succeeded", "cancelled"].includes(plan.state), canCancel: true });
         const summary = summarizeSetupPlan(plan.actions, true);
         setCreated(plan.actions.filter((action) =>
           action.type === "create_resource" && action.status === "completed").map((action) => ({
@@ -763,6 +839,7 @@ export default function InfrastructureSetupWizard() {
           setMessage(summary.creates || summary.mappings
             ? `Setup applied · ${summary.creates} resources created and verified · ${summary.mappings} existing destinations connected.`
             : "Setup applied the reviewed settings. No Discord resources needed creation or mapping.");
+          setActivePlan({ plan, canApprove: false, canResume: false, canCancel: false, canCompensate: true });
           await loadReport();
           return;
         }
@@ -770,10 +847,121 @@ export default function InfrastructureSetupWizard() {
       throw new Error("Setup stopped before the final checkpoint.");
     } catch (cause: unknown) {
       const detail = cause instanceof Error ? cause.message : "Setup stopped before all approved actions completed.";
-      setError(running ? `${detail} Open Infrastructure to review or resume the saved plan.` : detail);
+      setError(detail);
       if (running) setPreviewSnapshot(null);
     } finally {
       setBatchProgress("");
+      setBusy(false);
+    }
+  }
+
+  async function reconcileFailedSetupAction(actionId: string) {
+    if (!activePlan?.plan) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setBatchProgress("Checking Discord resource state and continuing this setup plan...");
+    try {
+      const data = await callApi({ action: "plan-reconcile", planId: activePlan.plan.id, actionId });
+      if (!data.result?.plan) throw new Error(data.error || data.result?.error || "The setup resource could not be reconciled.");
+      let plan = data.result.plan as SetupPlan;
+      setActivePlan({ plan, canResume: true, canCancel: true });
+      setMessage(data.result.recovered === "restore-authorized"
+        ? "Discord confirmed the approved resource was deleted. Restoring it and continuing the saved setup now."
+        : data.result.recovered === "existing"
+          ? "The original resource is still present. Reconnecting it and continuing the saved setup now."
+          : "The original resource is verified and the saved setup is continuing.");
+      for (let index = 0; index <= plan.actions.length; index += 1) {
+        setBatchProgress(`Applying setup: ${plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length} of ${plan.actions.length} checkpoints verified...`);
+        const step = await callApi({ action: "plan-run", planId: plan.id });
+        const updated = step.result?.plan as SetupPlan | undefined;
+        if (!updated) throw new Error(step.error || step.result?.error || "The bot did not return the next setup checkpoint.");
+        plan = updated;
+        setActivePlan({ plan, canResume: !["succeeded", "cancelled"].includes(plan.state), canCancel: true });
+        if (step.report) setReport(step.report);
+        setCreationFailures(plan.actions.filter((action) => action.status === "failed").map((action) => ({
+          id: action.id,
+          name: action.name || action.resourceName || action.field || action.type,
+          error: action.result?.error || "Setup paused at this action.",
+        })));
+        if (step.success === false || step.result?.error || ["partial", "failed", "recovery_required"].includes(plan.state)) {
+          throw new Error(step.error || step.result?.error || "Setup paused with its progress saved below.");
+        }
+        if (step.result?.completed || plan.state === "succeeded") {
+          setActivePlan({ plan, canResume: false, canCancel: false, canCompensate: true });
+          setPreviewSnapshot(null);
+          setMessage("Setup finished successfully. Every completed action was verified against the server.");
+          await loadReport();
+          return;
+        }
+      }
+      throw new Error("The plan is still saved and ready to continue from this page.");
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Setup could not reconcile this resource.");
+      await loadReport().catch(() => null);
+    } finally {
+      setBatchProgress("");
+      setBusy(false);
+    }
+  }
+
+  async function resumeSavedSetup() {
+    if (!activePlan?.plan) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      let plan = activePlan.plan;
+      if (["partial", "failed", "recovery_required"].includes(plan.state)) {
+        const data = await callApi({ action: "plan-resume", planId: plan.id });
+        if (!data.result?.plan) throw new Error(data.error || data.result?.error || "The saved plan is not safely resumable yet.");
+        plan = data.result.plan as SetupPlan;
+      }
+      setActivePlan({ plan, canResume: true, canCancel: true });
+      for (let index = 0; index <= plan.actions.length; index += 1) {
+        const step = await callApi({ action: "plan-run", planId: plan.id });
+        const updated = step.result?.plan as SetupPlan | undefined;
+        if (!updated) throw new Error(step.error || step.result?.error || "The bot did not return the next setup checkpoint.");
+        plan = updated;
+        setActivePlan({ plan, canResume: !["succeeded", "cancelled"].includes(plan.state), canCancel: true });
+        if (step.report) setReport(step.report);
+        if (step.success === false || step.result?.error || ["partial", "failed", "recovery_required"].includes(plan.state)) {
+          throw new Error(step.error || step.result?.error || "Setup paused with its progress saved below.");
+        }
+        if (step.result?.completed || plan.state === "succeeded") {
+          setActivePlan({ plan, canResume: false, canCancel: false, canCompensate: true });
+          setMessage("Setup finished successfully. Every completed action was verified against the server.");
+          await loadReport();
+          return;
+        }
+      }
+      throw new Error("The plan is still saved and ready to continue from this page.");
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "The saved setup plan could not resume.");
+      await loadReport().catch(() => null);
+    } finally {
+      setBusy(false);
+      setBatchProgress("");
+    }
+  }
+
+  async function cancelSavedSetup() {
+    if (!activePlan?.plan || !activePlan.canCancel) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const data = await callApi({ action: "plan-cancel", planId: activePlan.plan.id });
+      if (data.success === false || data.result?.ok === false) {
+        throw new Error(data.error || data.result?.error || "The saved setup plan could not be canceled.");
+      }
+      setActivePlan(null);
+      setCreationFailures([]);
+      await loadReport();
+      setMessage("The pending setup plan was canceled. Any resources already created remain in the server; preview again to adapt the plan to its current state.");
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "The saved setup plan could not be canceled.");
+    } finally {
       setBusy(false);
     }
   }
@@ -1065,16 +1253,92 @@ export default function InfrastructureSetupWizard() {
         </section>
       ) : null}
 
+      {activePlan?.plan && !["succeeded", "cancelled", "stale"].includes(activePlan.plan.state) ? (
+        <section id="setup-plan" className="space-y-3 rounded-xl border border-pink-700/50 bg-black/60 p-4 shadow-lg shadow-pink-950/20" aria-labelledby="active-setup-plan-title">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-pink-200/70">Saved setup · this server</p>
+              <h2 id="active-setup-plan-title" className="mt-1 text-lg font-black uppercase text-pink-100">
+                {activePlan.plan.state.replace(/_/g, " ")}
+              </h2>
+              <p className="mt-1 text-sm text-pink-100/75">
+                {activePlan.plan.state === "draft"
+                  ? "This saved preview has not changed Discord. Review its exact actions below, then approve it here to continue setup on this page."
+                  : `${activePlan.plan.actions.filter((action) => ["completed", "skipped"].includes(action.status)).length} of ${activePlan.plan.actions.length} actions verified. Setup recovery stays here and continues this same approved plan.`}
+              </p>
+            </div>
+            {activePlan.plan.state === "draft" && activePlan.canApprove && savedPlanSummary.total > 0 ? (
+              <button type="button" disabled={busy || savedDraftBlocked} onClick={() => void approveSetup(activePlan.plan)} className="possum-btn min-h-10 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+                {busy ? "Applying reviewed setup..." : `Approve and build ${savedPlanSummary.creates} resource${savedPlanSummary.creates === 1 ? "" : "s"}`}
+              </button>
+            ) : null}
+            {activePlan.canResume && !activePlan.plan.actions.some((action) => action.status === "failed" && action.type === "create_resource") ? (
+              <button type="button" disabled={busy} onClick={() => void resumeSavedSetup()} className="possum-btn min-h-10 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:opacity-50">
+                {busy ? "Continuing..." : "Continue setup"}
+              </button>
+            ) : null}
+            {activePlan.canCancel ? (
+              <button type="button" disabled={busy} onClick={() => void cancelSavedSetup()} className="min-h-10 rounded-lg border border-amber-700/60 px-4 py-2 text-sm font-bold text-amber-100 disabled:opacity-50">
+                Cancel plan and re-preview
+              </button>
+            ) : null}
+          </div>
+          {activePlan.plan.state === "draft" ? (
+            <div className="space-y-2 rounded-lg border border-pink-900/40 p-3">
+              <p className="text-xs font-black uppercase text-pink-100">Saved plan · {savedPlanSummary.categories} categories · {savedPlanSummary.channels} channels · {savedPlanSummary.roles} roles · {savedPlanSummary.mappings} existing mappings</p>
+              <ul className="max-h-64 space-y-1 overflow-y-auto text-xs text-pink-100/80">
+                {activePlan.plan.actions.map((action) => (
+                  <li key={action.id} className="rounded-md border border-pink-900/30 px-2 py-1.5">
+                    <strong>{action.name || action.resourceName || action.field || action.flow || "Setup settings"}</strong>
+                    <span className="ml-2 opacity-70">{action.type.replace(/_/g, " ")}</span>
+                    {action.missingPermissions?.length ? <span className="block text-amber-200">Needs bot permission: {action.missingPermissions.join(", ")}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              {savedDraftBlocked ? <p className="text-xs text-amber-200">The bot is missing permissions for one or more planned resources. Fix the listed permissions, then refresh the preview.</p> : null}
+            </div>
+          ) : null}
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {activePlan.plan.actions.filter((action) => action.status === "failed").map((action) => (
+              <div key={action.id} className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-3">
+                <p className="text-xs font-black uppercase text-amber-100">Needs recovery · {action.resourceType || action.type.replace(/_/g, " ")}</p>
+                <p className="mt-1 break-words text-sm font-bold text-pink-50">{action.name || action.field || action.id}</p>
+                {action.result?.error ? <p className="mt-1 break-words text-xs text-amber-100/80">{action.result.error}</p> : null}
+                {setupActionRecoveryMode(action) === "retry" ? (
+                  <>
+                    <p className="mt-2 text-xs text-emerald-100/80">Discord confirmed this request created nothing. The same saved action can be retried safely.</p>
+                    <button type="button" disabled={busy} onClick={() => void resumeSavedSetup()} className="mt-3 min-h-10 rounded-md border border-emerald-500/70 bg-emerald-950/40 px-3 py-2 text-xs font-black uppercase text-emerald-50 disabled:opacity-50">
+                      {busy ? "Continuing setup..." : "Retry rejected action and continue"}
+                    </button>
+                  </>
+                ) : setupActionRecoveryMode(action) === "reconcile" ? (
+                  <button type="button" disabled={busy} onClick={() => void reconcileFailedSetupAction(action.id)} className="mt-3 min-h-10 rounded-md border border-pink-500/70 bg-pink-950/40 px-3 py-2 text-xs font-black uppercase text-pink-50 disabled:opacity-50">
+                    {busy ? "Checking Discord..." : "Reconcile setup and continue"}
+                  </button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          {activePlan.plan.actions.some((action) => action.status === "failed" && action.type === "create_resource") ? (
+            <p className="text-xs leading-relaxed text-pink-100/65">This checks the saved plan against Discord first. Existing resources are reconnected where needed. Resources confirmed deleted are restored only when their exact create receipt matches this approved plan and no conflicting name exists; then setup continues here.</p>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black uppercase">Choose what this server uses</h2>
-            <p className="mt-1 text-sm text-pink-100/75">Select the base features to set up. The wizard uses this selection to inspect and reuse existing channels/roles, then show missing resources and optional names for your approval. This selector does not silently flip runtime switches.</p>
+            <p className="mt-1 max-w-3xl text-sm text-pink-100/75">Select features for a reviewed setup, or ask Possum to inspect the live server and adapt the plan. Adaptive setup keeps your selection, adds systems it can verify from saved configuration and clear resource matches, reuses unambiguous channels, and includes missing resources for approval.</p>
+            {previewBlockedByActivePlan ? <p className="mt-2 text-xs font-bold text-amber-200">The saved plan above must be completed or canceled before a new preview can start.</p> : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">{selectedFeatures.length} selected</span>
-            <button type="button" disabled={busy || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" disabled={busy || previewBlockedByActivePlan || (selectedFeatures.length === 0 && normalizedCustomRoleNames.length === 0 && normalizedCustomChannelNames.length === 0)} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50">
               {busy ? "Preparing…" : "Preview selected setup"}
+            </button>
+            <button type="button" disabled={busy || previewBlockedByActivePlan} onClick={() => void preparePreview(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">
+              {busy ? "Analyzing…" : "Analyze server & adapt setup"}
             </button>
           </div>
         </div>
@@ -1281,12 +1545,22 @@ export default function InfrastructureSetupWizard() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Review proposed resources. Clear channel matches are mapped; approved missing destinations can be created. Configured ticket and self-role panels are published or refreshed after their destinations are ready.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Review roles, channels, categories, permissions, and mappings. Setup creates server structure only. Panel messages are configured and published from each feature page after its destination is ready.</p>
             </div>
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">
-              {planSummary.creates} to create · {planSummary.roles} roles · {planSummary.channels} channels · {planSummary.categories} categories · {planSummary.mappings} existing mappings · {planSummary.panels} panel messages
+              {planSummary.creates} to create · {planSummary.roles} roles · {planSummary.channels} channels · {planSummary.categories} categories · {planSummary.mappings} existing mappings
             </span>
           </div>
+
+          {previewSnapshot.adaptive ? (
+            <div className="rounded-lg border border-pink-700/40 bg-pink-950/20 p-3 text-sm text-pink-100">
+              <strong>Adapted from this server&apos;s live state.</strong>{" "}
+              {previewSnapshot.detectedFeatureIds.length
+                ? `Detected: ${previewSnapshot.detectedFeatureIds.map((id) => featureById.get(id)?.name || id).join(", ")}.`
+                : "No additional configured systems or clear resource matches were detected."}{" "}
+              The action list below combines those findings with your selected features. Existing matches are linked and only missing approved resources are created.
+            </div>
+          ) : null}
 
           {selectedProtected.length ? (
             <div className="rounded-lg border border-amber-700/50 bg-amber-950/20 p-3 text-sm text-amber-100">
@@ -1546,7 +1820,7 @@ export default function InfrastructureSetupWizard() {
             <p className="text-sm text-pink-100">Already created during the last attempt: {created.map((row) => row.name || row.field || row.id).filter(Boolean).join(", ")}</p>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={busy} onClick={() => void preparePreview()} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
+            <button type="button" disabled={busy || previewBlockedByActivePlan} onClick={() => void preparePreview(previewSnapshot.adaptive)} className="min-h-11 rounded-lg border possum-divider px-4 py-2 text-sm font-bold disabled:opacity-50">Refresh preview</button>
               <button type="button" disabled={busy || previewDirty || !hasChanges || blockedCreations.length > 0 || setupReviewBlocked} onClick={() => setPreviewOpen(true)} className="possum-btn min-h-11 rounded-lg px-4 py-2 text-sm font-black uppercase disabled:cursor-not-allowed disabled:opacity-50">Approve and build setup</button>
           </div>
         </section>
@@ -1556,7 +1830,7 @@ export default function InfrastructureSetupWizard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
-            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {planSummary.mappings} existing destinations, create {planSummary.creates} resources, and publish or refresh {planSummary.panels} configured ticket and self-role panel messages in this server.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {planSummary.mappings} existing destinations and create {planSummary.creates} approved resources. Panel messages are published from their feature pages after setup.</p>
             <p className="mt-2 text-sm text-pink-100/80">Panel updates match Possum-owned messages by their component IDs. Existing unrelated messages stay untouched, and setup never purges a panel channel. Protected onboarding settings and existing mappings stay unchanged.</p>
             <details className="mt-3 rounded-lg border border-pink-900/40 p-3">
               <summary className="cursor-pointer text-sm font-bold">Show the full setup action list</summary>

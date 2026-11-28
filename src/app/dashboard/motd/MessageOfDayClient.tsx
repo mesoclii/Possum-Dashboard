@@ -42,7 +42,7 @@ type Config = {
   queue: QueueEntry[];
   panelChannelId: string;
   weeklyReminder: WeeklyReminder;
-  history: Array<{ postedAt: string; title?: string; channelId?: string; status?: string; error?: string }>;
+  history: Array<{ id?: string; postedAt: string; title?: string; content?: string; imageUrl?: string; mentionRoleIds?: string[]; channelId?: string; messageId?: string; status?: string; error?: string }>;
 };
 
 const DEFAULT_WEEKLY_REMINDER: WeeklyReminder = {
@@ -108,6 +108,7 @@ export default function MessageOfDayClient() {
   const deviceTimezone = useSyncExternalStore(subscribeToTimezone, getDeviceTimezone, getServerTimezone);
   const [draft, setDraft] = useState<QueueEntry>(() => makeBlankEntry(""));
   const [editingId, setEditingId] = useState("");
+  const [editingHistoryId, setEditingHistoryId] = useState("");
   const [panelDraft, setPanelDraft] = useState<{ guildId: string; channelId: string } | null>(null);
   const [weeklyReminderDraft, setWeeklyReminderDraft] = useState<{ guildId: string; value: WeeklyReminder } | null>(null);
 
@@ -142,6 +143,7 @@ export default function MessageOfDayClient() {
   function resetDraft() {
     setDraft(makeBlankEntry(timezone));
     setEditingId("");
+    setEditingHistoryId("");
   }
 
   function toggleRole(roleId: string) {
@@ -163,8 +165,39 @@ export default function MessageOfDayClient() {
 
   async function postNow() {
     if (!draft.channelId || (!draft.content.trim() && !draft.title.trim() && !draft.imageUrl.trim())) return;
-    const result = await editor.runAction("postNow", { timezone, entry: { ...draft, timezone } });
+    const result = editingHistoryId
+      ? await editor.runAction("editPost", { historyId: editingHistoryId, entry: draft })
+      : await editor.runAction("postNow", { timezone, entry: { ...draft, timezone } });
     if (result?.ok) resetDraft();
+  }
+
+  async function editHistoryPost(entry: Config["history"][number]) {
+    const result = await editor.runAction("loadHistoryPost", { historyId: entry.id || entry.messageId || "" });
+    if (!result?.ok || !result.entry) return;
+    setEditingId("");
+    setEditingHistoryId(String(entry.id || entry.messageId || ""));
+    setDraft({
+      ...makeBlankEntry(timezone),
+      ...result.entry,
+      id: "",
+      date: localDateForTimezone(new Date(), timezone),
+      time: "09:00",
+      repeatEveryMinutes: 360,
+      repeatCount: 0,
+      mentionRoleIds: Array.isArray(result.entry.mentionRoleIds) ? result.entry.mentionRoleIds : [],
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function repostHistoryPost(entry: Config["history"][number]) {
+    if (!window.confirm("Repost this Message of the Day to its saved channel?")) return;
+    await editor.runAction("repostPost", { historyId: entry.id || entry.messageId || "" });
+  }
+
+  async function deleteHistoryPost(entry: Config["history"][number]) {
+    if (!window.confirm("Delete this Message of the Day from Discord? Only Possum-authored posts can be deleted.")) return;
+    await editor.runAction("deletePost", { historyId: entry.id || entry.messageId || "" });
+    if (editingHistoryId && editingHistoryId === String(entry.id || entry.messageId || "")) resetDraft();
   }
 
   async function removeQueueEntry(entry: QueueEntry) {
@@ -222,7 +255,7 @@ export default function MessageOfDayClient() {
         </div>
       </PossumCard>
 
-      <PossumCard title={editingId ? "Edit scheduled message" : "Compose one message"} description="Choose its destination, day, mentions, and optional repost interval">
+      <PossumCard title={editingHistoryId ? "Edit published message" : editingId ? "Edit scheduled message" : "Compose one message"} description="Choose its destination, day, mentions, and optional repost interval">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Post date<input className={fieldClass} type="date" value={displayDate} onChange={(event) => patchDraft({ date: event.target.value })} /></label>
           <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Post time<input className={fieldClass} type="time" value={draft.time} onChange={(event) => patchDraft({ time: event.target.value })} /></label>
@@ -258,9 +291,9 @@ export default function MessageOfDayClient() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-pink-900/50 pt-4">
-          <button type="button" className={primaryClass} disabled={!canSubmit || editor.saving || editor.loading || !editor.guildId} onClick={() => void scheduleEntry()}>{editor.saving ? "Saving…" : editingId ? "Save this day" : "Schedule for this day"}</button>
-          <button type="button" className={buttonClass} disabled={!canSubmit || editor.saving || editor.loading || !editor.guildId} onClick={() => void postNow()}>Post now</button>
-          {editingId ? <button type="button" className={buttonClass} disabled={editor.saving} onClick={resetDraft}>Cancel edit</button> : null}
+          <button type="button" className={primaryClass} disabled={!canSubmit || editor.saving || editor.loading || !editor.guildId || Boolean(editingHistoryId)} onClick={() => void scheduleEntry()}>{editor.saving ? "Saving…" : editingId ? "Save this day" : "Schedule for this day"}</button>
+          <button type="button" className={buttonClass} disabled={!canSubmit || editor.saving || editor.loading || !editor.guildId} onClick={() => void postNow()}>{editingHistoryId ? "Update published post" : "Post now"}</button>
+          {editingId || editingHistoryId ? <button type="button" className={buttonClass} disabled={editor.saving} onClick={resetDraft}>Cancel edit</button> : null}
           <label className="ml-auto flex items-center gap-2 text-xs text-pink-100/75">Minimum gap between posts (minutes)<input className="w-24 rounded-md border border-pink-900/60 bg-black/60 px-2 py-2 text-sm" type="number" min={15} max={1440} value={cfg.minIntervalMinutes} onChange={(event) => editor.setConfig({ ...cfg, minIntervalMinutes: Number(event.target.value) })} /></label>
         </div>
         {editor.message ? <p role="status" className="mt-3 rounded-lg border border-pink-900/50 bg-black/25 px-3 py-2 text-sm text-pink-100">{editor.message}</p> : null}
@@ -320,8 +353,15 @@ export default function MessageOfDayClient() {
         </p> : null}
       </PossumCard>
 
-      <PossumCard title="Recent posts" description="Delivery history for scheduled and immediate messages">
-        {cfg.history.length ? <div className="divide-y divide-pink-900/50">{cfg.history.slice(0, 12).map((entry, index) => <div key={`${entry.postedAt}-${index}`} className="flex flex-wrap justify-between gap-2 py-2 text-sm first:pt-0"><span>{entry.title || "Message of the Day"}</span><span className={entry.status === "failed" ? "text-red-300" : "text-pink-100/60"}>{entry.status === "failed" ? `Failed: ${entry.error || "send failed"}` : new Date(entry.postedAt).toLocaleString()}</span></div>)}</div> : <p className="text-sm text-pink-100/60">No posts recorded yet.</p>}
+      <PossumCard title="Recent posts" description="Edit a live post, repost it, or delete it from Discord">
+        {cfg.history.length ? <div className="divide-y divide-pink-900/50">{cfg.history.slice(0, 12).map((entry, index) => {
+          const historyId = entry.id || entry.messageId || `${entry.postedAt}-${index}`;
+          const manageable = Boolean(entry.messageId && entry.channelId && entry.status === "sent");
+          return <article key={historyId} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+            <div className="min-w-0 flex-1"><strong>{entry.title || "Message of the Day"}</strong><p className="mt-1 text-xs text-pink-100/60">{entry.status === "failed" ? `Failed: ${entry.error || "send failed"}` : `${new Date(entry.postedAt).toLocaleString()}${entry.status === "deleted" ? " · deleted from Discord" : ""}`}</p>{entry.content ? <p className="mt-1 line-clamp-2 text-sm text-pink-100/75">{entry.content}</p> : null}</div>
+            {manageable ? <div className="flex flex-wrap gap-2"><button type="button" className={buttonClass} disabled={editor.saving} onClick={() => void editHistoryPost(entry)}>Edit post</button><button type="button" className={buttonClass} disabled={editor.saving} onClick={() => void repostHistoryPost(entry)}>Repost</button><button type="button" className={buttonClass} disabled={editor.saving} onClick={() => void deleteHistoryPost(entry)}>Delete post</button></div> : null}
+          </article>;
+        })}</div> : <p className="text-sm text-pink-100/60">No posts recorded yet.</p>}
       </PossumCard>
     </main>
   );

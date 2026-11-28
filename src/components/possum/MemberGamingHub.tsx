@@ -41,6 +41,49 @@ const colors = {
   warning: "#ff4a4a",
 };
 
+const EMPTY_SQUAD_FORM = {
+  game: "",
+  title: "",
+  activityType: "group",
+  mode: "",
+  platform: "",
+  region: "",
+  rank: "",
+  micRequired: false,
+  crossplay: false,
+  scheduledAt: "",
+  durationMinutes: 0,
+  slotLayout: "",
+  requirementsText: "",
+  neededCount: 2,
+  note: "",
+  tentativeEnabled: true,
+  waitlistEnabled: true,
+};
+
+function parseLfgSlotLayout(value: string) {
+  const entries = String(value || "").split(/[,;\n]+/).map((part) => part.trim()).filter(Boolean);
+  if (!entries.length) return [];
+  return entries.map((entry, index) => {
+    const match = entry.match(/^(.+?)\s*[:=]\s*(\d{1,2})$/);
+    if (!match) return null;
+    const label = match[1].trim().slice(0, 48);
+    const capacity = Math.max(1, Math.min(20, Number(match[2])));
+    const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `group-${index + 1}`;
+    return { key, label, capacity };
+  });
+}
+
+function parseLfgRequirements(value: string) {
+  return String(value || "").split(/[;\n]+/).map((part) => part.trim()).filter(Boolean).map((entry) => {
+    const split = entry.indexOf(":");
+    if (split < 1) return null;
+    const label = entry.slice(0, split).trim().slice(0, 48);
+    const value = entry.slice(split + 1).trim().slice(0, 160);
+    return label && value ? { label, value, required: true } : null;
+  });
+}
+
 const panel: CSSProperties = {
   border: `1px solid ${colors.line}`,
   borderRadius: 16,
@@ -179,7 +222,8 @@ export default function MemberGamingHub({
   const [searchProvider, setSearchProvider] = useState(() => String(searchConfig.defaultProvider || ""));
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [psnOnlineId, setPsnOnlineId] = useState("");
-  const [squadForm, setSquadForm] = useState({ game: "", mode: "", platform: "", neededCount: 2, note: "" });
+  const [squadForm, setSquadForm] = useState(EMPTY_SQUAD_FORM);
+  const [lfgInputError, setLfgInputError] = useState("");
 
   const presenceDetails = engines.presenceFusion?.details;
   const players = rows(identity.details?.players).map((player) =>
@@ -198,6 +242,7 @@ export default function MemberGamingHub({
   const stats = rows(engines.gameProvider?.details?.stats);
   const playtimeRecords = rows(engines.playtime?.details?.records);
   const squads = rows(engines.squadFinder?.details?.activeSquads);
+  const activityTemplates = rows(engines.squadFinder?.config?.activityTemplates);
   const enabledSearchProviders = rows(searchConfig.providers).filter((entry) => entry.enabled !== false);
   const ownPresence = presenceDetails?.viewerPresence;
   const totalHours = getSummary(engines.playtime, "Total Hours", "0");
@@ -359,8 +404,37 @@ export default function MemberGamingHub({
 
   async function createSquad(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const result = await onAction("squadFinder", "createSession", squadForm, "Your squad listing is live.");
-    if (result) setSquadForm({ game: "", mode: "", platform: "", neededCount: 2, note: "" });
+    const slotGroups = parseLfgSlotLayout(squadForm.slotLayout);
+    if (slotGroups.some((entry) => !entry)) {
+      setLfgInputError("Enter group slots as Label: number, for example Tank: 1, Support: 2.");
+      return;
+    }
+    const requirements = parseLfgRequirements(squadForm.requirementsText);
+    if (requirements.some((entry) => !entry)) {
+      setLfgInputError("Enter each requirement as Label: detail, separated by semicolons.");
+      return;
+    }
+    setLfgInputError("");
+    const result = await onAction("squadFinder", "createSession", {
+      ...squadForm,
+      scheduledAt: squadForm.scheduledAt ? new Date(squadForm.scheduledAt).toISOString() : "",
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
+      slotGroups: slotGroups.filter(Boolean),
+      requirements: requirements.filter(Boolean),
+    }, "Your group listing is live.");
+    if (result) setSquadForm({ ...EMPTY_SQUAD_FORM });
+  }
+
+  function applyActivityTemplate(templateKey: string) {
+    const template = activityTemplates.find((entry) => String(entry.key) === templateKey);
+    if (!template) return;
+    const slotLayout = rows(template.slotGroups).map((group) => `${group.label}: ${group.capacity}`).join(", ");
+    setSquadForm((prev) => ({
+      ...prev,
+      activityType: String(template.activityType || prev.activityType),
+      slotLayout,
+      note: prev.note || String(template.description || ""),
+    }));
   }
 
   function isInSquad(squad: any) {
@@ -482,36 +556,69 @@ export default function MemberGamingHub({
     return (
       <div style={{ display: "grid", gap: 14 }}>
         <Card>
-          <Heading detail="Create a listing in the server&apos;s configured Squad Finder channel.">Find teammates</Heading>
-          <form onSubmit={(event) => void createSquad(event)} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,190px),1fr))", gap: 9 }}>
-            <input required style={field} maxLength={80} placeholder="Game" value={squadForm.game} onChange={(event) => setSquadForm((prev) => ({ ...prev, game: event.target.value }))} />
-            <input style={field} maxLength={60} placeholder="Mode / queue (optional)" value={squadForm.mode} onChange={(event) => setSquadForm((prev) => ({ ...prev, mode: event.target.value }))} />
-            <select style={field} value={squadForm.platform} onChange={(event) => setSquadForm((prev) => ({ ...prev, platform: event.target.value }))}>
-              <option value="">Any platform</option>
-              <option value="pc">PC</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="switch">Switch</option><option value="mobile">Mobile</option>
-            </select>
-            <select style={field} value={squadForm.neededCount} onChange={(event) => setSquadForm((prev) => ({ ...prev, neededCount: Number(event.target.value) }))}>
-              {[1, 2, 3, 4, 5].map((count) => <option key={count} value={count}>Need {count} teammate{count === 1 ? "" : "s"}</option>)}
-            </select>
-            <input style={field} maxLength={240} placeholder="Short note (optional)" value={squadForm.note} onChange={(event) => setSquadForm((prev) => ({ ...prev, note: event.target.value }))} />
-            <button type="submit" style={{ ...button, color: colors.page, background: colors.accent, borderColor: colors.accent }} disabled={saving || !squadForm.game.trim()}>Post squad listing</button>
+          <Heading detail="Build a listing around what the activity needs: roles, slots, timing, requirements, and a waitlist when useful.">Find a group</Heading>
+          <form onSubmit={(event) => void createSquad(event)} style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,190px),1fr))", gap: 9 }}>
+              <input required style={field} maxLength={80} placeholder="Game" value={squadForm.game} onChange={(event) => setSquadForm((prev) => ({ ...prev, game: event.target.value }))} />
+              <input style={field} maxLength={120} placeholder="Listing title (optional)" value={squadForm.title} onChange={(event) => setSquadForm((prev) => ({ ...prev, title: event.target.value }))} />
+              <select style={field} value={squadForm.activityType} onChange={(event) => setSquadForm((prev) => ({ ...prev, activityType: event.target.value }))}>
+                <option value="group">Group</option><option value="raid">Raid</option><option value="dungeon">Dungeon / mission</option><option value="quest">Quest / exploration</option><option value="practice">Practice / coaching</option><option value="tournament">Tournament / event</option><option value="custom">Other activity</option>
+              </select>
+              {activityTemplates.length ? <select style={field} value="" aria-label="Use a saved group format" onChange={(event) => applyActivityTemplate(event.target.value)}><option value="">Use saved group format (optional)</option>{activityTemplates.map((template) => <option key={template.key} value={template.key}>{template.label}</option>)}</select> : null}
+              <input style={field} maxLength={60} placeholder="Mode, queue, or objective" value={squadForm.mode} onChange={(event) => setSquadForm((prev) => ({ ...prev, mode: event.target.value }))} />
+              <select style={field} value={squadForm.platform} onChange={(event) => setSquadForm((prev) => ({ ...prev, platform: event.target.value }))}>
+                <option value="">Any platform</option>
+                <option value="pc">PC</option><option value="xbox">Xbox</option><option value="playstation">PlayStation</option><option value="switch">Switch</option><option value="mobile">Mobile</option>
+              </select>
+              <input style={field} maxLength={60} placeholder="Region / server" value={squadForm.region} onChange={(event) => setSquadForm((prev) => ({ ...prev, region: event.target.value }))} />
+              <input style={field} maxLength={60} placeholder="Rank / experience" value={squadForm.rank} onChange={(event) => setSquadForm((prev) => ({ ...prev, rank: event.target.value }))} />
+              <input style={field} type="datetime-local" aria-label="Activity start time" value={squadForm.scheduledAt} onChange={(event) => setSquadForm((prev) => ({ ...prev, scheduledAt: event.target.value }))} />
+              <input style={field} type="number" min={0} max={10080} placeholder="Duration in minutes" value={squadForm.durationMinutes || ""} onChange={(event) => setSquadForm((prev) => ({ ...prev, durationMinutes: Number(event.target.value || 0) }))} />
+              <input style={field} maxLength={240} placeholder="Slots: Tank: 1, Healer: 1, DPS: 3" value={squadForm.slotLayout} onChange={(event) => setSquadForm((prev) => ({ ...prev, slotLayout: event.target.value }))} />
+              {!squadForm.slotLayout.trim() ? <select style={field} value={squadForm.neededCount} onChange={(event) => setSquadForm((prev) => ({ ...prev, neededCount: Number(event.target.value) }))}>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>Need {count} teammate{count === 1 ? "" : "s"}</option>)}
+              </select> : null}
+            </div>
+            <textarea style={{ ...field, minHeight: 76, resize: "vertical" }} maxLength={1000} placeholder="Goal, strategy, and other details" value={squadForm.note} onChange={(event) => setSquadForm((prev) => ({ ...prev, note: event.target.value }))} />
+            <input style={field} maxLength={1000} placeholder="Requirements: Item level: 200; Voice: required; Bring: consumables" value={squadForm.requirementsText} onChange={(event) => setSquadForm((prev) => ({ ...prev, requirementsText: event.target.value }))} />
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", color: colors.text, fontSize: 13 }}>
+              <label><input type="checkbox" checked={squadForm.micRequired} onChange={(event) => setSquadForm((prev) => ({ ...prev, micRequired: event.target.checked }))} /> Voice chat required</label>
+              <label><input type="checkbox" checked={squadForm.crossplay} onChange={(event) => setSquadForm((prev) => ({ ...prev, crossplay: event.target.checked }))} /> Crossplay allowed</label>
+              <label><input type="checkbox" checked={squadForm.tentativeEnabled} onChange={(event) => setSquadForm((prev) => ({ ...prev, tentativeEnabled: event.target.checked, waitlistEnabled: event.target.checked }))} /> Allow tentative / waitlist signups</label>
+            </div>
+            {lfgInputError ? <div role="alert" style={{ color: colors.warning, fontSize: 13 }}>{lfgInputError}</div> : null}
+            <button type="submit" style={{ ...button, justifySelf: "start", color: colors.page, background: colors.accent, borderColor: colors.accent }} disabled={saving || !squadForm.game.trim()}>Post group listing</button>
           </form>
         </Card>
 
         <Card>
-          <Heading detail="Active member-created listings that match community privacy settings.">Open squads</Heading>
+          <Heading detail="Active group listings across the server, with each activity's own places and signup state.">Open groups</Heading>
           {squads.length ? (
             <div style={{ display: "grid", gap: 9 }}>
               {squads.map((squad) => {
                 const joined = isInSquad(squad);
                 const isOwner = String(squad.ownerId) === viewerUserId;
+                const slotGroups = rows(squad.slotGroups);
+                const tentative = rows(squad.tentativeMembers);
+                const full = String(squad.status || "") === "full";
                 return (
                   <div key={squad.sessionId} style={{ border: `1px solid ${colors.line}`, borderRadius: 12, padding: 13 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                      <div><strong>{squad.title}</strong><div style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>{squad.value}</div></div>
-                      <div style={{ display: "flex", gap: 7, alignItems: "start" }}>
+                      <div style={{ minWidth: 220, flex: "1 1 300px" }}>
+                        <strong>{squad.title}</strong>
+                        <div style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>{squad.gameLabel}{squad.activityType ? ` | ${String(squad.activityType).replace(/[-_]/g, " ")}` : ""}{squad.mode ? ` | ${squad.mode}` : ""}</div>
+                        <div style={{ color: colors.muted, fontSize: 12, marginTop: 3 }}>{squad.value}</div>
+                        {squad.description ? <div style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{squad.description}</div> : null}
+                        {squad.scheduledAt ? <div style={{ marginTop: 6, color: colors.muted, fontSize: 12 }}>Starts {new Date(squad.scheduledAt).toLocaleString()}{squad.durationMinutes ? ` | ${squad.durationMinutes} min` : ""}</div> : null}
+                        {slotGroups.length ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 9 }}>{slotGroups.map((group) => <span key={group.key} style={{ border: `1px solid ${colors.line}`, borderRadius: 999, padding: "3px 8px", fontSize: 12 }}>{group.label} {rows(group.members).length}/{group.capacity}</span>)}</div> : null}
+                        {tentative.length ? <div style={{ marginTop: 6, color: colors.muted, fontSize: 12 }}>Tentative / waitlist: {tentative.map((member) => member.name).join(", ")}</div> : null}
+                      </div>
+                      <div style={{ display: "flex", gap: 7, alignItems: "start", flexWrap: "wrap" }}>
                         {isOwner ? <button type="button" style={button} disabled={saving} onClick={() => void onAction("squadFinder", "closeOwnedSession", { sessionId: squad.sessionId }, "Closed your squad listing.")}>Close listing</button> : null}
-                        {!isOwner ? <button type="button" style={button} disabled={saving || (!joined && Number(squad.members?.length || 0) >= Number(squad.capacity || 0))} onClick={() => void onAction("squadFinder", joined ? "leaveSession" : "joinSession", { sessionId: squad.sessionId }, joined ? "Left the squad." : "Joined the squad.")}>{joined ? "Leave" : "Join"}</button> : null}
+                        {joined ? <button type="button" style={button} disabled={saving} onClick={() => void onAction("squadFinder", "leaveSession", { sessionId: squad.sessionId }, "Left the group.")}>Leave</button> : null}
+                        {!joined && slotGroups.length ? slotGroups.map((group) => <button key={group.key} type="button" style={button} disabled={saving || full || rows(group.members).length >= Number(group.capacity || 0)} onClick={() => void onAction("squadFinder", "joinSession", { sessionId: squad.sessionId, slotKey: group.key }, `Joined ${group.label}.`)}>Join {group.label}</button>) : null}
+                        {!joined && !slotGroups.length ? <button type="button" style={button} disabled={saving || full || Number(squad.members?.length || 0) >= Number(squad.capacity || 0)} onClick={() => void onAction("squadFinder", "joinSession", { sessionId: squad.sessionId }, "Joined the group.")}>Join</button> : null}
+                        {!joined && squad.tentativeEnabled !== false && squad.waitlistEnabled !== false ? <button type="button" style={button} disabled={saving} onClick={() => void onAction("squadFinder", "tentativeSession", { sessionId: squad.sessionId }, "Added to the tentative list.")}>Tentative / waitlist</button> : null}
                       </div>
                     </div>
                   </div>

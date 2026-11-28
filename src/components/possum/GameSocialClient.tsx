@@ -135,6 +135,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [activityTemplateDraft, setActivityTemplateDraft] = useState("[]");
   const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
   const [identityForm, setIdentityForm] = useState({ userId: viewerUserId || "", providerKey: "steam", handle: "", platform: "", accountId: "", profileUrl: "", visibility: "server" });
   const [verificationForm, setVerificationForm] = useState({ userId: viewerUserId || "", providerKey: "steam", platform: "", proofText: "", proofToken: "" });
@@ -188,6 +189,7 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
       if (guildDataError) warnings.push(`Guild data: ${guildDataError}`);
       const safeGuildData = (guildData && typeof guildData === "object" ? guildData : {}) as { channels?: GuildChannel[]; roles?: GuildRole[] };
       setEngines(next);
+      setActivityTemplateDraft(JSON.stringify(next.squadFinder?.config?.activityTemplates || [], null, 2));
       setChannels(Array.isArray(safeGuildData.channels) ? safeGuildData.channels : []);
       setRoles(Array.isArray(safeGuildData.roles) ? safeGuildData.roles : []);
       setLoadWarnings(warnings);
@@ -213,6 +215,22 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
 
   function updateConfig(engine: EngineKey, patch: Record<string, unknown>) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before editing its settings.`); return; } setEngines((prev) => ({ ...prev, [engine]: { ...prev[engine], config: { ...(prev[engine].config || {}), ...patch } } })); }
   async function saveConfig(engine: EngineKey, patch: Record<string, unknown>, okLabel: string) { if (engines[engine].loadError) { setMessage(`Reload ${engine} before saving its settings.`); return; } try { setSaving(true); setMessage(""); const json = await saveRuntimeEngine(guildId, engine, patch, viewerUserId); setEngines((prev) => ({ ...prev, [engine]: normalizePayload(json) })); setMessage(okLabel); } catch (err: any) { setMessage(err?.message || "Save failed."); } finally { setSaving(false); } }
+  async function saveSquadFinderSettings() {
+    let activityTemplates: any[];
+    try {
+      const parsed = JSON.parse(activityTemplateDraft);
+      if (!Array.isArray(parsed)) throw new Error("Activity formats must be a JSON array.");
+      activityTemplates = parsed.slice(0, 20);
+      for (const entry of activityTemplates) {
+        if (!String(entry?.key || "").trim() || !String(entry?.label || "").trim()) throw new Error("Each format needs a key and label.");
+        if (!Array.isArray(entry?.slotGroups)) throw new Error("Each format needs a slotGroups array; use [] for flexible groups.");
+      }
+    } catch (error: any) {
+      setMessage(error?.message || "Activity formats contain invalid JSON.");
+      return;
+    }
+    await saveConfig("squadFinder", { ...(engines.squadFinder.config || {}), activityTemplates }, "Saved Gaming Hub LFG settings and formats.");
+  }
   async function runAction(engine: EngineKey, action: string, payload: Record<string, unknown>, okLabel: string): Promise<any> {
     if (engines[engine].loadError) {
       setMessage(`Reload ${engine} before running actions.`);
@@ -785,7 +803,37 @@ export default function GameSocialClient({ guildId, guildName, mode, authenticat
 
           <div style={card}><h3 style={sectionTitle}>Showoff Card</h3><fieldset disabled={!canManageGaming} style={lockedGroup}><div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10 }}><label><input type="checkbox" checked={Boolean(getValue(engines.showoff, ["enabled"], true))} onChange={(event) => updateConfig("showoff", { enabled: event.target.checked })} /> Enabled</label><label><input type="checkbox" checked={Boolean(getValue(engines.showoff, ["includeLinks"], true))} onChange={(event) => updateConfig("showoff", { includeLinks: event.target.checked })} /> Links</label><label><input type="checkbox" checked={Boolean(getValue(engines.showoff, ["includePresence"], true))} onChange={(event) => updateConfig("showoff", { includePresence: event.target.checked })} /> Presence</label><label><input type="checkbox" checked={Boolean(getValue(engines.showoff, ["includeStats"], true))} onChange={(event) => updateConfig("showoff", { includeStats: event.target.checked })} /> Stats</label></div><div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10, marginTop: 10 }}><label><input type="checkbox" checked={Boolean(getValue(engines.showoff, ["includePlaytime"], true))} onChange={(event) => updateConfig("showoff", { includePlaytime: event.target.checked })} /> Playtime</label><input style={input} placeholder="Accent color" value={getValue(engines.showoff, ["accentColor"], "#b91c1c")} onChange={(event) => updateConfig("showoff", { accentColor: event.target.value })} /><input style={input} placeholder="Card title" value={getValue(engines.showoff, ["cardTitle"], "{{user}} Gamer Card")} onChange={(event) => updateConfig("showoff", { cardTitle: event.target.value })} /><input style={input} placeholder="Headline" value={getValue(engines.showoff, ["headline"], "Unified game profile card")} onChange={(event) => updateConfig("showoff", { headline: event.target.value })} /></div><div style={{ marginTop: 10 }}><input style={input} placeholder="Notes" value={getValue(engines.showoff, ["notes"], "")} onChange={(event) => updateConfig("showoff", { notes: event.target.value })} /></div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}><button type="button" style={button} disabled={saving} onClick={() => void saveConfig("showoff", engines.showoff.config || {}, "Saved showoff card settings.")}>Save Showoff Engine</button></div></fieldset><div style={{ marginTop: 12, display: "grid", gap: 8 }}>{showoffRows.length ? showoffRows.map((entry, index) => <div key={`${entry.userId || entry.title}-${index}`} style={{ ...card, marginBottom: 0 }}><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div>) : <div style={{ color: "#ffb3b3" }}>No preview candidates yet.</div>}</div></div>
 
-          <div style={card}><h3 style={sectionTitle}>Squad Finder</h3><fieldset disabled={!canManageGaming} style={lockedGroup}><div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10 }}><label><input type="checkbox" checked={Boolean(getValue(engines.squadFinder, ["enabled"], true))} onChange={(event) => updateConfig("squadFinder", { enabled: event.target.checked })} /> Enabled</label><label><input type="checkbox" checked={Boolean(getValue(engines.squadFinder, ["autoCreateThread"], true))} onChange={(event) => updateConfig("squadFinder", { autoCreateThread: event.target.checked })} /> Auto thread</label><select style={input} value={getValue(engines.squadFinder, ["defaultChannelId"], "")} onChange={(event) => updateConfig("squadFinder", { defaultChannelId: event.target.value })}><option value="">Default LFG channel</option>{messageChannels.map((channel) => <option key={channel.id} value={channel.id}>{formatChannelLabel(channel, channels)}</option>)}</select><input style={input} type="number" placeholder="Default TTL (hours)" value={getValue(engines.squadFinder, ["defaultTtlHours"], 6)} onChange={(event) => updateConfig("squadFinder", { defaultTtlHours: Number(event.target.value || 0) })} /></div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}><button type="button" style={button} disabled={saving} onClick={() => void saveConfig("squadFinder", engines.squadFinder.config || {}, "Saved squad finder settings.")}>Save Squad Finder</button><button type="button" style={button} disabled={saving} onClick={() => void runAction("squadFinder", "closeAllSessions", {}, "Closed all active squad sessions.")}>Close All Sessions</button></div></fieldset><div style={{ marginTop: 12, display: "grid", gap: 8 }}>{squadRows.length ? squadRows.map((entry) => <div key={entry.sessionId} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div><button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("squadFinder", "closeSession", { sessionId: entry.sessionId }, "Squad session closed.")}>Close</button></div></div>) : <div style={{ color: "#ffb3b3" }}>No active squad sessions.</div>}</div></div>
+          <div style={card}>
+            <h3 style={sectionTitle}>Squad Finder · Gaming Hub LFG</h3>
+            <fieldset disabled={!canManageGaming} style={lockedGroup}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(160px,1fr))", gap: 10 }}>
+                <label><input type="checkbox" checked={Boolean(getValue(engines.squadFinder, ["enabled"], true))} onChange={(event) => updateConfig("squadFinder", { enabled: event.target.checked })} /> Enabled</label>
+                <label><input type="checkbox" checked={Boolean(getValue(engines.squadFinder, ["autoCreateThread"], true))} onChange={(event) => updateConfig("squadFinder", { autoCreateThread: event.target.checked })} /> Auto thread</label>
+                <label><input type="checkbox" checked={Boolean(getValue(engines.squadFinder, ["allowTentative"], true))} onChange={(event) => updateConfig("squadFinder", { allowTentative: event.target.checked })} /> Allow tentative</label>
+                <label><input type="checkbox" checked={Boolean(getValue(engines.squadFinder, ["waitlistEnabled"], true))} onChange={(event) => updateConfig("squadFinder", { waitlistEnabled: event.target.checked })} /> Waitlist</label>
+                <select style={input} value={getValue(engines.squadFinder, ["defaultChannelId"], "")} onChange={(event) => updateConfig("squadFinder", { defaultChannelId: event.target.value })}><option value="">Default LFG channel</option>{messageChannels.map((channel) => <option key={channel.id} value={channel.id}>{formatChannelLabel(channel, channels)}</option>)}</select>
+                <input style={input} type="number" min={1} max={168} placeholder="Default TTL (hours)" value={getValue(engines.squadFinder, ["defaultTtlHours"], 6)} onChange={(event) => updateConfig("squadFinder", { defaultTtlHours: Number(event.target.value || 0) })} />
+                <input style={input} type="number" min={1} max={500} placeholder="Max active groups" value={getValue(engines.squadFinder, ["maxConcurrentSessions"], 30)} onChange={(event) => updateConfig("squadFinder", { maxConcurrentSessions: Number(event.target.value || 0) })} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(200px,1fr))", gap: 10, marginTop: 10 }}>
+                <label style={{ display: "grid", gap: 4, fontSize: 12, color: "#ffb3b3" }}>Required access roles
+                  <select multiple style={{ ...input, minHeight: 90 }} value={getValue(engines.squadFinder, ["requiredRoleIds"], []) as string[]} onChange={(event) => updateConfig("squadFinder", { requiredRoleIds: Array.from(event.currentTarget.selectedOptions, (option) => option.value) })}>{roles.filter((role) => role.id !== guildId).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
+                </label>
+                <label style={{ display: "grid", gap: 4, fontSize: 12, color: "#ffb3b3" }}>Blocked roles
+                  <select multiple style={{ ...input, minHeight: 90 }} value={getValue(engines.squadFinder, ["blockedRoleIds"], []) as string[]} onChange={(event) => updateConfig("squadFinder", { blockedRoleIds: Array.from(event.currentTarget.selectedOptions, (option) => option.value) })}>{roles.filter((role) => role.id !== guildId).map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
+                </label>
+              </div>
+              <label style={{ display: "grid", gap: 4, marginTop: 10, fontSize: 12, color: "#ffb3b3" }}>Reusable activity formats · JSON
+                <textarea style={{ ...input, minHeight: 150, fontFamily: "ui-monospace, monospace" }} value={activityTemplateDraft} onChange={(event) => setActivityTemplateDraft(event.target.value)} placeholder={'[{"key":"raid","label":"Raid","slotGroups":[{"key":"tank","label":"Tank","capacity":2},{"key":"healer","label":"Healer","capacity":4},{"key":"dps","label":"DPS","capacity":14}]}]'} />
+              </label>
+              <p style={{ color: "#ffb3b3", fontSize: 11, marginTop: 6 }}>Formats can define role slots for raids, queue roles for dungeons, team sizes, or an empty slotGroups list for flexible games. The same LFG supports schedules, region, platform, rank, crossplay, requirements, tentative signups, and waitlists.</p>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <button type="button" style={button} disabled={saving} onClick={() => void saveSquadFinderSettings()}>Save Squad Finder settings and formats</button>
+                <button type="button" style={button} disabled={saving} onClick={() => void runAction("squadFinder", "closeAllSessions", {}, "Closed all active squad sessions.")}>Close All Sessions</button>
+              </div>
+            </fieldset>
+            <div style={{ marginTop: 12, display: "grid", gap: 8 }}>{squadRows.length ? squadRows.map((entry) => <div key={entry.sessionId} style={{ ...card, marginBottom: 0 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}><div><div style={{ fontWeight: 700 }}>{entry.title}</div><div style={{ color: "#ffb3b3", fontSize: 12 }}>{entry.value}</div></div><button type="button" style={button} disabled={saving || !canManageGaming} onClick={() => void runAction("squadFinder", "closeSession", { sessionId: entry.sessionId }, "Squad session closed.")}>Close</button></div></div>) : <div style={{ color: "#ffb3b3" }}>No active squad sessions.</div>}</div>
+          </div>
         </>
       ) : null}
     </div>

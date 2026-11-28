@@ -67,7 +67,7 @@ export const ENGINE_REGISTRY: EngineDef[] = [
   { id: "pokemon-battle", label: "Pokemon Battle", description: "Pokemon battle routing and logs", group: "Fun", route: "/dashboard/pokemon-battle", featureKey: "pokemonEnabled" },
   { id: "pokemon-trade", label: "Pokemon Trade", description: "Pokemon trade routing and logs", group: "Fun", route: "/dashboard/pokemon-trade", featureKey: "pokemonEnabled" },
   { id: "rare-drop", label: "Rare Spawn", description: "Rare spawn controls", group: "Fun", route: "/dashboard/rarespawn", featureKey: "rareDropEnabled" },
-  { id: "cat-drop", label: "Cat Drop", description: "Cat drop controls", group: "Fun", route: "/dashboard/catdrop" },
+  { id: "cat-drop", label: "Cat Drop", description: "Cat drop controls", group: "Fun", route: "/dashboard/catdrop", featureKey: "catDropEnabled" },
   { id: "crew", label: "Crew", description: "Crew engine controls", group: "Fun", route: "/dashboard/crew" },
   { id: "dominion", label: "Dominion", description: "Dominion engine controls", group: "Fun", route: "/dashboard/dominion" },
   { id: "contracts", label: "Contracts", description: "Objective progression, task tracking, and contract completion flow", group: "Fun", route: "/dashboard/contracts" },

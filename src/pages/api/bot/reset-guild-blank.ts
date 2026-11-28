@@ -12,6 +12,7 @@ const BLANK = {
     verificationEnabled: true,
     heistEnabled: true,
     rareDropEnabled: true,
+    catDropEnabled: true,
     aiEnabled: true,
     birthdayEnabled: true,
     economyEnabled: true,

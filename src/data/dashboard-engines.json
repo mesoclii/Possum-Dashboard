@@ -1024,7 +1024,7 @@
       "key": "catDrop",
       "name": "Cat Drop",
       "category": "events",
-      "featureFlag": "rareDropEnabled",
+      "featureFlag": "catDropEnabled",
       "configKey": "catDrop",
       "premiumRequired": false,
       "privateOnly": false,

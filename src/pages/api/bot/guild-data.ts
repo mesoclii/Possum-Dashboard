@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const upstream = await fetchBotApi(
-      `${BOT_API}/guild-data?guildId=${encodeURIComponent(guildId)}`,
+      `${BOT_API}/guild-data?guildId=${encodeURIComponent(guildId)}${String(req.query.fresh || "").trim() === "1" ? "&refresh=1" : ""}`,
       { headers: await buildBotApiHeaders(req), cache: "no-store" }
     );
     return res.status(upstream.status).json(await readJsonSafe(upstream));

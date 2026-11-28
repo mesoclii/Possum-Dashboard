@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import GuildEmojiField from "@/components/possum/GuildEmojiField";
 import { PossumCard } from "@/components/possum/PossumCard";
 import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
@@ -23,6 +23,17 @@ type QueueEntry = {
   lastError?: string;
 };
 
+type WeeklyReminder = {
+  enabled: boolean;
+  channelId: string;
+  roleIds: string[];
+  dayOfWeek: number;
+  time: string;
+  lastStatus?: "" | "sending" | "sent" | "failed" | "uncertain";
+  lastError?: string;
+  lastSentAt?: string;
+};
+
 type Config = {
   enabled: boolean;
   timezone: string;
@@ -30,7 +41,16 @@ type Config = {
   schedule: unknown[];
   queue: QueueEntry[];
   panelChannelId: string;
+  weeklyReminder: WeeklyReminder;
   history: Array<{ postedAt: string; title?: string; channelId?: string; status?: string; error?: string }>;
+};
+
+const DEFAULT_WEEKLY_REMINDER: WeeklyReminder = {
+  enabled: false,
+  channelId: "",
+  roleIds: [],
+  dayOfWeek: 1,
+  time: "09:00",
 };
 
 const DEFAULTS: Config = {
@@ -40,8 +60,14 @@ const DEFAULTS: Config = {
   schedule: [],
   queue: [],
   panelChannelId: "",
+  weeklyReminder: DEFAULT_WEEKLY_REMINDER,
   history: [],
 };
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const subscribeToTimezone = () => () => {};
+const getDeviceTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+const getServerTimezone = () => "UTC";
 
 const COMMON_TIMEZONES = [
   "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York",
@@ -73,12 +99,17 @@ function makeBlankEntry(timezone: string): QueueEntry {
   };
 }
 
+function createQueueEntryId() {
+  return `motd-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`}`;
+}
+
 export default function MessageOfDayClient() {
   const editor = useGuildEngineEditor<Config>("messageOfDay", DEFAULTS);
-  const [deviceTimezone, setDeviceTimezone] = useState("UTC");
+  const deviceTimezone = useSyncExternalStore(subscribeToTimezone, getDeviceTimezone, getServerTimezone);
   const [draft, setDraft] = useState<QueueEntry>(() => makeBlankEntry(""));
   const [editingId, setEditingId] = useState("");
-  const [panelChannelId, setPanelChannelId] = useState("");
+  const [panelDraft, setPanelDraft] = useState<{ guildId: string; channelId: string } | null>(null);
+  const [weeklyReminderDraft, setWeeklyReminderDraft] = useState<{ guildId: string; value: WeeklyReminder } | null>(null);
 
   const cfg = useMemo<Config>(() => {
     const raw = (editor.config || {}) as Partial<Config>;
@@ -87,10 +118,15 @@ export default function MessageOfDayClient() {
       ...raw,
       queue: Array.isArray(raw.queue) ? raw.queue : [],
       schedule: Array.isArray(raw.schedule) ? raw.schedule : [],
+      weeklyReminder: { ...DEFAULT_WEEKLY_REMINDER, ...(raw.weeklyReminder || {}), roleIds: Array.isArray(raw.weeklyReminder?.roleIds) ? raw.weeklyReminder.roleIds : [] },
       history: Array.isArray(raw.history) ? raw.history : [],
     };
   }, [editor.config]);
   const timezone = cfg.timezone || deviceTimezone;
+  const displayDate = draft.date || (timezone ? localDateForTimezone(new Date(), timezone) : "");
+  const scheduledDraft = { ...draft, date: displayDate };
+  const panelChannelId = panelDraft?.guildId === editor.guildId ? panelDraft.channelId : cfg.panelChannelId || "";
+  const weeklyReminder = weeklyReminderDraft?.guildId === editor.guildId ? weeklyReminderDraft.value : cfg.weeklyReminder;
   const channels = useMemo(() => editor.channels.filter(isTextChannel), [editor.channels]);
   const timezoneOptions = useMemo(() => [...new Set([timezone, deviceTimezone, ...COMMON_TIMEZONES])].filter(Boolean), [timezone, deviceTimezone]);
   const queue = useMemo(() => [...cfg.queue].sort((a, b) => {
@@ -98,20 +134,6 @@ export default function MessageOfDayClient() {
     const bb = b.nextAt || `${b.date}T${b.time}`;
     return aa.localeCompare(bb);
   }), [cfg.queue]);
-
-  useEffect(() => {
-    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    setDeviceTimezone(zone);
-    setDraft((current) => current.date ? current : makeBlankEntry(zone));
-  }, []);
-
-  useEffect(() => {
-    setPanelChannelId(cfg.panelChannelId || "");
-  }, [cfg.panelChannelId]);
-
-  useEffect(() => {
-    if (!draft.date && timezone) setDraft((current) => ({ ...current, date: localDateForTimezone(new Date(), timezone) }));
-  }, [draft.date, timezone]);
 
   function patchDraft(patch: Partial<QueueEntry>) {
     setDraft((current) => ({ ...current, ...patch }));
@@ -131,9 +153,9 @@ export default function MessageOfDayClient() {
   }
 
   async function scheduleEntry() {
-    if (!draft.date || !draft.time || !draft.channelId || (!draft.content.trim() && !draft.title.trim() && !draft.imageUrl.trim())) return;
-    const id = editingId || `motd-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const next = { ...draft, timezone, id, status: "scheduled" as const };
+    if (!scheduledDraft.date || !scheduledDraft.time || !scheduledDraft.channelId || (!scheduledDraft.content.trim() && !scheduledDraft.title.trim() && !scheduledDraft.imageUrl.trim())) return;
+    const id = editingId || createQueueEntryId();
+    const next = { ...scheduledDraft, timezone, id, status: "scheduled" as const };
     const nextQueue = editingId ? cfg.queue.map((entry) => entry.id === editingId ? next : entry) : [...cfg.queue, next];
     const result = await editor.runAction("saveQueue", { config: { timezone, minIntervalMinutes: cfg.minIntervalMinutes, queue: nextQueue } });
     if (result?.ok) resetDraft();
@@ -158,7 +180,8 @@ export default function MessageOfDayClient() {
   }
 
   async function savePanelDestination() {
-    await editor.runAction("savePanel", { channelId: panelChannelId });
+    const result = await editor.runAction("savePanel", { channelId: panelChannelId });
+    if (result?.ok) setPanelDraft(null);
   }
 
   async function publishPanel() {
@@ -166,7 +189,26 @@ export default function MessageOfDayClient() {
     await editor.runAction("deployPanel", { channelId: panelChannelId });
   }
 
-  const canSubmit = Boolean(draft.date && draft.time && draft.channelId && (draft.content.trim() || draft.title.trim() || draft.imageUrl.trim()));
+  function updateWeeklyReminder(update: Partial<WeeklyReminder> | ((current: WeeklyReminder) => WeeklyReminder)) {
+    const current = weeklyReminder;
+    const value = typeof update === "function" ? update(current) : { ...current, ...update };
+    setWeeklyReminderDraft({ guildId: editor.guildId, value });
+  }
+
+  function toggleReminderRole(roleId: string) {
+    updateWeeklyReminder((current) => {
+      const selected = current.roleIds.includes(roleId);
+      if (!selected && current.roleIds.length >= 10) return current;
+      return { ...current, roleIds: selected ? current.roleIds.filter((id) => id !== roleId) : [...current.roleIds, roleId] };
+    });
+  }
+
+  async function saveWeeklyReminder() {
+    const result = await editor.runAction("saveWeeklyReminder", { config: { timezone, weeklyReminder } });
+    if (result?.ok) setWeeklyReminderDraft(null);
+  }
+
+  const canSubmit = Boolean(scheduledDraft.date && scheduledDraft.time && scheduledDraft.channelId && (scheduledDraft.content.trim() || scheduledDraft.title.trim() || scheduledDraft.imageUrl.trim()));
 
   return (
     <main className="mx-auto max-w-6xl space-y-4 px-4 py-6 pb-24 text-pink-50 sm:px-6">
@@ -182,7 +224,7 @@ export default function MessageOfDayClient() {
 
       <PossumCard title={editingId ? "Edit scheduled message" : "Compose one message"} description="Choose its destination, day, mentions, and optional repost interval">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Post date<input className={fieldClass} type="date" value={draft.date} onChange={(event) => patchDraft({ date: event.target.value })} /></label>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Post date<input className={fieldClass} type="date" value={displayDate} onChange={(event) => patchDraft({ date: event.target.value })} /></label>
           <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Post time<input className={fieldClass} type="time" value={draft.time} onChange={(event) => patchDraft({ time: event.target.value })} /></label>
           <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Timezone<select className={fieldClass} value={timezone} onChange={(event) => editor.setConfig({ ...cfg, timezone: event.target.value })}>{timezoneOptions.map((zone) => <option key={zone} value={zone}>{zone}{zone === deviceTimezone ? " · device" : ""}</option>)}</select></label>
           <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Post channel<select className={fieldClass} value={draft.channelId} onChange={(event) => patchDraft({ channelId: event.target.value })}><option value="">Choose a text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
@@ -242,13 +284,40 @@ export default function MessageOfDayClient() {
         </div> : <p className="text-sm text-pink-100/65">Nothing is scheduled. Use the composer above to add the next day’s post.</p>}
       </PossumCard>
 
-      <PossumCard title="Discord MOTD panel" description="Manage the existing WoW MOTD panel from this page, alongside the server-wide dated schedule">
+      <PossumCard title="Persistent Discord panel" description="Keep one interactive MOTD panel in a server channel and refresh that same panel as staff update it">
         <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto_auto] sm:items-end">
-          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Panel channel<select className={fieldClass} value={panelChannelId} onChange={(event) => setPanelChannelId(event.target.value)}><option value="">Choose a text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Panel channel<select className={fieldClass} value={panelChannelId} onChange={(event) => setPanelDraft({ guildId: editor.guildId, channelId: event.target.value })}><option value="">Choose a text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
           <button type="button" className={buttonClass} disabled={!panelChannelId || editor.saving || editor.loading} onClick={() => void savePanelDestination()}>Save panel channel</button>
           <button type="button" className={primaryClass} disabled={!panelChannelId || editor.saving || editor.loading} onClick={() => void publishPanel()}>Post / refresh panel</button>
         </div>
-        <p className="mt-2 text-xs text-pink-100/60">The deployed panel uses the existing WoW MOTD interaction and does not publish or overwrite any scheduled post.</p>
+        <p className="mt-2 text-xs text-pink-100/60">Possum updates the existing panel message in place when it can find it. It does not publish or overwrite a scheduled post.</p>
+      </PossumCard>
+
+      <PossumCard title="Weekly staff reminder" description="Nudge staff once if no recurring, scheduled, or delivered Message of the Day exists during the current week">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex min-h-11 items-center gap-2 rounded-lg border border-pink-900/60 bg-black/35 px-3 text-sm font-bold text-pink-100 sm:col-span-2 lg:col-span-4">
+            <input type="checkbox" checked={weeklyReminder.enabled} onChange={(event) => updateWeeklyReminder({ enabled: event.target.checked })} />
+            Enable the weekly reminder
+          </label>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Staff channel<select className={fieldClass} value={weeklyReminder.channelId} disabled={!weeklyReminder.enabled} onChange={(event) => updateWeeklyReminder({ channelId: event.target.value })}><option value="">Choose a staff text channel</option>{channels.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Reminder day<select className={fieldClass} value={weeklyReminder.dayOfWeek} disabled={!weeklyReminder.enabled} onChange={(event) => updateWeeklyReminder({ dayOfWeek: Number(event.target.value) })}>{WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}</select></label>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Reminder time<input className={fieldClass} type="time" value={weeklyReminder.time} disabled={!weeklyReminder.enabled} onChange={(event) => updateWeeklyReminder({ time: event.target.value })} /></label>
+          <label className="text-xs font-bold uppercase tracking-wide text-pink-200">Timezone<select className={fieldClass} value={timezone} onChange={(event) => editor.setConfig({ ...cfg, timezone: event.target.value })}>{timezoneOptions.map((zone) => <option key={zone} value={zone}>{zone}{zone === deviceTimezone ? " · device" : ""}</option>)}</select></label>
+        </div>
+        <fieldset disabled={!weeklyReminder.enabled} className="mt-3 rounded-lg border border-pink-900/50 bg-black/25 p-3 disabled:opacity-60">
+          <legend className="px-1 text-xs font-black uppercase tracking-wide text-pink-300">Staff role pings · optional · up to 10</legend>
+          <div className="grid max-h-40 gap-1 overflow-auto sm:grid-cols-2 lg:grid-cols-3">
+            {editor.roles.filter((role) => role.id !== editor.guildId).map((role) => <label key={role.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-pink-950/40"><input type="checkbox" checked={weeklyReminder.roleIds.includes(role.id)} disabled={!weeklyReminder.roleIds.includes(role.id) && weeklyReminder.roleIds.length >= 10} onChange={() => toggleReminderRole(role.id)} /><span>{role.name}</span></label>)}
+            {!editor.roles.length ? <p className="text-sm text-pink-100/60">No roles loaded. The reminder can still post in the selected staff channel without pinging a role.</p> : null}
+          </div>
+        </fieldset>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button type="button" className={primaryClass} disabled={editor.saving || editor.loading || !editor.guildId || (weeklyReminder.enabled && !weeklyReminder.channelId)} onClick={() => void saveWeeklyReminder()}>{editor.saving ? "Saving…" : "Save weekly reminder"}</button>
+          <span className="text-xs text-pink-100/60">The reminder uses the timezone above and will not send when an MOTD is already set for that week.</span>
+        </div>
+        {cfg.weeklyReminder.lastStatus ? <p className={`mt-3 rounded-lg border px-3 py-2 text-sm ${cfg.weeklyReminder.lastStatus === "failed" || cfg.weeklyReminder.lastStatus === "uncertain" ? "border-red-700/60 bg-red-950/25 text-red-200" : "border-pink-900/50 bg-black/25 text-pink-100"}`} role="status">
+          Last reminder: {cfg.weeklyReminder.lastStatus}{cfg.weeklyReminder.lastSentAt ? ` · ${new Date(cfg.weeklyReminder.lastSentAt).toLocaleString()}` : ""}{cfg.weeklyReminder.lastError ? ` · ${cfg.weeklyReminder.lastError}` : ""}
+        </p> : null}
       </PossumCard>
 
       <PossumCard title="Recent posts" description="Delivery history for scheduled and immediate messages">

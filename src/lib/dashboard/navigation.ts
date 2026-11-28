@@ -81,7 +81,6 @@ export function getDashboardNavSections(
       items: [
         { href: "/dashboard/slash-commands", label: "Slash Commands" },
         { href: "/dashboard/commands", label: "!Command Studio" },
-        { href: "/dashboard/custom-commands", label: "Custom Commands" },
         { href: "/dashboard/automations/studio", label: "Automation Studio" },
         { href: "/dashboard/event-reactor", label: "Event Alerts" },
       ],
@@ -149,7 +148,6 @@ export function getDashboardNavSections(
     {
       label: "Socials",
       items: [
-        { href: "/dashboard/motd", label: "Server Message of the Day" },
         { href: "/dashboard/games", label: "Gaming Hub" },
         { href: "/dashboard/wow", label: "WoW Groups" },
         { href: "/tcg", label: "Possum Underworld TCG" },
@@ -190,10 +188,15 @@ export function getDashboardNavSections(
         { href: "/dashboard/config-history", label: "Configuration History" },
         { href: "/dashboard/scheduled-reports", label: "Scheduled Reports" },
         { href: "/dashboard/system-health/backups", label: "Config Backup" },
-        { href: "/dashboard/ai/openai-platform", label: "Creator AI Platform", creatorOnly: true },
       ],
     },
   ];
+
+  const visibleTopLinks = new Set(
+    getDashboardNavTopLinks(isMasterOwner, isPrimaryOwner, isPokemonOperator)
+      .map((item) => item.href.split("?")[0].split("#")[0])
+  );
+  const seenRoutes = new Set(visibleTopLinks);
 
   return sections
     .map((section) => ({
@@ -202,11 +205,14 @@ export function getDashboardNavSections(
         if (item.creatorOnly && !isMasterOwner) return false;
         if (item.primaryOwnerOnly && !isPrimaryOwner) return false;
         if (item.pokemonOperatorOnly && !isPokemonOperator) return false;
-        if (isMasterOwner || featureVisibility === undefined) return true;
         const route = item.href.split("?")[0].split("#")[0];
-        const premiumFeature = PREMIUM_FEATURES.find((feature) => feature.route.split("?")[0].split("#")[0] === route);
-        if (!premiumFeature) return true;
-        return featureVisibility?.[premiumFeature.id] === true;
+        if (!isMasterOwner && featureVisibility !== undefined) {
+          const premiumFeature = PREMIUM_FEATURES.find((feature) => feature.route.split("?")[0].split("#")[0] === route);
+          if (premiumFeature && featureVisibility?.[premiumFeature.id] !== true) return false;
+        }
+        if (seenRoutes.has(route)) return false;
+        seenRoutes.add(route);
+        return true;
       }),
     }))
     .filter((section) => section.items.length > 0);

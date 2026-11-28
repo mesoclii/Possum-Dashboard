@@ -13,11 +13,11 @@ function load(relative, aliases = {}) {
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  const module = { exports: {} };
+  const loadedModule = { exports: {} };
   new Function("require", "module", "exports", compiled)(
-    (name) => aliases[name] || require(name), module, module.exports
+    (name) => aliases[name] || require(name), loadedModule, loadedModule.exports
   );
-  return module.exports;
+  return loadedModule.exports;
 }
 
 const moderator = load("src/lib/moderatorNavigation.ts");
@@ -59,6 +59,23 @@ test("top navigation links and Possum Admin section respect owner boundaries wit
   const primaryOwnerTopLinks = nav.getDashboardNavTopLinks(true, true).map((item) => item.href);
   assert.ok(primaryOwnerTopLinks.includes("/dashboard/switchboard"));
   assert.equal(ownerAdmin.items.some((item) => ownerTopLinks.includes(item.href)), false);
+});
+
+test("visible dashboard routes are unique and keep Message of the Day and !Command Studio canonical", () => {
+  for (const [owner, primaryOwner, pokemonOperator] of [[false, false, false], [true, false, false], [true, true, true]]) {
+    const topLinks = nav.getDashboardNavTopLinks(owner, primaryOwner, pokemonOperator);
+    const sections = nav.getDashboardNavSections(owner, {}, primaryOwner, pokemonOperator);
+    const routes = [...topLinks, ...sections.flatMap((section) => section.items)]
+      .map((item) => item.href.split("?")[0].split("#")[0]);
+    assert.equal(new Set(routes).size, routes.length, "each visible route should have one navigation entry");
+    assert.equal(topLinks.filter((item) => item.href === "/dashboard/motd").length, 1);
+    assert.equal(sections.flatMap((section) => section.items).some((item) => item.href === "/dashboard/motd"), false);
+    const automation = sections.find((section) => section.label === "Automation");
+    assert.ok(automation.items.some((item) => item.href === "/dashboard/commands" && item.label === "!Command Studio"));
+    assert.equal(automation.items.some((item) => item.href === "/dashboard/custom-commands"), false);
+  }
+  const legacyRoute = fs.readFileSync(path.join(__dirname, "..", "src/app/dashboard/custom-commands/page.tsx"), "utf8");
+  assert.match(legacyRoute, /redirect\("\/dashboard\/commands"\)/);
 });
 
 test("social game hubs and Heist appear in their requested dashboard categories", () => {

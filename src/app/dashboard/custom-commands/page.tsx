@@ -1,4 +1,5 @@
-import CommandsPage from "../commands/page";
+import { redirect } from "next/navigation";
+
 export default function Page() {
-  return <CommandsPage />;
+  redirect("/dashboard/commands");
 }

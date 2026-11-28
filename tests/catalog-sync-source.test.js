@@ -7,22 +7,39 @@ const os = require("node:os");
 const path = require("node:path");
 const { catalogCandidates, resolveCatalogSource } = require("../scripts/sync-catalog");
 
-test("catalog sync prefers the Bot repo over a stale workspace copy", (t) => {
+function writeCatalog(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "{}");
+}
+
+test("a Dashboard nested in a Bot checkout uses that Bot's catalog, whatever the folder is called", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "possum-catalog-nested-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const bot = path.join(root, "Any Folder Name");
+  fs.mkdirSync(bot, { recursive: true });
+  fs.writeFileSync(path.join(bot, "package.json"), JSON.stringify({ name: "possum-bot" }));
+  const botCatalog = path.join(bot, "docs", "dashboard-engines.json");
+  writeCatalog(botCatalog);
+  // A sibling Bot copy must not win over the enclosing one.
+  writeCatalog(path.join(bot, "Possum-Bot", "docs", "dashboard-engines.json"));
+
+  const candidates = catalogCandidates({ scriptDir: path.join(bot, "negan-dashboard", "scripts"), env: {} });
+  assert.equal(resolveCatalogSource(candidates), botCatalog);
+});
+
+test("a Dashboard beside Possum-Bot prefers it over a stale combined-workspace copy", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "possum-catalog-source-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const scriptDir = path.join(root, "Possum-Infra-Sync", "Possum-Dashboard", "scripts");
-  const activeBotCatalog = path.join(root, "Negan Bot", "docs", "dashboard-engines.json");
-  const staleBotCatalog = path.join(root, "Possum-Infra-Sync", "Possum-Bot", "docs", "dashboard-engines.json");
-  const staleCatalog = path.join(root, "Possum-Infra-Sync", "docs", "dashboard-engines.json");
-  fs.mkdirSync(path.dirname(activeBotCatalog), { recursive: true });
-  fs.mkdirSync(path.dirname(staleBotCatalog), { recursive: true });
-  fs.mkdirSync(path.dirname(staleCatalog), { recursive: true });
-  fs.writeFileSync(activeBotCatalog, "{}");
-  fs.writeFileSync(staleBotCatalog, "{}");
-  fs.writeFileSync(staleCatalog, "{}");
+  const scriptDir = path.join(root, "apps", "Possum-Dashboard", "scripts");
+  const siblingBotCatalog = path.join(root, "apps", "Possum-Bot", "docs", "dashboard-engines.json");
+  writeCatalog(siblingBotCatalog);
+  writeCatalog(path.join(root, "apps", "docs", "dashboard-engines.json"));
+  // An unrelated checkout elsewhere (such as an old desktop folder) is never consulted.
+  writeCatalog(path.join(root, "Negan Bot", "docs", "dashboard-engines.json"));
 
   const candidates = catalogCandidates({ scriptDir, env: {} });
-  assert.equal(resolveCatalogSource(candidates), activeBotCatalog);
+  assert.equal(resolveCatalogSource(candidates), siblingBotCatalog);
+  assert.equal(candidates.some((candidate) => candidate.includes("Negan Bot")), false);
 });
 
 test("an explicit catalog path overrides discovered repositories", (t) => {

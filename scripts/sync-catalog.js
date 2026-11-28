@@ -5,12 +5,22 @@
 const fs = require("fs");
 const path = require("path");
 
+const BOT_PACKAGE_NAME = "possum-bot";
+
+// True when `directory` is a Possum Bot checkout (identified by its package name,
+// not its folder name, so renaming or moving the checkout cannot break discovery).
+function isBotCheckout(directory) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"))?.name === BOT_PACKAGE_NAME;
+  } catch { return false; }
+}
+
 function catalogCandidates({ scriptDir = __dirname, env = process.env } = {}) {
+  const enclosing = path.join(scriptDir, "..", "..");
   return [
     env.POSSUM_ENGINE_CATALOG,
-    // This local checkout is the user's current Bot source of truth. On the VPS
-    // this path is absent, so resolution falls through to the deployed repo below.
-    path.join(scriptDir, "..", "..", "..", "Negan Bot", "docs", "dashboard-engines.json"),
+    // Local development nests the Dashboard inside the Bot checkout it pairs with.
+    isBotCheckout(enclosing) ? path.join(enclosing, "docs", "dashboard-engines.json") : "",
     // Production deployments place Possum-Bot beside Possum-Dashboard.
     path.join(scriptDir, "..", "..", "Possum-Bot", "docs", "dashboard-engines.json"),
     // Local checkouts may place the Bot beside the workspace containing the Dashboard.

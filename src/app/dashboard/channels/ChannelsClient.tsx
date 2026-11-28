@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchGuildData } from "@/lib/liveRuntime";
 import { extractIdList, toggleChannelEntries } from "@/lib/dashboard/channelEntries";
+import SetupConnections from "./SetupConnections";
 
 type GuildChannel = { id: string; name: string; type?: number | string };
 
@@ -542,6 +543,8 @@ export default function ChannelsClient() {
         </button>
       </div>
       {msg ? <div style={{ color: "#ffb3f0", marginBottom: 12 }}>{msg}</div> : null}
+
+      <SetupConnections guildId={guildId} />
 
       {SECTIONS.map((section) => {
         const cfg = configs[section.key] || {};

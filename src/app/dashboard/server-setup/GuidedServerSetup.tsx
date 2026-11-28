@@ -18,8 +18,10 @@ type Feature = {
   protected?: boolean;
   selectable?: boolean;
   dependencies?: string[];
-  resources?: { setupManaged?: boolean }[];
+  resources?: { setupManaged?: boolean; panelDestination?: boolean }[];
 };
+
+type EntryFlowSummary = { enabled: boolean | null; parts: { id: string; label: string; enabled: boolean }[] };
 
 type Proposal = {
   id: string;
@@ -65,7 +67,7 @@ type GroupDestination = {
   candidates?: { id: string; name: string }[];
 };
 
-type PanelGuide = { id: string; engine?: string; label: string; href: string; page: string; destination: string; configured: boolean };
+type PanelGuide = { id: string; engine?: string; kind?: "posted" | "command"; opensWith?: string; label: string; href: string; page: string; destination: string; configured: boolean };
 
 type RewardOption = { id: string; kind: string; engine: string; label: string; proposedName: string };
 
@@ -76,6 +78,7 @@ type Report = {
   featureCatalog?: Feature[];
   proposals?: Proposal[];
   panelGuides?: PanelGuide[];
+  entryFlows?: Partial<Record<Flow, EntryFlowSummary>>;
   rewardRoleOptions?: RewardOption[];
   categoryDestinations?: GroupDestination[];
   featureCategoryDestinations?: FeatureDestination[];
@@ -112,6 +115,7 @@ type ApiBody = {
   activePlan?: ActivePlan;
   preview?: { planned?: { id: string; resourceName: string }[]; skipped?: { id: string; reason: string }[]; unresolved?: string[] };
   adaptiveDiscovery?: { addedFeatureIds?: string[] } | null;
+  addedDependencies?: string[];
   result?: { ok?: boolean; plan?: SetupPlan; completed?: boolean; error?: string; resumable?: boolean };
 };
 
@@ -132,9 +136,53 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 const FLOWS: { id: Flow; label: string; help: string; href: string }[] = [
-  { id: "preOnboarding", label: "Pre-onboarding security", help: "Screens new accounts before they reach your server (age, risk and raid checks).", href: "/dashboard/security/pre-onboarding" },
-  { id: "onboarding", label: "Onboarding", help: "Welcomes members and walks them through your rules and roles.", href: "/dashboard/security/pre-onboarding" },
-  { id: "verification", label: "Verification", help: "Requires members to verify before they can see the rest of the server.", href: "/dashboard/security/pre-onboarding" },
+  { id: "preOnboarding", label: "Pre-onboarding security", help: "Screens people before they reach your server: blacklist rejoins, refusal role and risky profiles.", href: "/dashboard/security/pre-onboarding" },
+  { id: "onboarding", label: "Onboarding", help: "Welcomes members, and can add an ID ticket and an age check before they are let in.", href: "/dashboard/security/onboarding" },
+  { id: "verification", label: "Verification", help: "Members accept your rules and verify before they can see the rest of the server.", href: "/dashboard/security/verification" },
+];
+
+type FlowParts = Partial<Record<Flow, Record<string, boolean>>>;
+
+// Starting points for how members get in. Each one only sets switches; the
+// owner can change any part afterwards, and nothing applies until approval.
+const ENTRY_BASELINES: { id: string; name: string; description: string; choices: Record<Flow, FlowChoice>; parts: FlowParts }[] = [
+  {
+    id: "full",
+    name: "Full gate",
+    description: "Pre-screening, welcome, ID ticket, adults-only age check and verification. The full Lotus Realm style flow.",
+    choices: { preOnboarding: "enable", onboarding: "enable", verification: "enable" },
+    parts: {
+      preOnboarding: { autoBanOnBlacklistRejoin: true, autoBanOnRefusalRole: true, profileThreatGuardEnabled: true, sendRemovalDm: true },
+      onboarding: { sendJoinWelcome: true, joinWelcomeCarriesGate: true, idFlowEnabled: true, sendTicketTranscript: true, sendPostVerifyMessage: true, ageCheck: true, adultsOnly: true },
+      verification: { requireRulesRead: true, sendWelcomePanel: true, sendWelcomeDm: true, sendGateAnnouncement: true, grantVerifiedRole: true },
+    },
+  },
+  {
+    id: "verify-welcome",
+    name: "Verification + welcome",
+    description: "A welcome message and rules verification. No ID ticket, no age check. The Alexandria style flow.",
+    choices: { preOnboarding: "disable", onboarding: "enable", verification: "enable" },
+    parts: {
+      onboarding: { sendJoinWelcome: true, joinWelcomeCarriesGate: false, idFlowEnabled: false, sendTicketTranscript: false, sendPostVerifyMessage: true, ageCheck: false, adultsOnly: false },
+      verification: { requireRulesRead: true, sendWelcomePanel: true, sendWelcomeDm: true, sendGateAnnouncement: true, grantVerifiedRole: true },
+    },
+  },
+  {
+    id: "welcome",
+    name: "Welcome only",
+    description: "Members get a welcome message and walk straight in.",
+    choices: { preOnboarding: "disable", onboarding: "enable", verification: "disable" },
+    parts: {
+      onboarding: { sendJoinWelcome: true, joinWelcomeCarriesGate: false, idFlowEnabled: false, sendTicketTranscript: false, ageCheck: false, adultsOnly: false },
+    },
+  },
+  {
+    id: "open",
+    name: "Open door",
+    description: "No entry flow. Possum leaves new members alone.",
+    choices: { preOnboarding: "disable", onboarding: "disable", verification: "disable" },
+    parts: {},
+  },
 ];
 
 const LOG_PATTERN = /(^|\.|[A-Z_])(log|logs|logging|audit|transcript)/i;
@@ -166,6 +214,10 @@ function idsOf(value: unknown): string[] {
   const list = Array.isArray(value) ? value : [value];
   return list.map((entry) => entry && typeof entry === "object" ? String((entry as { id?: string }).id || "") : String(entry || ""))
     .filter((entry) => /^\d{16,20}$/.test(entry));
+}
+
+function currentPartValue(report: Report | null, flow: Flow, partId: string) {
+  return report?.entryFlows?.[flow]?.parts.find((part) => part.id === partId)?.enabled === true;
 }
 
 async function readJson(response: Response): Promise<ApiBody> {
@@ -236,6 +288,8 @@ export default function GuidedServerSetup() {
   const [selected, setSelected] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [flowChoices, setFlowChoices] = useState<Record<Flow, FlowChoice>>({ preOnboarding: "keep", onboarding: "keep", verification: "keep" });
+  const [flowParts, setFlowParts] = useState<FlowParts>({});
+  const [entryBaseline, setEntryBaseline] = useState("");
   const [names, setNames] = useState<Record<string, string>>({});
   const [categoryNames, setCategoryNames] = useState<Record<string, string>>({});
   const [categorySelections, setCategorySelections] = useState<Record<string, string>>({});
@@ -253,6 +307,19 @@ export default function GuidedServerSetup() {
   const [progress, setProgress] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [finished, setFinished] = useState<SetupPlan | null>(null);
+
+  // Only parts that differ from the live settings are sent; the bot plans
+  // nothing for a flow whose switches are unchanged.
+  const changedFlowParts = useMemo(() => {
+    const out: FlowParts = {};
+    for (const flow of FLOWS.map((entry) => entry.id)) {
+      if (flowChoices[flow] === "disable") continue;
+      for (const [partId, enabled] of Object.entries(flowParts[flow] || {})) {
+        if (enabled !== currentPartValue(baseReport, flow, partId)) out[flow] = { ...(out[flow] || {}), [partId]: enabled };
+      }
+    }
+    return out;
+  }, [flowChoices, flowParts, baseReport]);
 
   const report = draftReport || baseReport;
   const directory = report?.directory || {};
@@ -309,21 +376,50 @@ export default function GuidedServerSetup() {
     return data;
   }, [guildId, userId]);
 
-  const features = useMemo(() => (report?.featureCatalog || baseReport?.featureCatalog || [])
-    // Internal runtime systems with no Discord resources stay out of the way.
-    .filter((feature) => feature.selectable !== false && !feature.protected &&
-      (feature.resources || []).some((resource) => resource.setupManaged)), [report?.featureCatalog, baseReport?.featureCatalog]);
+  const selectableFeatures = useMemo(() => (report?.featureCatalog || baseReport?.featureCatalog || [])
+    .filter((feature) => feature.selectable !== false && !feature.protected), [report?.featureCatalog, baseReport?.featureCatalog]);
+  const features = useMemo(() => {
+    // Internal runtime systems with no Discord resources stay out of the way,
+    // unless another listed system needs them (Contracts runs with Crew).
+    const listed = selectableFeatures.filter((feature) =>
+      (feature.resources || []).some((resource) => resource.setupManaged || resource.panelDestination));
+    const needed = new Set(listed.flatMap((feature) => feature.dependencies || []));
+    return selectableFeatures.filter((feature) => listed.includes(feature) || needed.has(feature.id));
+  }, [selectableFeatures]);
   const featureById = useMemo(() => new Map(features.map((feature) => [feature.id, feature])), [features]);
 
-  function setFeatures(ids: string[], enabled: boolean) {
-    const next = new Set(selected);
-    for (const id of ids) {
-      if (enabled) {
-        next.add(id);
-        for (const dependency of featureById.get(id)?.dependencies || []) if (featureById.has(dependency)) next.add(dependency);
-      } else {
-        next.delete(id);
+  function withDependencies(ids: Set<string>) {
+    const queue = [...ids];
+    while (queue.length) {
+      for (const dependency of featureById.get(queue.shift() || "")?.dependencies || []) {
+        if (!featureById.has(dependency) || ids.has(dependency)) continue;
+        ids.add(dependency);
+        queue.push(dependency);
       }
+    }
+    return ids;
+  }
+
+  function setFeatures(ids: string[], enabled: boolean) {
+    let next = new Set(selected);
+    if (enabled) {
+      ids.forEach((id) => next.add(id));
+      next = withDependencies(next);
+    } else {
+      // Turning off a system another one needs turns that one off too, so the
+      // selection never ends half-built.
+      const removed = new Set(ids);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const feature of features) {
+          if (!removed.has(feature.id) && next.has(feature.id) && (feature.dependencies || []).some((dependency) => removed.has(dependency))) {
+            removed.add(feature.id);
+            changed = true;
+          }
+        }
+      }
+      removed.forEach((id) => next.delete(id));
     }
     const list = sorted([...next]);
     setSelected(list);
@@ -338,7 +434,7 @@ export default function GuidedServerSetup() {
   }
 
   function applyProfile(featureIds: string[]) {
-    const next = sorted(featureIds.filter((id) => featureById.has(id)));
+    const next = sorted([...withDependencies(new Set(featureIds.filter((id) => featureById.has(id))))]);
     setSelected(next);
     setRoleSelections((current) => next.includes("rareSpawn") ? sorted([...current, "rareSpawn:accessRoleId"]) : current.filter((entry) => entry !== "rareSpawn:accessRoleId"));
     setDirty(true);
@@ -362,6 +458,7 @@ export default function GuidedServerSetup() {
           rewardRoleSelections: rewardSelections,
         },
         flowChoices,
+        flowParts: changedFlowParts,
         resourceMappings: mappings,
         allowSharedResourceIds: Object.entries(mappings)
           .filter(([, resourceId], _index, all) => all.filter(([, other]) => other === resourceId).length > 1)
@@ -372,6 +469,11 @@ export default function GuidedServerSetup() {
       setDraftReport(data.report);
       setPlan(data.plan);
       setSkipped(data.preview?.skipped || []);
+      const addedDependencies = data.addedDependencies || [];
+      if (addedDependencies.length) {
+        setSelected(sorted(data.report.settings?.trackedEngines || selected));
+        setNotice(`${addedDependencies.map((id) => featureById.get(id)?.name || id).join(" and ")} switched on too: the systems you picked need ${addedDependencies.length === 1 ? "it" : "them"} to work.`);
+      }
       if (options.adaptive) {
         const tracked = data.report.settings?.trackedEngines || [];
         if (tracked.length) setSelected(sorted(tracked));
@@ -386,7 +488,27 @@ export default function GuidedServerSetup() {
     } finally {
       setBusy(false);
     }
-  }, [callApi, selected, names, categoryNames, placements, logMode, logChannelId, roleSelections, rewardSelections, flowChoices, mappings, categorySelections, featureById]);
+  }, [callApi, selected, names, categoryNames, placements, logMode, logChannelId, roleSelections, rewardSelections, flowChoices, changedFlowParts, mappings, categorySelections, featureById]);
+
+  function partValue(flow: Flow, partId: string) {
+    const draft = flowParts[flow]?.[partId];
+    return typeof draft === "boolean" ? draft : currentPartValue(baseReport, flow, partId);
+  }
+
+  function applyEntryBaseline(baselineId: string) {
+    const baseline = ENTRY_BASELINES.find((entry) => entry.id === baselineId);
+    if (!baseline) return;
+    setEntryBaseline(baseline.id);
+    setFlowChoices(baseline.choices);
+    setFlowParts(baseline.parts);
+    setDirty(true);
+  }
+
+  function setPart(flow: Flow, partId: string, enabled: boolean) {
+    setEntryBaseline("");
+    setFlowParts((current) => ({ ...current, [flow]: { ...(current[flow] || {}), [partId]: enabled } }));
+    setDirty(true);
+  }
 
   const proposals = useMemo(() => (draftReport?.proposals || []).filter((proposal) => !proposal.protectedFlow), [draftReport?.proposals]);
   const routed = useMemo(() => new Set(draftReport?.loggingRoute?.routedIds || []), [draftReport?.loggingRoute?.routedIds]);
@@ -608,9 +730,9 @@ export default function GuidedServerSetup() {
               <h3 className="text-sm font-black uppercase">Next: calibrate and publish your panels</h3>
               <p className="mt-1 text-xs text-pink-100/70">Setup made the panel channels but never posts a panel. Set each one up, then publish it from its page.</p>
               <ul className="mt-2 grid gap-2 md:grid-cols-2">
-                {(baseReport?.panelGuides || []).map((guide) => (
+                {(baseReport?.panelGuides || []).filter((guide) => selected.includes(guide.engine || "")).map((guide) => (
                   <li key={guide.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 p-3 text-sm">
-                    <span><strong>{guide.label}</strong><span className="block text-xs text-pink-100/60">{guide.destination}</span></span>
+                    <span><strong>{guide.label}</strong><span className="block text-xs text-pink-100/60">{guide.destination}{guide.kind === "command" && guide.opensWith ? ` · ${guide.opensWith}` : ""}</span></span>
                     <a href={guide.href} className="shrink-0 font-bold text-pink-200 underline">Open {guide.page}</a>
                   </li>
                 ))}
@@ -687,14 +809,19 @@ export default function GuidedServerSetup() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {rows.map((feature) => {
                     const on = selected.includes(feature.id);
+                    const needs = (feature.dependencies || []).filter((dependency) => featureById.has(dependency));
                     return (
                       <button key={feature.id} type="button" role="switch" aria-checked={on} onClick={() => toggleFeature(feature.id, !on)}
+                        title={needs.length ? `Runs together with ${needs.map((dependency) => featureById.get(dependency)?.name || dependency).join(" and ")}` : undefined}
                         className={`min-h-10 rounded-full border px-3 text-sm font-bold ${on ? "border-pink-400 bg-pink-500/20 text-white" : "border-white/10 text-pink-100/70 hover:border-pink-700"}`}>
-                        {on ? "✓ " : ""}{feature.name}
+                        {on ? "✓ " : ""}{feature.name}{needs.length ? <span className="ml-1 text-[11px] font-semibold text-pink-200/70">+ {needs.map((dependency) => featureById.get(dependency)?.name || dependency).join(", ")}</span> : null}
                       </button>
                     );
                   })}
                 </div>
+                {rows.some((feature) => (feature.dependencies || []).some((dependency) => featureById.has(dependency))) ? (
+                  <p className="mt-2 text-xs text-pink-100/60">Systems marked with + only work together. Turning one on turns on the others; turning one off turns off the ones that need it.</p>
+                ) : null}
               </fieldset>
             );
           })}
@@ -712,26 +839,64 @@ export default function GuidedServerSetup() {
         <section className="space-y-4 rounded-xl border possum-divider bg-black/50 p-5">
           <div>
             <h2 className="text-lg font-black uppercase">How do new members get in?</h2>
-            <p className="text-sm text-pink-100/70">These are optional. Leave them as they are, or switch them on or off. Their messages, questions and rules are set up on their own page.</p>
+            <p className="text-sm text-pink-100/70">Pick a starting point, then switch any part on or off. Messages, questions and rules are written on each flow&apos;s own page. Nothing changes until you approve the plan.</p>
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {FLOWS.map((flow) => (
-              <div key={flow.id} className="space-y-2 rounded-lg border border-white/10 p-3">
-                <strong className="block">{flow.label}</strong>
-                <p className="text-xs text-pink-100/65">{flow.help}</p>
-                <div role="radiogroup" aria-label={flow.label} className="flex flex-wrap gap-1">
-                  {(["keep", "enable", "disable"] as FlowChoice[]).map((choice) => (
-                    <button key={choice} type="button" role="radio" aria-checked={flowChoices[flow.id] === choice}
-                      onClick={() => { setFlowChoices((current) => ({ ...current, [flow.id]: choice })); setDirty(true); }}
-                      className={`min-h-9 rounded-md border px-2 text-xs font-bold ${flowChoices[flow.id] === choice ? "border-pink-400 bg-pink-500/20" : "border-white/10 text-pink-100/70"}`}>
-                      {choice === "keep" ? "Leave as is" : choice === "enable" ? "Turn on" : "Turn off"}
-                    </button>
-                  ))}
-                </div>
-                <a href={flow.href} className="text-xs font-bold text-pink-200 underline">Configure {flow.label.toLowerCase()}</a>
-              </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="radiogroup" aria-label="Member entry starting point">
+            {ENTRY_BASELINES.map((baseline) => (
+              <button key={baseline.id} type="button" role="radio" aria-checked={entryBaseline === baseline.id} onClick={() => applyEntryBaseline(baseline.id)}
+                className={`rounded-xl border p-3 text-left ${entryBaseline === baseline.id ? "border-pink-400 bg-pink-500/10" : "border-white/10 hover:border-pink-700/60"}`}>
+                <span className="block text-sm font-black">{baseline.name}</span>
+                <span className="mt-1 block text-xs text-pink-100/65">{baseline.description}</span>
+              </button>
             ))}
           </div>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {FLOWS.map((flow) => {
+              const summary = baseReport?.entryFlows?.[flow.id];
+              const choice = flowChoices[flow.id];
+              const willBeOn = choice === "enable" || (choice === "keep" && summary?.enabled === true);
+              return (
+                <div key={flow.id} className="space-y-3 rounded-lg border border-white/10 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <strong className="block">{flow.label}</strong>
+                    <StatusChip tone={summary?.enabled ? "ok" : "muted"}>{summary?.enabled ? "On now" : "Off now"}</StatusChip>
+                  </div>
+                  <p className="text-xs text-pink-100/65">{flow.help}</p>
+                  <div role="radiogroup" aria-label={flow.label} className="flex flex-wrap gap-1">
+                    {(["keep", "enable", "disable"] as FlowChoice[]).map((option) => (
+                      <button key={option} type="button" role="radio" aria-checked={choice === option}
+                        onClick={() => { setEntryBaseline(""); setFlowChoices((current) => ({ ...current, [flow.id]: option })); setDirty(true); }}
+                        className={`min-h-9 rounded-md border px-2 text-xs font-bold ${choice === option ? "border-pink-400 bg-pink-500/20" : "border-white/10 text-pink-100/70"}`}>
+                        {option === "keep" ? "Leave as is" : option === "enable" ? "Turn on" : "Turn off"}
+                      </button>
+                    ))}
+                  </div>
+                  {summary?.parts?.length ? (
+                    <ul className={`space-y-1 ${willBeOn ? "" : "opacity-50"}`} aria-label={`${flow.label} parts`}>
+                      {summary.parts.map((part) => {
+                        const on = partValue(flow.id, part.id);
+                        const changed = on !== part.enabled;
+                        return (
+                          <li key={part.id}>
+                            <label className="flex min-h-9 cursor-pointer items-center justify-between gap-2 rounded-md px-1 text-sm hover:bg-white/5">
+                              <span>{part.label}{changed && willBeOn ? <span className="ml-1 text-[11px] font-bold text-amber-200">changes</span> : null}</span>
+                              <input type="checkbox" className="h-4 w-4 accent-pink-500" checked={on} disabled={!willBeOn}
+                                onChange={(event) => setPart(flow.id, part.id, event.target.checked)} />
+                            </label>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : null}
+                  {!willBeOn ? <p className="text-xs text-pink-100/55">Turn this flow on to choose its parts.</p> : null}
+                  <a href={flow.href} className="text-xs font-bold text-pink-200 underline">Write the {flow.label.toLowerCase()} messages</a>
+                </div>
+              );
+            })}
+          </div>
+          {flowChoices.onboarding !== "disable" && partValue("onboarding", "idFlowEnabled") ? (
+            <p className="text-xs text-pink-100/65">The ID check uses your ticket system. Calibrate the ID ticket on the Onboarding page before members start joining.</p>
+          ) : null}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => void goTo(1)} className="min-h-11 rounded-lg border border-white/15 px-4 text-sm font-bold">Back</button>
             <button type="button" disabled={busy} onClick={() => void goTo(3)} className="possum-btn min-h-11 rounded-lg px-5 text-sm font-black uppercase disabled:opacity-50">{busy ? "Reading your server…" : "Next: layout"}</button>

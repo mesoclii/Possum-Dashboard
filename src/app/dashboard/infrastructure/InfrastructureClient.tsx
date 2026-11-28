@@ -20,7 +20,24 @@ type Proposal = {
   suggestedId?: string;
   matches?: { id: string; name: string }[];
   protectedFlow?: boolean;
+  currentValue?: unknown;
 };
+
+// Plain-language names for the engine health states the bot reports.
+const ENGINE_STATUS: Record<string, { label: string; help: string; tone: string }> = {
+  ready: { label: "All set", help: "Every channel and role this system uses is connected.", tone: "bg-emerald-950/70 text-emerald-200" },
+  degraded: { label: "Needs a channel", help: "Works, but an optional channel or role is not connected yet.", tone: "bg-amber-950/70 text-amber-200" },
+  blocked: { label: "Missing required", help: "A required channel or role is missing, so part of this system cannot run.", tone: "bg-red-950/70 text-red-200" },
+  disabled: { label: "Gaps hidden", help: "You turned off the warnings for this system.", tone: "bg-slate-900 text-slate-300" },
+  selected: { label: "On", help: "Turned on. Run a scan to check its channels.", tone: "bg-pink-950/70 text-pink-200" },
+  available: { label: "Off", help: "Not turned on for this server.", tone: "bg-slate-900 text-slate-400" },
+};
+
+function idsIn(value: unknown): string[] {
+  const list = Array.isArray(value) ? value : [value];
+  return list.map((entry) => entry && typeof entry === "object" ? String((entry as { id?: string }).id || "") : String(entry || ""))
+    .filter((entry) => /^\d{16,20}$/.test(entry));
+}
 type Finding = {
   severity: string;
   problemKind?: string;
@@ -70,7 +87,7 @@ type Report = {
     setupTuning?: Record<string, unknown>;
   };
   featureCatalog?: FeatureOption[];
-  allEngines?: { engine: string; label: string; requirements: number }[];
+  allEngines?: { engine: string; label: string; requirements: number; href?: string }[];
   trackedEngineCount?: number;
   setup?: { configured: number; missing: number; needsAttention: number; readyForApproval: number };
   createdResources?: { id: string; engine: string; field: string }[];
@@ -861,10 +878,20 @@ export default function InfrastructureClient() {
         status: summary?.status || (isTracked ? "selected" : "available"),
         critical: summary?.critical || 0,
         warning: summary?.warning || 0,
-        href: summary?.href || "/dashboard/server-setup",
+        href: summary?.href || entry.href || "/dashboard/server-setup",
         tracked: isTracked,
       };
-    });
+    }).sort((left, right) => Number(right.tracked) - Number(left.tracked) || left.label.localeCompare(right.label));
+  }, [report]);
+  // Which systems use each channel, category and role, for the inventory.
+  const usage = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const add = (id: string, label: string) => map.set(id, [...new Set([...(map.get(id) || []), label])]);
+    for (const proposal of report?.proposals || []) {
+      for (const id of idsIn(proposal.currentValue)) add(id, `${proposal.engineLabel || proposal.engine}: ${proposal.intendedName || proposal.field}`);
+    }
+    for (const guide of report?.panelGuides || []) if (guide.resourceId) add(String(guide.resourceId), guide.label);
+    return map;
   }, [report]);
   const healthFindings = (report?.findings || report?.issues || []).filter((finding) => !isPanelField(finding));
   const pendingMappings = (report?.proposals || []).filter((proposal) => proposal.status !== "populated" && !isPanelField(proposal));
@@ -922,9 +949,7 @@ export default function InfrastructureClient() {
         <p className="mt-2 text-sm text-pink-100/80">{report?.ready ? "Observed by the saved scan." : report?.reason || "Scan the server to build a read-only directory."}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <ActionButton label="Scan" tip="Read the server directory and health. Does not write engine configuration." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
-          <ActionButton label="Connect existing server" tip="Scan this server for clear channel, category, and role matches. Review the feature mappings before applying them."
-            busy={busyAction === "connect-existing"} busyLabel="Finding matches…" locked={locked}
-            onClick={() => post("connect-existing", { action: "plan-preview", settings: { connectExisting: true } })} />
+
           <ActionButton label="Plan missing resources" tip="Review missing resources for systems selected in Server Setup."
             busy={busyAction === "setup-plan-preview"} busyLabel="Planning…" locked={locked || selectedFeatureCount === 0}
             onClick={() => post("setup-plan-preview", { action: "plan-preview", settings: settingsForInfrastructurePlan(report) })} />
@@ -1079,24 +1104,39 @@ export default function InfrastructureClient() {
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div><h2 className="text-lg font-black uppercase text-red-200">Managed feature systems</h2><p className="mt-1 text-xs text-pink-100/70">Every catalog feature is listed. Selected systems are scanned here; choose features and destinations in Server Setup.</p></div>
-          <a href="/dashboard/server-setup" className="inline-flex min-h-9 items-center rounded-md border possum-divider px-3 text-xs font-bold">Manage feature selection</a>
+          <div><h2 className="text-lg font-black uppercase text-red-200">Your systems</h2><p className="mt-1 text-xs text-pink-100/70">Systems that are on come first. A system that needs a channel or role can be fixed in Guided setup, which connects or creates it for you.</p></div>
+          <a href="/dashboard/server-setup" className="inline-flex min-h-9 items-center rounded-md border possum-divider px-3 text-xs font-bold">Turn systems on or off</a>
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {engineRows.map((engine) => (
-            <a key={engine.engine} href={engine.href} className="rounded-lg border border-red-900/40 px-3 py-2 hover:border-pink-700/70">
-              <div className="flex items-start justify-between gap-2"><p className="text-sm font-bold text-red-100">{engine.label}</p><span className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${engine.status === "ready" ? "bg-emerald-950/70 text-emerald-200" : engine.tracked ? "bg-amber-950/70 text-amber-200" : "bg-slate-900 text-slate-300"}`}>{engine.status}</span></div>
-              <p className="mt-1 text-xs text-pink-100/70">{engine.tracked ? `${engine.requirements} setup-managed resources · ${engine.critical} critical · ${engine.warning} warnings` : "Not selected for infrastructure tracking"}</p>
-              <p className="mt-2 text-xs font-bold text-pink-200">{engine.href === "/dashboard/server-setup" ? "Select in Server Setup →" : "Open feature →"}</p>
-            </a>
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-pink-100/65" aria-label="Status meanings">
+          {["ready", "degraded", "blocked", "selected", "available"].map((key) => (
+            <li key={key}><span className={`mr-1 rounded px-1.5 py-0.5 font-black uppercase ${ENGINE_STATUS[key].tone}`}>{ENGINE_STATUS[key].label}</span>{ENGINE_STATUS[key].help}</li>
           ))}
+        </ul>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {engineRows.map((engine) => {
+            const status = ENGINE_STATUS[engine.status] || ENGINE_STATUS.selected;
+            const needsFix = engine.tracked && (engine.critical > 0 || engine.warning > 0);
+            const gaps = engine.critical + engine.warning;
+            return (
+              <div key={engine.engine} className="rounded-lg border border-red-900/40 px-3 py-2">
+                <div className="flex items-start justify-between gap-2"><p className="text-sm font-bold text-red-100">{engine.label}</p><span title={status.help} className={`rounded px-2 py-0.5 text-[10px] font-black uppercase ${status.tone}`}>{status.label}</span></div>
+                <p className="mt-1 text-xs text-pink-100/70">{engine.tracked
+                  ? gaps ? `${gaps} channel or role${gaps === 1 ? "" : "s"} not connected yet` : `${engine.requirements} channel and role mapping${engine.requirements === 1 ? "" : "s"} checked`
+                  : "Turned off for this server"}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs font-bold text-pink-200">
+                  {needsFix ? <a href="/dashboard/server-setup" className="underline">Fix in Guided setup →</a> : null}
+                  {engine.tracked ? <a href={engine.href} className="underline">Open {engine.label} →</a> : <a href="/dashboard/server-setup" className="underline">Turn on in Guided setup →</a>}
+                </div>
+              </div>
+            );
+          })}
           {!engineRows.length ? <p className="text-sm text-pink-100/70">Scan the server to load its feature catalog.</p> : null}
         </div>
       </section>
 
       <section className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-lg font-black uppercase text-red-200">Operations</h2><p className="mt-1 text-sm text-red-100/80">Last inventory scan {report?.watch?.checkedAt ? new Date(report.watch.checkedAt).toLocaleString() : "not recorded"}. Current watch: {report?.watch?.ready ? "active" : "waiting for scan"}.</p></div>
+          <div><h2 className="text-lg font-black uppercase text-red-200">Recent activity</h2><p className="mt-1 text-sm text-red-100/80">What Possum has scanned, connected and built on this server. Last scan: {report?.watch?.checkedAt ? new Date(report.watch.checkedAt).toLocaleString() : "not yet"}. Possum keeps watching for deleted or renamed channels: {report?.watch?.ready ? "on" : "waiting for the first scan"}.</p></div>
           <div className="flex flex-wrap gap-2">
             <ActionButton label="Run scan" tip="Refresh server resources and health findings." busy={busyAction === "scan"} busyLabel="Scanning…" locked={locked} onClick={() => post("scan", { action: "scan" })} />
             <a href="/dashboard/operations" className="inline-flex min-h-10 items-center rounded-lg border possum-divider px-3 text-sm font-black uppercase">Operations center</a>
@@ -1113,6 +1153,7 @@ export default function InfrastructureClient() {
 
       <details className="rounded-xl border possum-divider bg-black/50 p-4 possum-border">
         <summary className="cursor-pointer text-lg font-black uppercase text-red-200">Channel and role inventory</summary>
+        <p className="mt-2 text-sm text-pink-100/70">Everything in your server and which systems use it. To point a system at a different channel or role, use the <a className="underline" href="/dashboard/channels">Channels page</a>; to build missing ones, use <a className="underline" href="/dashboard/server-setup">Guided setup</a>. Renaming or deleting Discord channels is done in Discord, so Possum never removes anything by mistake.</p>
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search channels, categories, or roles" className="mt-3 w-full rounded-lg border possum-divider bg-black/60 px-3 py-2 text-sm text-red-50" />
         <div className="mt-3 space-y-2">
           {rows.map((row) => (
@@ -1124,6 +1165,7 @@ export default function InfrastructureClient() {
                 </p>
                 <p className="mt-1 break-all font-mono text-[11px] text-pink-100/65">Discord ID: {row.id}</p>
                 {report?.createdResources?.some((resource) => resource.id === row.id) ? <p className="text-xs text-red-100/70">Created by Possum</p> : null}
+                {usage.get(row.id)?.length ? <p className="mt-1 text-xs text-emerald-200/80">Used by {usage.get(row.id)!.join(" · ")}</p> : null}
               </div>
             </div>
           ))}

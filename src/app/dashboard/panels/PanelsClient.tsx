@@ -7,6 +7,8 @@ import { useGuildEngineEditor } from "@/components/possum/useGuildEngineEditor";
 type PanelGuide = {
   id: string;
   engine?: string;
+  kind?: "posted" | "command";
+  opensWith?: string;
   selected?: boolean;
   label: string;
   href: string;
@@ -199,7 +201,7 @@ export default function PanelsClient() {
           ) : null}
           {!loading && guides.length > 0 ? (
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {guides.map((guide) => {
+              {[...guides].sort((left, right) => Number(right.selected === true) - Number(left.selected === true) || left.label.localeCompare(right.label)).map((guide) => {
                 const status = guide.configured ? "Mapped · found in server" : guide.resourceId ? "Saved ID · missing from scan" : "No channel mapped";
                 return (
                   <article key={guide.id} className="rounded-xl border border-pink-900/50 bg-black/35 p-4">
@@ -211,6 +213,7 @@ export default function PanelsClient() {
                       <span className={`rounded-md border px-2 py-1 text-[11px] font-bold uppercase ${guide.configured ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200" : "border-amber-700/50 bg-amber-950/25 text-amber-100"}`}>{status}</span>
                     </div>
                     <p className="mt-3 text-sm text-pink-100/80">Destination: {guide.destination}</p>
+                    {guide.kind === "command" && guide.opensWith ? <p className="mt-1 text-xs text-pink-100/70">{guide.opensWith}</p> : null}
                     {guide.resourceId ? <p className="mt-1 break-all font-mono text-xs text-pink-100/60">Discord channel ID: {guide.resourceId}</p> : <p className="mt-1 text-xs text-pink-100/55">No saved Discord channel ID.</p>}
                     <p className="mt-2 text-xs text-pink-100/55">{guide.selected ? "Feature included in the current setup selection." : "Feature is not selected for infrastructure setup."}</p>
                     <a href={buildDashboardHref(guide.href)} className="mt-3 inline-flex min-h-9 items-center font-bold text-pink-200 underline">Configure {guide.page} →</a>

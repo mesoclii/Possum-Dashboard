@@ -43,9 +43,33 @@ type AchievementRow = {
   settings: AchSettings;
 };
 
+type AchievementCategories = {
+  messages: boolean;
+  invites: boolean;
+  economy: boolean;
+  games: boolean;
+  governance: boolean;
+};
+
+type AchievementPanel = {
+  enabled: boolean;
+  channelId: string;
+  title: string;
+  thumbnailUrl: string;
+  imageUrl: string;
+  cardBackgroundId: string;
+};
+
+type BackgroundOption = { id: string; label: string };
+
 type AchievementsConfig = {
   active: boolean;
+  autoGrant: boolean;
   announceChannelId: string;
+  popCardBackgroundId: string;
+  categoriesEnabled: AchievementCategories;
+  roleSyncEnabled: boolean;
+  panel: AchievementPanel;
   noticeMode: string;
   announcementTemplate: string;
   dmTemplate: string;
@@ -67,7 +91,19 @@ type TabKey = "achievements" | "configuration" | "commands";
 
 const EMPTY_CFG: AchievementsConfig = {
   active: true,
+  autoGrant: true,
   announceChannelId: "",
+  popCardBackgroundId: "possum-night",
+  categoriesEnabled: { messages: true, invites: true, economy: true, games: true, governance: true },
+  roleSyncEnabled: true,
+  panel: {
+    enabled: false,
+    channelId: "",
+    title: "Achievements & Badges",
+    thumbnailUrl: "",
+    imageUrl: "",
+    cardBackgroundId: "possum-night",
+  },
   noticeMode: "channel",
   announcementTemplate: "{{user}} unlocked {{achievement}}",
   dmTemplate: "You unlocked {{achievement}} in {{guildName}}.",
@@ -98,6 +134,25 @@ const EMPTY_SETTINGS: AchSettings = {
 };
 
 const NOTICE_MODES = ["disabled", "channel", "dm", "both"];
+
+const CATEGORY_LABELS: Array<[keyof AchievementCategories, string]> = [
+  ["messages", "Messages"],
+  ["invites", "Invites"],
+  ["economy", "Economy"],
+  ["games", "Games"],
+  ["governance", "Governance"],
+];
+
+function parseBackgroundRows(value: unknown): BackgroundOption[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((row: any) => {
+      const id = String(row?.value || "").split("|")[0]?.trim() || "";
+      const label = String(row?.name || row?.title || id || "Background").trim();
+      return id ? { id, label } : null;
+    })
+    .filter(Boolean) as BackgroundOption[];
+}
 
 function boundedInt(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
@@ -214,6 +269,7 @@ export default function AchievementsClient() {
   const [progressMemberBase, setProgressMemberBase] = useState(0);
   const [roles, setRoles] = useState<Role[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [backgrounds, setBackgrounds] = useState<BackgroundOption[]>([]);
   const [tab, setTab] = useState<TabKey>("achievements");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -230,6 +286,14 @@ export default function AchievementsClient() {
       commands: {
         ...EMPTY_CFG.commands,
         ...((snapshot?.config?.commands || {}) as AchievementsConfig["commands"])
+      },
+      categoriesEnabled: {
+        ...EMPTY_CFG.categoriesEnabled,
+        ...((snapshot?.config?.categoriesEnabled || {}) as AchievementCategories)
+      },
+      panel: {
+        ...EMPTY_CFG.panel,
+        ...((snapshot?.config?.panel || {}) as AchievementPanel)
       },
       catalog: Array.isArray(snapshot?.config?.catalog)
         ? snapshot.config.catalog.map((row: AchievementRow) => normalizeAchievementRow(row))
@@ -266,12 +330,15 @@ export default function AchievementsClient() {
       try {
         setLoading(true);
         setMsg("");
-        const [cfgRes, gdRes] = await Promise.all([
+        const [cfgRes, gdRes, profileRes] = await Promise.all([
           fetch(`/api/runtime/engine?guildId=${encodeURIComponent(guildId)}&engine=achievements`, { cache: "no-store" }),
-          fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" })
+          fetch(`/api/bot/guild-data?guildId=${encodeURIComponent(guildId)}`, { cache: "no-store" }),
+          fetch(`/api/runtime/engine?guildId=${encodeURIComponent(guildId)}&engine=profile`, { cache: "no-store" })
         ]);
         const cfgJson = await cfgRes.json().catch(() => ({}));
         const gdJson = await gdRes.json().catch(() => ({}));
+        const profileJson = await profileRes.json().catch(() => ({}));
+        setBackgrounds(parseBackgroundRows(profileJson?.details?.backgrounds));
         applyRuntimeSnapshot(cfgJson);
         setRoles((Array.isArray(gdJson?.roles) ? gdJson.roles : []).sort((a: Role, b: Role) => Number(b.position || 0) - Number(a.position || 0)));
         setChannels((Array.isArray(gdJson?.channels) ? gdJson.channels : []).filter((c: Channel) => Number(c.type) === 0 || Number(c.type) === 5));
@@ -284,6 +351,10 @@ export default function AchievementsClient() {
   }, [guildId]);
 
   const dirty = useMemo(() => JSON.stringify(cfg) !== JSON.stringify(base), [cfg, base]);
+  const backgroundOptions = useMemo(
+    () => (backgrounds.length ? backgrounds : [{ id: "possum-night", label: "Possum Night" }]),
+    [backgrounds]
+  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -690,6 +761,56 @@ export default function AchievementsClient() {
 
           <div style={{ marginTop: 10, color: "#fca5a5", fontSize: 12 }}>
             Tokens: <code>{'{{user}}'}</code>, <code>{'{{userId}}'}</code>, <code>{'{{achievement}}'}</code>, <code>{'{{achievementId}}'}</code>, <code>{'{{achievementCount}}'}</code>, <code>{'{{guildName}}'}</code>, <code>{'{{source}}'}</code>, <code>{'{{description}}'}</code>, <code>{'{{rewardSummary}}'}</code>, <code>{'{{season}}'}</code>
+          </div>
+
+          <h3 style={{ margin: "18px 0 10px", color: "#fff", letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 13 }}>Unlock Rules</h3>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <label><input type="checkbox" checked={cfg.autoGrant} onChange={(e) => setCfg((p) => ({ ...p, autoGrant: e.target.checked }))} /> Auto grant achievements from activity</label>
+            <label><input type="checkbox" checked={cfg.roleSyncEnabled} onChange={(e) => setCfg((p) => ({ ...p, roleSyncEnabled: e.target.checked }))} /> Sync achievement roles</label>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Categories that can unlock achievements</div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              {CATEGORY_LABELS.map(([key, text]) => (
+                <label key={key}><input type="checkbox" checked={cfg.categoriesEnabled[key] !== false} onChange={(e) => setCfg((p) => ({ ...p, categoriesEnabled: { ...p.categoriesEnabled, [key]: e.target.checked } }))} /> {text}</label>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginTop: 10, maxWidth: 420 }}>
+            <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Unlock card background</div>
+            <select style={input} value={cfg.popCardBackgroundId || "possum-night"} onChange={(e) => setCfg((p) => ({ ...p, popCardBackgroundId: e.target.value }))}>
+              {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
+            </select>
+          </div>
+
+          <h3 style={{ margin: "18px 0 10px", color: "#fff", letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 13 }}>Badge Panel</h3>
+          <label><input type="checkbox" checked={cfg.panel.enabled} onChange={(e) => setCfg((p) => ({ ...p, panel: { ...p.panel, enabled: e.target.checked } }))} /> Badge panel enabled (/achpanel)</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+            <div>
+              <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Badge panel channel</div>
+              <select style={input} value={cfg.panel.channelId || ""} onChange={(e) => setCfg((p) => ({ ...p, panel: { ...p.panel, channelId: e.target.value } }))}>
+                <option value="">Select channel</option>
+                {channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Badge panel title</div>
+              <input style={input} value={cfg.panel.title} onChange={(e) => setCfg((p) => ({ ...p, panel: { ...p.panel, title: e.target.value } }))} />
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Badge panel thumbnail URL</div>
+              <input style={input} value={cfg.panel.thumbnailUrl} placeholder="https://..." onChange={(e) => setCfg((p) => ({ ...p, panel: { ...p.panel, thumbnailUrl: e.target.value } }))} />
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Badge panel background image URL</div>
+              <input style={input} value={cfg.panel.imageUrl} placeholder="https://..." onChange={(e) => setCfg((p) => ({ ...p, panel: { ...p.panel, imageUrl: e.target.value } }))} />
+            </div>
+            <div>
+              <div style={{ marginBottom: 6, color: "#ffb0b0", fontSize: 12 }}>Badge card background</div>
+              <select style={input} value={cfg.panel.cardBackgroundId || "possum-night"} onChange={(e) => setCfg((p) => ({ ...p, panel: { ...p.panel, cardBackgroundId: e.target.value } }))}>
+                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
+              </select>
+            </div>
           </div>
 
           <div style={{ marginTop: 16, border: "1px solid rgba(255,0,0,.5)", borderRadius: 10, padding: 12 }}>

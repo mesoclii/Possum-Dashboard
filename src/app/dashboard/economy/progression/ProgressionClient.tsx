@@ -34,29 +34,6 @@ type Cfg = {
     dmOnLevelUp: boolean;
     dmTemplate: string;
   };
-  achievements: {
-    enabled: boolean;
-    autoGrant: boolean;
-    announceChannelId: string;
-    cardBackgroundId: string;
-    categoriesEnabled: {
-      messages: boolean;
-      invites: boolean;
-      economy: boolean;
-      games: boolean;
-      governance: boolean;
-    };
-  };
-  badges: {
-    enabled: boolean;
-    panelEnabled: boolean;
-    panelChannelId: string;
-    cardBackgroundId: string;
-    panelTitle: string;
-    panelThumbnailUrl: string;
-    panelImageUrl: string;
-    roleSyncEnabled: boolean;
-  };
   rewards: {
     levelRoleRewards: LevelRoleReward[];
     levelCoinRewards: LevelCoinReward[];
@@ -98,29 +75,6 @@ const DEFAULT_CFG: Cfg = {
     announceTemplate: "🎉 <@{{userId}}> reached level {{level}} in {{guildName}}!",
     dmOnLevelUp: false,
     dmTemplate: "You reached level {{level}} in {{guildName}}."
-  },
-  achievements: {
-    enabled: true,
-    autoGrant: true,
-    announceChannelId: "",
-    cardBackgroundId: "possum-night",
-    categoriesEnabled: {
-      messages: true,
-      invites: true,
-      economy: true,
-      games: true,
-      governance: true
-    }
-  },
-  badges: {
-    enabled: true,
-    panelEnabled: false,
-    panelChannelId: "",
-    cardBackgroundId: "possum-night",
-    panelTitle: "Achievements & Badges",
-    panelThumbnailUrl: "",
-    panelImageUrl: "",
-    roleSyncEnabled: true
   },
   rewards: {
     levelRoleRewards: [{ level: 5, roleId: "", oneTime: false }],
@@ -177,15 +131,6 @@ function mergeCfg(raw: any): Cfg {
     ...(raw || {}),
     xp: { ...DEFAULT_CFG.xp, ...(raw?.xp || {}) },
     levelUp: { ...DEFAULT_CFG.levelUp, ...(raw?.levelUp || {}) },
-    achievements: {
-      ...DEFAULT_CFG.achievements,
-      ...(raw?.achievements || {}),
-      categoriesEnabled: {
-        ...DEFAULT_CFG.achievements.categoriesEnabled,
-        ...(raw?.achievements?.categoriesEnabled || {})
-      }
-    },
-    badges: { ...DEFAULT_CFG.badges, ...(raw?.badges || {}) },
     rewards: {
       ...DEFAULT_CFG.rewards,
       ...(raw?.rewards || {}),
@@ -440,69 +385,10 @@ export default function ProgressionPage() {
 
           <div style={box}>
             <h3 style={{ marginTop: 0, color: "#ff4444" }}>Achievements + Badge Panel</h3>
-            <label><input type="checkbox" checked={cfg.achievements.enabled} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, enabled: e.target.checked } })} /> Achievements enabled</label>
-            <label style={{ marginLeft: 16 }}><input type="checkbox" checked={cfg.achievements.autoGrant} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, autoGrant: e.target.checked } })} /> Auto grant</label>
-
-            <div style={{ marginTop: 10 }}>
-              <label>Achievement announce channel</label>
-              <select style={input} value={cfg.achievements.announceChannelId} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, announceChannelId: e.target.value } })}>
-                <option value="">Select channel</option>
-                {textChannels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
-              </select>
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <label>Achievement pop background</label>
-              <select style={input} value={cfg.achievements.cardBackgroundId} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, cardBackgroundId: e.target.value } })}>
-                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
-              </select>
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <label><input type="checkbox" checked={cfg.achievements.categoriesEnabled.messages} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, categoriesEnabled: { ...cfg.achievements.categoriesEnabled, messages: e.target.checked } } })} /> Messages</label>
-              <label style={{ marginLeft: 14 }}><input type="checkbox" checked={cfg.achievements.categoriesEnabled.invites} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, categoriesEnabled: { ...cfg.achievements.categoriesEnabled, invites: e.target.checked } } })} /> Invites</label>
-              <label style={{ marginLeft: 14 }}><input type="checkbox" checked={cfg.achievements.categoriesEnabled.economy} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, categoriesEnabled: { ...cfg.achievements.categoriesEnabled, economy: e.target.checked } } })} /> Economy</label>
-              <label style={{ marginLeft: 14 }}><input type="checkbox" checked={cfg.achievements.categoriesEnabled.games} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, categoriesEnabled: { ...cfg.achievements.categoriesEnabled, games: e.target.checked } } })} /> Games</label>
-              <label style={{ marginLeft: 14 }}><input type="checkbox" checked={cfg.achievements.categoriesEnabled.governance} onChange={(e) => setCfg({ ...cfg, achievements: { ...cfg.achievements, categoriesEnabled: { ...cfg.achievements.categoriesEnabled, governance: e.target.checked } } })} /> Governance</label>
-            </div>
-
-            <hr style={{ borderColor: "#440000", margin: "12px 0" }} />
-
-            <label><input type="checkbox" checked={cfg.badges.enabled} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, enabled: e.target.checked } })} /> Badge system enabled</label>
-            <label style={{ marginLeft: 16 }}><input type="checkbox" checked={cfg.badges.panelEnabled} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, panelEnabled: e.target.checked } })} /> Badge panel enabled</label>
-            <label style={{ marginLeft: 16 }}><input type="checkbox" checked={cfg.badges.roleSyncEnabled} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, roleSyncEnabled: e.target.checked } })} /> Role sync enabled</label>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-              <div>
-                <label>Badge panel channel</label>
-                <select style={input} value={cfg.badges.panelChannelId} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, panelChannelId: e.target.value } })}>
-                  <option value="">Select channel</option>
-                  {textChannels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label>Badge panel title</label>
-                <input style={input} value={cfg.badges.panelTitle} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, panelTitle: e.target.value } })} />
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-              <div>
-                <label>Badge panel thumbnail URL</label>
-                <input style={input} value={cfg.badges.panelThumbnailUrl} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, panelThumbnailUrl: e.target.value } })} placeholder="https://..." />
-              </div>
-              <div>
-                <label>Badge panel background image URL</label>
-                <input style={input} value={cfg.badges.panelImageUrl} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, panelImageUrl: e.target.value } })} placeholder="https://..." />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 10 }}>
-              <label>Badge card background</label>
-              <select style={input} value={cfg.badges.cardBackgroundId} onChange={(e) => setCfg({ ...cfg, badges: { ...cfg.badges, cardBackgroundId: e.target.value } })}>
-                {backgroundOptions.map((bg) => <option key={bg.id} value={bg.id}>{bg.label}</option>)}
-              </select>
-            </div>
+            <p style={{ margin: 0 }}>
+              Achievement settings (announce channel, auto grant, categories, pop background, the badge panel and role sync) now live on the{" "}
+              <a href={`/dashboard/achievements${guildId ? `?guildId=${encodeURIComponent(guildId)}` : ""}`} style={{ color: "#ff8a8a" }}>Achievements page</a>.
+            </p>
           </div>
 
           <div style={box}>

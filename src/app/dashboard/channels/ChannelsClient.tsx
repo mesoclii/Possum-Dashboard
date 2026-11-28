@@ -98,12 +98,19 @@ const SECTIONS: Section[] = [
   },
   {
     key: "progression",
-    label: "Progression + Achievements",
+    label: "Progression",
     engine: "progression",
     fields: [
       { key: "levelUp.announceChannelId", label: "Level Up Channel", type: "text" },
-      { key: "achievements.announceChannelId", label: "Achievement Channel", type: "text" },
-      { key: "badges.panelChannelId", label: "Badge Panel Channel", type: "text" },
+    ],
+  },
+  {
+    key: "achievements",
+    label: "Achievements",
+    engine: "achievements",
+    fields: [
+      { key: "announceChannelId", label: "Achievement Channel", type: "text" },
+      { key: "panel.channelId", label: "Badge Panel Channel", type: "text" },
     ],
   },
   {

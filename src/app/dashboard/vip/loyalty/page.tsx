@@ -1,6 +1,8 @@
-import LoyaltyEngineClient from "@/components/possum/LoyaltyEngineClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-export default function VipLoyaltyPage() {
-  return <LoyaltyEngineClient />;
+// Duplicate address: the same panel lives at /dashboard/loyalty in the menu.
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/loyalty", searchParams);
 }

@@ -1,15 +1,8 @@
-import { Suspense } from "react";
-import SlashCommandsClient from "@/app/dashboard/slash-commands/SlashCommandsClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-function Loading() {
-  return <div style={{ color: "#ff6b6b", padding: 24 }}>Loading slash commands...</div>;
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <SlashCommandsClient />
-    </Suspense>
-  );
+// Duplicate address: the same panel lives at /dashboard/slash-commands in the menu.
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/slash-commands", searchParams);
 }

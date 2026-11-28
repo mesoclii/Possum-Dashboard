@@ -1,11 +1,8 @@
-import { Suspense } from "react";
-import InviteTrackerClient from "./InviteTrackerClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-export default function Page() {
-  return (
-    <Suspense fallback={<main style={{ padding: 16, color: "#ff8a8a" }}>Loading invite tracker...</main>}>
-      <InviteTrackerClient />
-    </Suspense>
-  );
+// Duplicate address: the same panel lives at /dashboard/invite-tracker in the menu.
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/invite-tracker", searchParams);
 }

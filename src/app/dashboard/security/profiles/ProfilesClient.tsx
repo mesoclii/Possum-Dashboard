@@ -294,7 +294,7 @@ export default function SecurityProfilesPage() {
   return (
     <div style={{ color: "#ffb3b3", padding: 18, maxWidth: 1220 }}>
       <h1 style={{ marginTop: 0, color: "#ff3b3b", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-        Security Profiles
+        Security Posture
       </h1>
       <div style={{ marginBottom: 12 }}>
         Guild: {guildName || "Selected server"} {msg ? `| ${msg}` : ""}

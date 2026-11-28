@@ -1,15 +1,8 @@
-import { Suspense } from "react";
-import TicketsClient from "./TicketsClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-function Loading() {
-  return <div style={{ color: "#ff4444", padding: 16 }}>Loading tickets...</div>;
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <TicketsClient />
-    </Suspense>
-  );
+// Duplicate address: the same panel lives at /dashboard/tickets in the menu.
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/tickets", searchParams);
 }

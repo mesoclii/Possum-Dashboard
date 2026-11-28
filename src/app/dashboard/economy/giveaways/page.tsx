@@ -1,15 +1,8 @@
-import { Suspense } from "react";
-import GiveawaysClient from "./GiveawaysClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-function Loading() {
-  return <div style={{ color: "#ff4444", padding: 16 }}>Loading...</div>;
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <GiveawaysClient />
-    </Suspense>
-  );
+// Duplicate address: the same panel lives at /dashboard/giveaways in the menu.
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/giveaways", searchParams);
 }

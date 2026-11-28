@@ -1,15 +1,8 @@
-import { Suspense } from "react";
-import ModeratorClient from "@/app/dashboard/moderator/ModeratorClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-function Loading() {
-  return <div style={{ color: "#ff6b6b", padding: 24 }}>Loading moderator...</div>;
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <ModeratorClient />
-    </Suspense>
-  );
+// Duplicate address: the same panel lives at /dashboard/moderator in the menu.
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/moderator", searchParams);
 }

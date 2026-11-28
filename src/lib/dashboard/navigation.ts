@@ -49,13 +49,9 @@ export function getDashboardNavSections(
   isPrimaryOwner = false,
   isPokemonOperator = false
 ): DashboardNavSection[] {
+  // Entries marked "(review)" were hidden pages that had no menu link. They are
+  // shown to the bot owner only until each one is kept, merged, or retired.
   const sections: DashboardNavSection[] = [
-    {
-      label: "Possum Admin",
-      items: [
-        { href: "/dashboard/ai/openai-platform", label: "Creator AI Platform", creatorOnly: true },
-      ],
-    },
     {
       label: "Guild Control",
       defaultOpen: true,
@@ -63,7 +59,6 @@ export function getDashboardNavSections(
         { href: "/dashboard/server-setup", label: "Server Setup" },
         { href: "/dashboard/panels", label: "Master Panel & Destinations" },
         { href: "/dashboard/bot-personalizer", label: "Bot Personalizer" },
-        { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/bot-masters", label: "Bot Masters / Dashboard Access" },
         { href: "/dashboard/channels", label: "Channels" },
         { href: "/dashboard/infrastructure", label: "Infrastructure" },
@@ -75,6 +70,23 @@ export function getDashboardNavSections(
         { href: "/dashboard/vip", label: "VIP" },
         { href: "/dashboard/tickets", label: "Tickets" },
         { href: "/dashboard/selfroles", label: "Self Roles" },
+        { href: "/dashboard/roles", label: "Role Panels (review)", creatorOnly: true },
+        { href: "/dashboard/access", label: "Access Center (review)", creatorOnly: true },
+      ],
+    },
+    {
+      label: "Possum AI",
+      items: [
+        { href: "/dashboard/ai/learning", label: "Possum AI" },
+        { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
+      ],
+    },
+    {
+      label: "Persona AI",
+      items: [
+        { href: "/dashboard/ai/persona", label: "Persona AI" },
+        { href: "/dashboard/ai/billing", label: "AI Billing (pre-launch)", creatorOnly: true },
+        { href: "/dashboard/ai/openai-platform", label: "Creator AI Platform", creatorOnly: true },
       ],
     },
     {
@@ -83,6 +95,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/slash-commands", label: "Slash Commands" },
         { href: "/dashboard/commands", label: "!Command Studio" },
         { href: "/dashboard/automations/studio", label: "Automation Studio" },
+        { href: "/dashboard/security/automation-studio", label: "Security Automation (review)", creatorOnly: true },
         { href: "/dashboard/event-reactor", label: "Event Alerts" },
       ],
     },
@@ -91,6 +104,8 @@ export function getDashboardNavSections(
       items: [
         { href: "/dashboard/security/pre-onboarding", label: "Pre-Onboarding" },
         { href: "/dashboard/security/onboarding", label: "Onboarding" },
+        { href: "/dashboard/security/onboarding-builder", label: "Onboarding Builder (review)", creatorOnly: true },
+        { href: "/dashboard/security/welcome-goodbye", label: "Welcome + Goodbye (review)", creatorOnly: true },
         { href: "/dashboard/security/verification", label: "Verification" },
         { href: "/age-assurance/settings", label: "My k-ID Permissions" },
         { href: "/dashboard/security/age-assurance", label: "Age Assurance" },
@@ -118,6 +133,11 @@ export function getDashboardNavSections(
         { href: "/dashboard/security/behavioral-drift", label: "Behavioral Drift" },
         { href: "/dashboard/security/trust-weight", label: "Trust Weight" },
         { href: "/dashboard/security/risk-escalation", label: "Risk Escalation" },
+        { href: "/dashboard/security/escalation", label: "Escalation Config (review)", creatorOnly: true },
+        { href: "/dashboard/security/lockdown", label: "Lockdown (review)", creatorOnly: true },
+        { href: "/dashboard/security/raid", label: "Raid (review)", creatorOnly: true },
+        { href: "/dashboard/security/policy", label: "Policy (review)", creatorOnly: true },
+        { href: "/dashboard/security/profiles", label: "Security Posture (review)", creatorOnly: true },
         { href: "/dashboard/security/containment", label: "Containment" },
         { href: "/dashboard/security/forensics", label: "Forensics" },
         { href: "/dashboard/security/staff-activity", label: "Staff Activity" },
@@ -139,7 +159,8 @@ export function getDashboardNavSections(
         { href: "/dashboard/economy/store", label: "Store" },
         { href: "/dashboard/economy/progression", label: "Progression" },
         { href: "/dashboard/prestige", label: "Prestige" },
-        { href: "/dashboard/economy/leaderboard", label: "Invite Tracker" },
+        { href: "/dashboard/invite-tracker", label: "Invite Tracker" },
+        { href: "/dashboard/economy/leaderboard", label: "Invite Leaderboard" },
         { href: "/dashboard/profile", label: "Profile" },
         { href: "/dashboard/halloffame", label: "Hall Of Fame" },
         { href: "/dashboard/achievements", label: "Achievements" },
@@ -150,6 +171,7 @@ export function getDashboardNavSections(
       label: "Socials",
       items: [
         { href: "/dashboard/games", label: "Gaming Hub" },
+        { href: "/dashboard/gaming-admin", label: "Gaming Hub Admin" },
         { href: "/tcg", label: "Possum Underworld TCG" },
         { href: "/dashboard/podcast", label: "Podcast Studio" },
         { href: "/dashboard/community-studio", label: "Community Studio" },
@@ -179,10 +201,8 @@ export function getDashboardNavSections(
       items: [
         { href: "/dashboard/premium-features", label: "Possum Pro" },
         { href: "/dashboard/heist", label: "Heist Engine" },
-        { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
         { href: "/dashboard/analytics", label: "Analytics" },
         { href: "/dashboard/tts", label: "TTS" },
-        { href: "/dashboard/ai/persona", label: "Persona AI" },
         { href: "/dashboard/alert-inbox", label: "Alert Inbox" },
         { href: "/dashboard/config-history", label: "Configuration History" },
         { href: "/dashboard/scheduled-reports", label: "Scheduled Reports" },

@@ -54,8 +54,8 @@ export default function CreatorOnlyGate({ title, children }: Props) {
       <p style={{ color: "#ffb5b5", lineHeight: 1.6 }}>
         This surface is internal bot-creator tooling. It is intentionally hidden from normal guild operators.
       </p>
-      <Link href={buildDashboardHref("/dashboard/ai")} style={action}>
-        Back To AI
+      <Link href={buildDashboardHref("/dashboard/ai/learning")} style={action}>
+        Back To Possum AI
       </Link>
     </section>
   );

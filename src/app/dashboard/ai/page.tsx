@@ -1,15 +1,8 @@
-import { Suspense } from "react";
-import AiClient from "./AiClient";
+import { redirectToCanonical } from "@/lib/dashboard/legacyRedirect";
 
+export const dynamic = "force-dynamic";
 
-function Loading() {
-  return <div style={{ color: "#ff4444", padding: 16 }}>Loading...</div>;
-}
-
-export default function Page() {
-  return (
-    <Suspense fallback={<Loading />}>
-      <AiClient />
-    </Suspense>
-  );
+// Retired page: it edited the same AI routing switches as AI Talking Rules (/dashboard/runtime-router).
+export default async function Page({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  return redirectToCanonical("/dashboard/runtime-router", searchParams);
 }

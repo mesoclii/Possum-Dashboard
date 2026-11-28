@@ -4,7 +4,21 @@ import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 import AiTabs from "@/components/possum/AiTabs";
 import EngineInsights from "@/components/possum/EngineInsights";
-import type { EngineDetails, EngineSummaryItem, GuildChannel } from "@/components/possum/useGuildEngineEditor";
+import type { EngineDetails, EngineSummaryItem, GuildChannel, GuildRole } from "@/components/possum/useGuildEngineEditor";
+import {
+  CustomBanksEditor,
+  DEFAULT_SECURITY_AWARENESS,
+  DEFAULT_STAFF_LEARNING,
+  PossumHowItWorks,
+  ReplyTester,
+  SecurityAwarenessPanel,
+  StaffLearningPanel,
+  cleanCustomBanks,
+  normalizeCustomBanks,
+  type CustomBank,
+  type SecurityAwareness,
+  type StaffLearning,
+} from "./PossumBrainPanels";
 import { buildDashboardHref } from "@/lib/dashboardContext";
 
 type KnowledgeBankInputs = {
@@ -35,6 +49,10 @@ type PossumSettings = {
   toneBank: string;
   backstory: string;
   knowledgeBanks: KnowledgeBankInputs;
+  customBanks: CustomBank[];
+  staffLearning: StaffLearning;
+  securityAwareness: SecurityAwareness;
+  useCommunityLookup: boolean;
 };
 
 type ChannelModeRow = {
@@ -64,8 +82,8 @@ const KNOWLEDGE_BANK_FIELDS: Array<{
   },
   {
     key: "gtaOpsTopics",
-    label: "GTA / ops topic bank",
-    description: "Crew, heist, contract, and ops-specific guidance for this guild's GTA-style conversations.",
+    label: "Main game / activity bank",
+    description: "Lines for whatever your server is about: the main game, crew runs, events. Used when members talk about games or ops (stored as the GTA bank for older servers).",
     placeholder: "If the route isn't clean, the payout isn't real.\nStage the exit before the hit starts."
   },
   {
@@ -88,8 +106,8 @@ const KNOWLEDGE_BANK_FIELDS: Array<{
   },
   {
     key: "rockstarCommunityPacks",
-    label: "Rockstar / community topic packs",
-    description: "Community culture, Rockstar references, and guild-specific world knowledge for shared chatter.",
+    label: "Community culture bank",
+    description: "Your server's in-jokes, lore and shared culture for community and economy chatter.",
     placeholder: "Rockstar always rewards the cleaner move.\nCommunity runs smoother when people stop making noise."
   }
 ];
@@ -138,6 +156,10 @@ function createSettingsState(raw: unknown): PossumSettings {
     ...DEFAULT_SETTINGS,
     ...source,
     knowledgeBanks: normalizeKnowledgeBanks(source.knowledgeBanks),
+    customBanks: normalizeCustomBanks(source.customBanks),
+    staffLearning: { ...DEFAULT_STAFF_LEARNING, ...(source.staffLearning || {}) },
+    securityAwareness: { ...DEFAULT_SECURITY_AWARENESS, ...(source.securityAwareness || {}) },
+    useCommunityLookup: source.useCommunityLookup !== false,
   };
 }
 
@@ -159,6 +181,10 @@ const DEFAULT_SETTINGS: PossumSettings = {
   toneBank: "saviors",
   backstory: "",
   knowledgeBanks: createEmptyKnowledgeBanks(),
+  customBanks: [],
+  staffLearning: DEFAULT_STAFF_LEARNING,
+  securityAwareness: DEFAULT_SECURITY_AWARENESS,
+  useCommunityLookup: true,
 };
 
 const wrap: CSSProperties = { color: "#ffd0d0", maxWidth: 1360 };
@@ -272,10 +298,10 @@ const SLIDER_FIELDS: Array<{
   label: string;
   description: string;
 }> = [
-  { key: "toneIntensity", label: "Tone Intensity", description: "How hard the adaptive tone resolver pushes the Possum response profile." },
-  { key: "sarcasmLevel", label: "Sarcasm Level", description: "Stored per guild for the Possum AI response profile." },
-  { key: "seriousness", label: "Seriousness", description: "How grounded vs playful the adaptive profile should feel." },
-  { key: "verbosity", label: "Verbosity", description: "How short or long adaptive replies should trend." },
+  { key: "toneIntensity", label: "Tone Intensity", description: "8+ makes replies punchy and adds the tone bank's hot line; 3 or less adds the calm line." },
+  { key: "sarcasmLevel", label: "Sarcasm Level", description: "6+ adds dry, sarcastic tags, more often the higher it goes. Never used on flagged members or during an alert." },
+  { key: "seriousness", label: "Seriousness", description: "3 or less adds playful tags; 8+ blocks sarcasm; 9+ drops exclamation marks." },
+  { key: "verbosity", label: "Verbosity", description: "3 or less keeps one sentence; 8+ adds a backstory or knowledge line." },
 ];
 
 function resolveGuild() {
@@ -306,6 +332,7 @@ export default function LearningClient() {
   const [settings, setSettings] = useState<PossumSettings>(DEFAULT_SETTINGS);
   const [channelModes, setChannelModes] = useState<ChannelModeRow[]>([]);
   const [channels, setChannels] = useState<GuildChannel[]>([]);
+  const [roles, setRoles] = useState<GuildRole[]>([]);
   const [summary, setSummary] = useState<EngineSummaryItem[]>([]);
   const [details, setDetails] = useState<EngineDetails>({});
 
@@ -350,6 +377,14 @@ export default function LearningClient() {
               }))
               .filter((channel: GuildChannel) => channel.id)
               .sort((a: GuildChannel, b: GuildChannel) => a.name.localeCompare(b.name))
+          : []
+      );
+      setRoles(
+        Array.isArray(guildJson?.roles)
+          ? guildJson.roles
+              .map((role: any) => ({ id: String(role?.id || ""), name: String(role?.name || ""), position: Number(role?.position || 0) }))
+              .filter((role: GuildRole) => role.id)
+              .sort((a: GuildRole, b: GuildRole) => Number(b.position || 0) - Number(a.position || 0))
           : []
       );
       setSettings(createSettingsState(settingsJson?.config));
@@ -413,7 +448,7 @@ export default function LearningClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           guildId,
-          patch: settings,
+          patch: { ...settings, customBanks: cleanCustomBanks(settings.customBanks) },
           channelModes,
         }),
       });
@@ -536,8 +571,8 @@ export default function LearningClient() {
             </h1>
             <div style={{ color: "#ff9f9f", marginTop: 8 }}>Guild: {guildName || "Selected server"}</div>
             <div style={{ color: "#ffb5b5", fontSize: 12, marginTop: 8, maxWidth: 980 }}>
-              Possum AI is the homemade adaptive assistant path. These controls are guild-scoped and write into the live
-              bot runtime, not a dashboard-only stub. Persona AI remains a separate premium surface.
+              Possum AI is your server&apos;s own bot brain: it answers from the knowledge, response banks and backstory you set here,
+              learns your members and staff, and reads your security engines. It is free and never uses AI credits. Persona AI is the separate paid AI.
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -850,6 +885,42 @@ export default function LearningClient() {
             </div>
           </section>
 
+          <PossumHowItWorks />
+          <ReplyTester guildId={guildId} />
+          <CustomBanksEditor
+            banks={settings.customBanks}
+            channels={textChannels}
+            onChange={(next) => setSettings((prev) => ({ ...prev, customBanks: next }))}
+          />
+          <SecurityAwarenessPanel
+            value={settings.securityAwareness}
+            onChange={(next) => setSettings((prev) => ({ ...prev, securityAwareness: next }))}
+          />
+          <StaffLearningPanel
+            guildId={guildId}
+            value={settings.staffLearning}
+            roles={roles}
+            onChange={(next) => setSettings((prev) => ({ ...prev, staffLearning: next }))}
+          />
+          <section style={card}>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.useCommunityLookup}
+                onChange={(e) => setSettings((prev) => ({ ...prev, useCommunityLookup: e.target.checked }))}
+              />{" "}
+              Answer direct questions from Community Studio lookup cards
+            </label>
+            <div style={{ color: "#ffbdbd", fontSize: 12, marginTop: 6 }}>
+              Keep your FAQ in one place: lookup cards you build in <Link href={buildDashboardHref("/dashboard/community-studio")} style={{ color: "#ff8a8a" }}>Community Studio</Link> also become Possum&apos;s answers.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+              <button type="button" onClick={() => void saveSettings()} disabled={saving} style={action}>
+                {saving ? "Saving..." : "Save Possum AI"}
+              </button>
+            </div>
+          </section>
+
           <section style={card}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
               <div>
@@ -972,7 +1043,7 @@ export default function LearningClient() {
             </div>
           </section>
 
-          <section style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
+          <section style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 12 }}>
             <div style={card}>
               <div style={{ color: "#ff9c9c", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
                 Active Adaptive Modules

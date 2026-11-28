@@ -62,7 +62,6 @@ export const ENGINE_REGISTRY: EngineDef[] = [
   { id: "achievements", label: "Achievements", description: "Milestone grant rules, badge sync, and achievement reward logic", group: "Economy", route: "/dashboard/achievements" },
 
   { id: "games", label: "Gaming Hub", description: "External game identity linking, presence fusion, launcher accounts, stats, hours, and squad finder", group: "Fun", route: "/dashboard/games" },
-  { id: "wow-guild", label: "WoW Groups", description: "WoW 5-man and raid signups plus message-of-the-day controls", group: "Fun", route: "/dashboard/wow" },
   { id: "pokemon", label: "Pokemon Catching", description: "Wild spawn lanes, catch economy, and trainer intake", group: "Fun", route: "/dashboard/pokemon-catching", featureKey: "pokemonEnabled" },
   { id: "pokemon-battle", label: "Pokemon Battle", description: "Pokemon battle routing and logs", group: "Fun", route: "/dashboard/pokemon-battle", featureKey: "pokemonEnabled" },
   { id: "pokemon-trade", label: "Pokemon Trade", description: "Pokemon trade routing and logs", group: "Fun", route: "/dashboard/pokemon-trade", featureKey: "pokemonEnabled" },

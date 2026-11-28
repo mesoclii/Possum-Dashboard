@@ -63,6 +63,7 @@ export function getDashboardNavSections(
         { href: "/dashboard/server-setup", label: "Server Setup" },
         { href: "/dashboard/panels", label: "Master Panel & Destinations" },
         { href: "/dashboard/bot-personalizer", label: "Bot Personalizer" },
+        { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/bot-masters", label: "Bot Masters / Dashboard Access" },
         { href: "/dashboard/channels", label: "Channels" },
         { href: "/dashboard/infrastructure", label: "Infrastructure" },
@@ -149,7 +150,6 @@ export function getDashboardNavSections(
       label: "Socials",
       items: [
         { href: "/dashboard/games", label: "Gaming Hub" },
-        { href: "/dashboard/wow", label: "WoW Groups" },
         { href: "/tcg", label: "Possum Underworld TCG" },
         { href: "/dashboard/podcast", label: "Podcast Studio" },
         { href: "/dashboard/community-studio", label: "Community Studio" },
@@ -179,7 +179,6 @@ export function getDashboardNavSections(
       items: [
         { href: "/dashboard/premium-features", label: "Possum Pro" },
         { href: "/dashboard/heist", label: "Heist Engine" },
-        { href: "/dashboard/ai/learning", label: "Possum AI" },
         { href: "/dashboard/runtime-router", label: "AI Talking Rules" },
         { href: "/dashboard/analytics", label: "Analytics" },
         { href: "/dashboard/tts", label: "TTS" },

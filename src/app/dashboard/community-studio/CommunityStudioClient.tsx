@@ -390,6 +390,46 @@ function SectionCard({
   );
 }
 
+type SetupReport = {
+  ok: boolean;
+  problems: number;
+  message: string;
+  items: Array<{ level: "error" | "warning" | "ok"; area: string; name: string; message: string }>;
+};
+
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const COMMON_TIMEZONES = [
+  "America/Los_Angeles", "America/Denver", "America/Chicago", "America/New_York", "America/Halifax",
+  "America/Sao_Paulo", "Europe/London", "Europe/Berlin", "Europe/Paris", "Europe/Helsinki",
+  "Africa/Johannesburg", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo",
+  "Australia/Sydney", "Pacific/Auckland", "UTC",
+];
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function describeSchedule(reminder: Reminder) {
+  const time = `${pad2(reminder.hour)}:${pad2(reminder.minute)} (${reminder.timezone || "America/Los_Angeles"})`;
+  if (reminder.scheduleType === "hourly") return `every hour at :${pad2(reminder.minute)}`;
+  if (reminder.scheduleType === "weekly") return `every ${WEEKDAYS[reminder.dayOfWeek] || "Monday"} at ${time}`;
+  if (reminder.scheduleType === "monthly") {
+    const day = reminder.dayOfMonth;
+    const suffix = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+    return `on the ${day}${suffix} of every month at ${time}`;
+  }
+  return `every day at ${time}`;
+}
+
+// The bot reports next-send times as ISO strings; show them in the viewer's local time.
+function formatSetupMessage(message: string) {
+  return message.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g, (iso) => {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
+  });
+}
+
 export default function CommunityStudioClient() {
   const {
     guildId,
@@ -416,6 +456,24 @@ export default function CommunityStudioClient() {
   const [lookupIndex, setLookupIndex] = useState(0);
   const [newImageUrl, setNewImageUrl] = useState("");
   const [newImageLabel, setNewImageLabel] = useState("");
+  const [setupReport, setSetupReport] = useState<SetupReport | null>(null);
+  const [showGuide, setShowGuide] = useState(true);
+
+  // Tests use the saved config on the bot, so unsaved edits are saved first.
+  async function sendTest(kind: "bulletin" | "poll" | "reminder" | "lookup", itemId: string) {
+    setLocalMsg("");
+    const saved = await save(normalizeConfig(cfg));
+    if (!saved) return;
+    await runAction("sendTest", { kind, itemId });
+  }
+
+  async function runSetupCheck() {
+    setLocalMsg("");
+    const saved = await save(normalizeConfig(cfg));
+    if (!saved) return;
+    const result = (await runAction("checkSetup")) as SetupReport | null;
+    if (result && Array.isArray(result.items)) setSetupReport(result);
+  }
 
   const channelList = useMemo(() => channels as Channel[], [channels]);
   const roleList = useMemo(() => roles as Role[], [roles]);
@@ -514,6 +572,47 @@ export default function CommunityStudioClient() {
         <>
           <EngineInsights summary={summary} details={details} showDetails />
 
+          <section id="setup-guide" style={card}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontWeight: 800 }}>Setup Guide</div>
+                <div style={micro}>Build, test privately, then go live.</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" style={button} disabled={saving} onClick={() => void runSetupCheck()}>Check Setup</button>
+                <button type="button" style={button} onClick={() => setShowGuide((v) => !v)}>{showGuide ? "Hide Steps" : "Show Steps"}</button>
+              </div>
+            </div>
+            {showGuide ? (
+              <ol style={{ marginBottom: 0, lineHeight: 1.7, fontSize: 13 }}>
+                <li><strong>Turn it on.</strong> Tick <em>Community Studio Active</em> below and the parts you want. Nothing posts and <code>{cfg.lookup.prefix || "?lookup"}</code> won&apos;t answer while it&apos;s off. Test sends still work while it&apos;s off.</li>
+                <li><strong>Bulletins</strong> are one-off announcements. Pick a channel, write the body, optionally ping a role. <em>Deploy Now</em> posts it.</li>
+                <li><strong>Pulse Polls</strong> need a question and 2 to 5 options. <em>Deploy Poll</em> posts it with vote buttons; deploying again refreshes the same message. Set <em>close after hours</em> to end voting automatically.</li>
+                <li><strong>Reminder Loop</strong> posts on a schedule (hourly, daily, weekly or monthly) in the timezone you set. The bot checks every minute. <em>Send Now</em> posts once without waiting.</li>
+                <li><strong>Lookup Cards</strong> answer members who type <code>{cfg.lookup.prefix || "?lookup"} &lt;key&gt;</code>. Add aliases for other words people might use. Typing the prefix alone lists the first few keys.</li>
+                <li><strong>Test it.</strong> Every section has <em>Send Test To Me</em>, which saves and DMs you a private preview. Then use <em>Check Setup</em> to catch missing channels, bot permissions, bad timezones and duplicate lookup words.</li>
+              </ol>
+            ) : null}
+            {setupReport ? (
+              <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+                <div style={{ fontWeight: 800 }}>{setupReport.message}</div>
+                {setupReport.items.length ? setupReport.items.map((item, index) => (
+                  <div
+                    key={`${item.area}-${item.name}-${index}`}
+                    style={{
+                      border: `1px solid ${item.level === "error" ? "#ff3b3b" : item.level === "warning" ? "#b36b00" : "#1f6f3f"}`,
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      fontSize: 13,
+                    }}
+                  >
+                    <strong>{item.level === "error" ? "Fix" : item.level === "warning" ? "Check" : "OK"}</strong> - {item.area}: {item.name} - {formatSetupMessage(item.message)}
+                  </div>
+                )) : <div style={micro}>Everything looks ready.</div>}
+              </div>
+            ) : null}
+          </section>
+
           <section id="images" style={card}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, alignItems: "end" }}>
               <label><input type="checkbox" checked={cfg.active} onChange={(e) => setCfg((prev) => ({ ...normalizeConfig(prev), active: e.target.checked }))} /> Community Studio Active</label>
@@ -575,6 +674,7 @@ export default function CommunityStudioClient() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" style={button} disabled={!cfg.bulletinsEnabled} onClick={() => { setCfg((prev) => ({ ...normalizeConfig(prev), bulletins: [...normalizeConfig(prev).bulletins, createBulletin()] })); setBulletinIndex(cfg.bulletins.length); }}>Add Bulletin</button>
+                <button type="button" style={button} disabled={saving || !activeBulletin} onClick={() => activeBulletin ? void sendTest("bulletin", activeBulletin.id) : undefined}>Send Test To Me</button>
                 <button type="button" style={button} disabled={saving || !activeBulletin || !cfg.bulletinsEnabled} onClick={() => activeBulletin ? void runAction("deployBulletin", { bulletinId: activeBulletin.id }) : undefined}>Deploy Now</button>
                 <button type="button" style={button} disabled={!activeBulletin} onClick={() => { if (activeBulletin) { removeListItem("bulletins", activeBulletinIndex); setBulletinIndex((prev) => Math.max(0, prev - 1)); } }}>Remove</button>
               </div>
@@ -659,6 +759,7 @@ export default function CommunityStudioClient() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" style={button} disabled={!cfg.pollsEnabled} onClick={() => { setCfg((prev) => ({ ...normalizeConfig(prev), polls: [...normalizeConfig(prev).polls, createPoll()] })); setPollIndex(cfg.polls.length); }}>Add Poll</button>
+                <button type="button" style={button} disabled={saving || !activePoll} onClick={() => activePoll ? void sendTest("poll", activePoll.id) : undefined}>Send Test To Me</button>
                 <button type="button" style={button} disabled={saving || !activePoll || !cfg.pollsEnabled} onClick={() => activePoll ? void runAction("deployPoll", { pollId: activePoll.id }) : undefined}>Deploy Poll</button>
                 <button type="button" style={button} disabled={!activePoll} onClick={() => { if (activePoll) { removeListItem("polls", activePollIndex); setPollIndex((prev) => Math.max(0, prev - 1)); } }}>Remove</button>
               </div>
@@ -764,6 +865,7 @@ export default function CommunityStudioClient() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" style={button} disabled={!cfg.remindersEnabled} onClick={() => { setCfg((prev) => ({ ...normalizeConfig(prev), reminders: [...normalizeConfig(prev).reminders, createReminder()] })); setReminderIndex(cfg.reminders.length); }}>Add Reminder</button>
+                <button type="button" style={button} disabled={saving || !activeReminder} onClick={() => activeReminder ? void sendTest("reminder", activeReminder.id) : undefined}>Send Test To Me</button>
                 <button type="button" style={button} disabled={saving || !activeReminder || !cfg.remindersEnabled} onClick={() => activeReminder ? void runAction("sendReminderNow", { reminderId: activeReminder.id }) : undefined}>Send Now</button>
                 <button type="button" style={button} disabled={saving || !cfg.remindersEnabled} onClick={() => void runAction("clearReminderHistory")}>Clear History</button>
                 <button type="button" style={button} disabled={!activeReminder} onClick={() => { if (activeReminder) { removeListItem("reminders", activeReminderIndex); setReminderIndex((prev) => Math.max(0, prev - 1)); } }}>Remove</button>
@@ -802,9 +904,13 @@ export default function CommunityStudioClient() {
                     </div>
                     <div>
                       <div style={{ marginBottom: 6 }}>Timezone</div>
-                      <input style={input} value={activeReminder.timezone} onChange={(e) => replaceListItem("reminders", activeReminderIndex, { ...activeReminder, timezone: e.target.value })} />
+                      <input style={input} list="community-studio-timezones" value={activeReminder.timezone} onChange={(e) => replaceListItem("reminders", activeReminderIndex, { ...activeReminder, timezone: e.target.value })} />
+                      <datalist id="community-studio-timezones">
+                        {COMMON_TIMEZONES.map((zone) => <option key={zone} value={zone} />)}
+                      </datalist>
                     </div>
                   </div>
+                  <div style={{ ...micro, fontSize: 13 }}>Sends {describeSchedule(activeReminder)}. Save, then use <strong>Send Test To Me</strong> to preview it, or <strong>Check Setup</strong> to see the next send time.</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12 }}>
                     <label><input type="checkbox" checked={activeReminder.enabled} onChange={(e) => replaceListItem("reminders", activeReminderIndex, { ...activeReminder, enabled: e.target.checked })} /> Enabled</label>
                     <div>
@@ -826,7 +932,9 @@ export default function CommunityStudioClient() {
                     </div>
                     <div>
                       <div style={{ marginBottom: 6 }}>Day Of Week</div>
-                      <input style={input} type="number" min={0} max={6} value={activeReminder.dayOfWeek} onChange={(e) => replaceListItem("reminders", activeReminderIndex, { ...activeReminder, dayOfWeek: clamp(Number(e.target.value || 0), 0, 6) })} />
+                      <select style={input} value={activeReminder.dayOfWeek} onChange={(e) => replaceListItem("reminders", activeReminderIndex, { ...activeReminder, dayOfWeek: clamp(Number(e.target.value || 0), 0, 6) })}>
+                        {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
+                      </select>
                     </div>
                     <div>
                       <div style={{ marginBottom: 6 }}>Day Of Month</div>
@@ -859,6 +967,7 @@ export default function CommunityStudioClient() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" style={button} onClick={() => { setCfg((prev) => ({ ...normalizeConfig(prev), lookupEntries: [...normalizeConfig(prev).lookupEntries, createLookupEntry()] })); setLookupIndex(cfg.lookupEntries.length); }}>Add Lookup Card</button>
+                <button type="button" style={button} disabled={saving || !activeLookup} onClick={() => activeLookup ? void sendTest("lookup", activeLookup.id) : undefined}>Send Test To Me</button>
                 <button type="button" style={button} disabled={!activeLookup} onClick={() => { if (activeLookup) { removeListItem("lookupEntries", activeLookupIndex); setLookupIndex((prev) => Math.max(0, prev - 1)); } }}>Remove</button>
               </div>
             </div>

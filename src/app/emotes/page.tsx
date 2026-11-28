@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
-type Guild = { id: string; name: string; owner?: boolean; manageable?: boolean; botPresent?: boolean };
-type Asset = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; published?: boolean; sourceGuildId?: string; sourceGuildName?: string };
+type Guild = { id: string; name: string; iconUrl?: string | null; owner?: boolean; manageable?: boolean; botPresent?: boolean };
+type Asset = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; published?: boolean; inVault?: boolean; sourceGuildId?: string; sourceGuildName?: string };
 type CatalogItem = { id: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; publishedAt: string; useCount: number; tags?: string[] };
 type PendingCatalogItem = { id: string; sourceGuildId: string; sourceGuildName: string; name: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; url: string; submittedAt: string };
 type PersonalItem = { id: string; sourceGuildId: string; sourceGuildName: string; sourceAssetId: string; name: string; originalName?: string; assetType: "emoji" | "sticker" | "gif"; animated: boolean; uploaded?: boolean; downloadName?: string; url: string; importedAt: string; collection?: string; favorite?: boolean; tags?: string[]; contentRating?: "unreviewed" | "general" | "adult"; sources?: Array<{ guildId?: string; guildName?: string; assetId?: string; url?: string }>; sha256?: string; visualFingerprint?: string; fileBytes?: number };
 type PersonalCollection = { name: string; description: string; visibility: "private"; assetCount: number; createdAt?: string; updatedAt?: string };
 type PersonalStats = { total: number; uploaded: number; animated: number; favorites: number; unreviewed: number; bytes: number; sources: number };
-type ImportJob = { id: string; guildId: string; guildName: string; status: string; total: number; processed: number; added: number; skipped: number; errors: string[]; error: string; retryable?: boolean; createdAt: string; updatedAt: string };
+type ImportJob = { id: string; guildId: string; guildName: string; collection?: string; status: string; total: number; processed: number; added: number; skipped: number; errors: string[]; error: string; retryable?: boolean; createdAt: string; updatedAt: string };
 
 const shell: CSSProperties = { minHeight: "100vh", padding: "clamp(18px, 4vw, 48px)", color: "#ffe4ee", background: "radial-gradient(ellipse at 85% 0%, #5b082e 0%, transparent 36%), radial-gradient(ellipse at 0% 40%, #3b071f 0%, transparent 40%), #10000b" };
 const panel: CSSProperties = { border: "1px solid #8a2450", borderRadius: 18, padding: 20, background: "linear-gradient(145deg, rgba(55,5,29,.95), rgba(18,0,12,.97))", boxShadow: "0 12px 32px rgba(0,0,0,.22)" };
@@ -20,8 +20,20 @@ const muted: CSSProperties = { color: "#efb4c9", lineHeight: 1.65 };
 const accent: CSSProperties = { color: "#ff75aa" };
 const cardGrid: CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 220px), 1fr))", gap: 14 };
 
-type JedView = "discover" | "vault" | "public" | "import" | "review";
+type JedView = "discover" | "explorer" | "vault" | "public" | "import" | "review";
 type JedFilter = "all" | "favorites" | "animated" | "recent" | "multi-source" | "needs-review";
+type AccessTier = { key: "full" | "member" | "installable" | "restricted"; label: string; tone: string };
+
+// How much Emoji Explorer can do with a server, from the viewer's Discord
+// membership and whether Possum Bot is installed there.
+function accessTier(guild: Guild): AccessTier {
+  if (guild.botPresent && guild.manageable) return { key: "full", label: "Bot installed · You manage this server", tone: "#4fd18b" };
+  if (guild.botPresent) return { key: "member", label: "Bot installed · Emojis available", tone: "#4fd18b" };
+  if (guild.manageable) return { key: "installable", label: "Bot not installed · You can add it", tone: "#ffc65c" };
+  return { key: "restricted", label: "Bot not installed · An admin must add it", tone: "#ff7a9c" };
+}
+const TIER_ORDER: Record<AccessTier["key"], number> = { full: 0, member: 1, installable: 2, restricted: 3 };
+const ACTIVE_JOB_STATES = ["queued", "running", "cancel_requested"];
 const PUBLIC_PAGE_SIZE = 24;
 const PRIVATE_PAGE_SIZE = 60;
 const NIBBLE_BITS = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
@@ -92,6 +104,16 @@ export default function EmoteLibraryPage() {
   const [similarTo, setSimilarTo] = useState("");
   const [vaultHealth, setVaultHealth] = useState<{ missingFiles: number; integrityMismatches: number } | null>(null);
   const [importJobs, setImportJobs] = useState<ImportJob[]>([]);
+  const [explorerSearch, setExplorerSearch] = useState("");
+  const [explorerGuildId, setExplorerGuildId] = useState("");
+  const [explorerAssets, setExplorerAssets] = useState<Asset[]>([]);
+  const [explorerAssetSearch, setExplorerAssetSearch] = useState("");
+  const [explorerSelected, setExplorerSelected] = useState<string[]>([]);
+  const [explorerCollection, setExplorerCollection] = useState("");
+  const [explorerStatus, setExplorerStatus] = useState("");
+  const [leaveConfirmName, setLeaveConfirmName] = useState("");
+  const explorerRequestId = useRef(0);
+  const explorerHadActiveJob = useRef(false);
   const uploadInput = useRef<HTMLInputElement>(null);
   const catalogRequestId = useRef(0);
   const personalRequestId = useRef(0);
@@ -207,7 +229,7 @@ export default function EmoteLibraryPage() {
         const botGuilds = new Set((Array.isArray(installed.guilds) ? installed.guilds : []).filter((entry: Guild) => entry?.botPresent !== false).map((entry: Guild) => entry.id));
         const options: Guild[] = (Array.isArray(manageable.guilds) ? manageable.guilds : [])
           .filter((entry: Guild) => typeof entry?.id === "string")
-          .map((entry: Guild) => ({ id: entry.id, name: entry.name, owner: entry.owner, manageable: entry.manageable === true, botPresent: botGuilds.has(entry.id) }));
+          .map((entry: Guild) => ({ id: entry.id, name: entry.name, iconUrl: typeof entry.iconUrl === "string" ? entry.iconUrl : null, owner: entry.owner, manageable: entry.manageable === true, botPresent: botGuilds.has(entry.id) }));
         if (!active) return;
         setGuilds(options);
         setBotInviteUrl(typeof installed.inviteUrl === "string" ? installed.inviteUrl : "");
@@ -247,18 +269,57 @@ export default function EmoteLibraryPage() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [signedIn, view, personalQuery, loadPersonalItems]);
 
+  const openExplorerGuild = useCallback(async (guildId: string, botPresent: boolean, keepSelection = false) => {
+    const requestId = ++explorerRequestId.current;
+    setExplorerGuildId(guildId);
+    if (!keepSelection) { setExplorerSelected([]); setExplorerAssets([]); setExplorerAssetSearch(""); setLeaveConfirmName(""); }
+    if (!botPresent) { setExplorerStatus(""); return; }
+    if (!keepSelection) setExplorerStatus("Reading this server's emojis and stickers…");
+    try {
+      const loaded = await loadGuildAssets(guildId);
+      if (requestId !== explorerRequestId.current) return;
+      setExplorerAssets(loaded);
+      setExplorerStatus(loaded.length ? "" : "This server has no emojis or supported stickers.");
+    } catch (error) {
+      if (requestId === explorerRequestId.current) setExplorerStatus(error instanceof Error ? error.message : "Could not read that server's assets.");
+    }
+  }, [loadGuildAssets]);
+
+  const explorerJob = useMemo(() => importJobs.find((job) => job.guildId === explorerGuildId), [importJobs, explorerGuildId]);
+  const explorerJobActive = Boolean(explorerJob && ACTIVE_JOB_STATES.includes(explorerJob.status));
+
+  // When an Explorer import finishes, refresh the "In vault" badges.
   useEffect(() => {
-    if (!signedIn || view !== "import") return;
+    if (explorerHadActiveJob.current && !explorerJobActive && explorerGuildId) void openExplorerGuild(explorerGuildId, true, true);
+    explorerHadActiveJob.current = explorerJobActive;
+  }, [explorerJobActive, explorerGuildId, openExplorerGuild]);
+
+  useEffect(() => {
+    if (!signedIn || !(view === "import" || (view === "explorer" && explorerJobActive))) return;
     let active = true;
     const refresh = () => { if (active) void loadImportJobs().catch((error) => setMessage(error instanceof Error ? error.message : "JED import queue unavailable.")); };
     refresh();
     const timer = window.setInterval(refresh, 1800);
     return () => { active = false; window.clearInterval(timer); };
-  }, [signedIn, view, loadImportJobs]);
+  }, [signedIn, view, explorerJobActive, loadImportJobs]);
 
   const readableGuilds = useMemo(() => guilds.filter((guild) => guild.botPresent), [guilds]);
   const destinationGuilds = useMemo(() => guilds.filter((guild) => guild.botPresent && guild.manageable), [guilds]);
   const selectedSourceGuild = guilds.find((guild) => guild.id === sourceGuildId);
+  const explorerGuild = guilds.find((guild) => guild.id === explorerGuildId);
+  const explorerGuilds = useMemo(() => {
+    const needle = explorerSearch.trim().toLowerCase();
+    return guilds.filter((guild) => !needle || guild.name.toLowerCase().includes(needle))
+      .sort((a, b) => TIER_ORDER[accessTier(a).key] - TIER_ORDER[accessTier(b).key] || a.name.localeCompare(b.name));
+  }, [guilds, explorerSearch]);
+  const tierCounts = useMemo(() => guilds.reduce((counts, guild) => {
+    counts[accessTier(guild).key] += 1;
+    return counts;
+  }, { full: 0, member: 0, installable: 0, restricted: 0 } as Record<AccessTier["key"], number>), [guilds]);
+  const visibleExplorerAssets = useMemo(() => {
+    const needle = explorerAssetSearch.trim().toLowerCase();
+    return explorerAssets.filter((asset) => !needle || asset.name.toLowerCase().includes(needle));
+  }, [explorerAssets, explorerAssetSearch]);
   const visibleGuildAssets = useMemo(() => sourceGuildId === "all" ? assets : assets.filter((asset) => asset.sourceGuildId === sourceGuildId), [assets, sourceGuildId]);
 
   const visibleItems = useMemo(() => items.filter((item) => `${item.name} ${item.assetType}`.toLowerCase().includes(search.trim().toLowerCase())), [items, search]);
@@ -576,6 +637,87 @@ export default function EmoteLibraryPage() {
     finally { setBusy(""); }
   }
 
+  // Source-only invite: Possum Bot only has to be a member to list a server's
+  // emojis and stickers, so this link requests no permissions at all.
+  function sourceInviteUrl(guildId: string) {
+    if (!botInviteUrl) return "";
+    try {
+      const url = new URL(botInviteUrl);
+      for (const key of ["response_type", "redirect_uri", "state"]) url.searchParams.delete(key);
+      url.searchParams.set("scope", "bot");
+      url.searchParams.set("permissions", "0");
+      url.searchParams.set("guild_id", guildId);
+      url.searchParams.set("disable_guild_select", "true");
+      return url.toString();
+    } catch { return ""; }
+  }
+
+  async function copyAdminRequest(guild: Guild) {
+    const link = sourceInviteUrl(guild.id);
+    if (!link) { setMessage("The Possum Bot invite link is unavailable right now."); return; }
+    const text = `Hi! Could you add Possum Bot to ${guild.name}? I'd like to save a few of the server's emojis to my private collection. The invite asks for no permissions, and the bot can be removed right after: ${link}`;
+    try { await navigator.clipboard.writeText(text); setMessage(`Request copied. Send it to an owner or admin of ${guild.name}.`); }
+    catch { setMessage(`Copy this request for an admin: ${text}`); }
+  }
+
+  async function refreshServerAccess() {
+    setBusy("explorer-refresh"); setMessage("");
+    try {
+      const response = await fetch("/api/guilds/installed", { cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Could not refresh server access.");
+      const present = new Set((Array.isArray(body.guilds) ? body.guilds : []).filter((entry: Guild) => entry?.botPresent !== false).map((entry: Guild) => entry.id));
+      setGuilds((current) => current.map((guild) => ({ ...guild, botPresent: present.has(guild.id) })));
+      if (typeof body.inviteUrl === "string") setBotInviteUrl(body.inviteUrl);
+      if (explorerGuildId) void openExplorerGuild(explorerGuildId, present.has(explorerGuildId));
+      setMessage("Server access refreshed. A server you just added Possum Bot to can take up to 30 seconds to show as installed.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not refresh server access."); }
+    finally { setBusy(""); }
+  }
+
+  async function importExplorerSelection() {
+    if (!explorerGuild?.botPresent || !explorerSelected.length) return;
+    if (!personalRightsConfirmed) { setMessage("Confirm you are authorized to keep these assets in your private collection."); return; }
+    const collection = explorerCollection.trim();
+    setBusy("explorer-import"); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start-import", guildId: explorerGuild.id, assetIds: explorerSelected, collection: collection || undefined, rightsConfirmed: true }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true || !body.job) throw new Error(body?.error || "Could not queue the selected assets.");
+      const job = body.job as ImportJob;
+      setImportJobs((current) => [job, ...current.filter((entry) => entry.id !== job.id)]);
+      importWasActive.current = true;
+      setExplorerSelected([]);
+      setPersonalRightsConfirmed(false);
+      setMessage(`Saving ${job.total} asset${job.total === 1 ? "" : "s"} from ${explorerGuild.name} to ${collection ? `“${collection}”` : "your Inbox"}. Duplicates already in your vault are skipped.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not queue the selected assets."); }
+    finally { setBusy(""); }
+  }
+
+  async function leaveExplorerGuild() {
+    const guild = explorerGuild;
+    if (!guild?.botPresent || !guild.manageable) return;
+    if (!window.confirm(`Remove Possum Bot from ${guild.name}? Everything you saved stays in your vault, but any Possum Bot features set up in that server stop working until it is added again.`)) return;
+    setBusy("explorer-leave"); setMessage("");
+    try {
+      const response = await fetch("/api/jed-catalog", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "leave-source-guild", guildId: guild.id, confirmName: leaveConfirmName }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body?.success !== true) throw new Error(body?.error || "Possum Bot could not leave that server.");
+      setGuilds((current) => current.map((entry) => entry.id === guild.id ? { ...entry, botPresent: false } : entry));
+      setAssets((current) => current.filter((asset) => asset.sourceGuildId !== guild.id));
+      setTargetGuildId((current) => current === guild.id ? "" : current);
+      setExplorerAssets([]); setExplorerSelected([]); setLeaveConfirmName(""); setExplorerStatus("");
+      setMessage(`Possum Bot left ${guild.name}. Your saved assets are still in your vault.`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Possum Bot could not leave that server."); }
+    finally { setBusy(""); }
+  }
+
+  function toggleExplorerAsset(assetId: string) {
+    setExplorerSelected((current) => current.includes(assetId) ? current.filter((id) => id !== assetId) : [...current, assetId]);
+  }
+
   function toggleSelected(itemId: string) {
     setSelectedPersonal((current) => current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId]);
   }
@@ -620,8 +762,8 @@ export default function EmoteLibraryPage() {
         {!signedIn ? <div style={panel}>Sign in to manage your vault and inspect server assets. <a href="/api/auth/discord/login?returnTo=%2Femotes" style={{ ...smallButton, display: "inline-block", marginLeft: 10, textDecoration: "none" }}>Sign in with Discord</a></div> : null}
 
         <nav aria-label="JED sections" style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
-          {([[ "discover", "Discover" ], [ "vault", "My Vault" ], [ "public", "Public Library" ], [ "import", "Import & Sources" ], ...(isCatalogReviewer ? [[ "review", "Review Queue" ]] : [])] as Array<[JedView, string]>).map(([key, label]) =>
-            <button key={key} type="button" style={tabStyle(view === key)} onClick={() => setView(key)}>{label}{key === "vault" ? " · " + personalItems.length : key === "public" ? " · " + items.length : key === "review" ? " · " + pendingItems.length : ""}</button>
+          {([[ "discover", "Discover" ], [ "explorer", "Emoji Explorer" ], [ "vault", "My Vault" ], [ "public", "Public Library" ], [ "import", "Import & Sources" ], ...(isCatalogReviewer ? [[ "review", "Review Queue" ]] : [])] as Array<[JedView, string]>).map(([key, label]) =>
+            <button key={key} type="button" style={tabStyle(view === key)} onClick={() => setView(key)}>{label}{key === "explorer" ? " · " + guilds.length : key === "vault" ? " · " + personalItems.length : key === "public" ? " · " + items.length : key === "review" ? " · " + pendingItems.length : ""}</button>
           )}
         </nav>
 
@@ -632,7 +774,7 @@ export default function EmoteLibraryPage() {
           </div>
           {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={{ ...panel, background: "#180813" }}>
             <strong>{selectedSourceGuild.name}</strong><p style={muted}>Discord only exposes a server&apos;s expression inventory to an app installed there. Ask a server administrator to add Possum Bot to make its assets discoverable.</p>
-            {botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...smallButton, display: "inline-block", textDecoration: "none" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
+            {sourceInviteUrl(selectedSourceGuild.id) ? <a href={sourceInviteUrl(selectedSourceGuild.id)} target="_blank" rel="noreferrer" style={{ ...smallButton, display: "inline-block", textDecoration: "none" }}>Add Possum Bot to {selectedSourceGuild.name}</a> : null}
           </div> : null}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
             <label style={{ ...muted, display: "grid", gap: 5, flex: "1 1 260px" }}>Search discovered assets<input style={field} value={assetSearch} onChange={(event) => setAssetSearch(event.target.value)} placeholder="Name, type, or server" /></label>
@@ -655,6 +797,104 @@ export default function EmoteLibraryPage() {
               {publishingEnabled && guilds.find((guild) => guild.id === asset.sourceGuildId)?.manageable ? <button type="button" style={{ ...smallButton, width: "100%", marginTop: 7, background: "#241020" }} disabled={Boolean(busy) || (!asset.published && !(rightsConfirmed && generalConfirmed))} onClick={() => void publishAsset(asset)}>{asset.published ? "Withdraw public listing" : "Submit to public library"}</button> : null}
             </article>)}
           </div> : <div style={{ ...panel, textAlign: "center", padding: 32 }}><strong>No matching expressions found.</strong><p style={muted}>{assetLoadMessage || "Try another search or choose a server where JED can read the expression list."}</p></div>}
+        </section> : null}
+
+        {view === "explorer" ? <section style={{ ...panel, display: "grid", gap: 16 }}>
+          <div><div style={accent}>EMOJI EXPLORER</div><h2 style={{ margin: "5px 0" }}>Every Discord server you&apos;re in</h2><p style={{ ...muted, margin: 0, maxWidth: 900 }}>Pick a server, choose the emojis and stickers you want, save them to your vault, and remove Possum Bot when you&apos;re done. Possum Bot only has to be a member to read a server&apos;s emojis, so the source invite asks for no permissions.</p></div>
+          {!signedIn ? <p style={muted}>Sign in with Discord to see your servers.</p> : <>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div style={statCard}><strong style={{ display: "block", fontSize: 21 }}>{guilds.length}</strong><span style={muted}>Your servers</span></div>
+              <div style={statCard}><strong style={{ display: "block", fontSize: 21 }}>{tierCounts.full + tierCounts.member}</strong><span style={muted}>Emojis available</span></div>
+              <div style={statCard}><strong style={{ display: "block", fontSize: 21 }}>{tierCounts.installable}</strong><span style={muted}>You can add the bot</span></div>
+              <div style={statCard}><strong style={{ display: "block", fontSize: 21 }}>{tierCounts.restricted}</strong><span style={muted}>Need an admin</span></div>
+            </div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <div style={{ flex: "1 1 280px", maxWidth: 440, minWidth: 0, display: "grid", gap: 9 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input aria-label="Search your servers" style={{ ...field, flex: 1 }} value={explorerSearch} onChange={(event) => setExplorerSearch(event.target.value)} placeholder="Search your servers…" />
+                  <button type="button" style={{ ...smallButton, background: "#241020" }} disabled={Boolean(busy)} onClick={() => void refreshServerAccess()}>{busy === "explorer-refresh" ? "…" : "Refresh"}</button>
+                </div>
+                <div style={{ display: "grid", gap: 7, maxHeight: 620, overflowY: "auto", paddingRight: 2 }}>
+                  {explorerGuilds.length ? explorerGuilds.map((guild) => {
+                    const tier = accessTier(guild);
+                    const selected = guild.id === explorerGuildId;
+                    return <button key={guild.id} type="button" aria-pressed={selected} onClick={() => void openExplorerGuild(guild.id, guild.botPresent === true)}
+                      style={{ display: "flex", gap: 11, alignItems: "center", textAlign: "left", padding: "10px 12px", borderRadius: 12, cursor: "pointer", color: "#ffe4ee",
+                        border: `1px solid ${selected ? "#ff4c8c" : "#472039"}`, background: selected ? "#3a0b24" : "#170710" }}>
+                      {guild.iconUrl ? <img src={guild.iconUrl} alt="" width={38} height={38} loading="lazy" referrerPolicy="no-referrer" style={{ borderRadius: "50%", flexShrink: 0 }} />
+                        : <span aria-hidden="true" style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, display: "grid", placeItems: "center", background: "#3b1028", fontWeight: 800 }}>{guild.name.slice(0, 1).toUpperCase()}</span>}
+                      <span style={{ minWidth: 0 }}>
+                        <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{guild.name}</strong>
+                        <span style={{ fontSize: 12.5, color: tier.tone }}>● {tier.label}</span>
+                      </span>
+                    </button>;
+                  }) : <p style={muted}>{guilds.length ? "No servers match that search." : "Loading your Discord servers…"}</p>}
+                </div>
+              </div>
+
+              <div style={{ flex: "3 1 420px", minWidth: 0, display: "grid", gap: 12 }}>
+                {!explorerGuild ? <div style={{ ...panel, textAlign: "center", padding: 32 }}><strong>Choose a server</strong><p style={muted}>Servers with Possum Bot installed open straight into their emoji list. Others show how to get the bot in.</p></div> : <>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <div><h3 style={{ margin: 0 }}>{explorerGuild.name}</h3><span style={{ fontSize: 13, color: accessTier(explorerGuild).tone }}>{accessTier(explorerGuild).label}</span></div>
+                  </div>
+
+                  {accessTier(explorerGuild).key === "installable" ? <div style={{ ...panel, background: "#180813" }}>
+                    <p style={{ ...muted, marginTop: 0 }}>You manage this server, so you can add Possum Bot as a source with no permissions. Once it joins, click <strong>Refresh</strong> and the emojis load here.</p>
+                    {sourceInviteUrl(explorerGuild.id) ? <a href={sourceInviteUrl(explorerGuild.id)} target="_blank" rel="noreferrer" style={{ ...smallButton, display: "inline-block", textDecoration: "none" }}>Add Possum Bot (no permissions)</a> : <span style={muted}>The invite link is unavailable right now.</span>}
+                  </div> : null}
+
+                  {accessTier(explorerGuild).key === "restricted" ? <div style={{ ...panel, background: "#180813" }}>
+                    <p style={{ ...muted, marginTop: 0 }}>Discord only lets people with <strong>Manage Server</strong> add apps, and it only shares a server&apos;s emoji list with apps that are installed there. Send an owner or admin the request below; it asks for no permissions and they can remove the bot right after.</p>
+                    <button type="button" style={smallButton} disabled={!botInviteUrl} onClick={() => void copyAdminRequest(explorerGuild)}>Copy request for an admin</button>
+                    <p style={{ ...muted, fontSize: 13, marginBottom: 0 }}>Already have a specific emoji? Paste its link under <strong>Import &amp; Sources → Import a direct Discord link</strong>.</p>
+                  </div> : null}
+
+                  {explorerGuild.botPresent ? <>
+                    <div style={{ ...panel, display: "flex", gap: 9, flexWrap: "wrap", alignItems: "end", padding: 13 }}>
+                      <label style={{ ...muted, display: "grid", gap: 4, flex: "1 1 180px" }}>Filter<input style={field} value={explorerAssetSearch} onChange={(event) => setExplorerAssetSearch(event.target.value)} placeholder="Emoji name" /></label>
+                      <label style={{ ...muted, display: "grid", gap: 4, flex: "1 1 180px" }}>Save into collection
+                        <input style={field} list="jed-explorer-collections" maxLength={40} value={explorerCollection} onChange={(event) => setExplorerCollection(event.target.value)} placeholder="Inbox" />
+                        <datalist id="jed-explorer-collections">{collections.map((collection) => <option key={collection} value={collection} />)}</datalist>
+                      </label>
+                      <button type="button" style={{ ...smallButton, background: "#241020" }} onClick={() => setExplorerSelected(visibleExplorerAssets.map((asset) => asset.id))}>Select all</button>
+                      <button type="button" style={{ ...smallButton, background: "#241020" }} onClick={() => setExplorerSelected(visibleExplorerAssets.filter((asset) => !asset.inVault).map((asset) => asset.id))}>Select new only</button>
+                      <button type="button" style={{ ...smallButton, background: "#241020" }} disabled={!explorerSelected.length} onClick={() => setExplorerSelected([])}>Clear</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                      <label style={muted}><input type="checkbox" checked={personalRightsConfirmed} onChange={(event) => setPersonalRightsConfirmed(event.target.checked)} /> I have permission to save these assets privately.</label>
+                      <button type="button" style={button} disabled={!explorerSelected.length || !personalRightsConfirmed || Boolean(busy)} onClick={() => void importExplorerSelection()}>{busy === "explorer-import" ? "Queuing…" : `Save ${explorerSelected.length} to my vault`}</button>
+                    </div>
+                    {explorerJob ? <div role="status" style={{ ...panel, padding: 12, display: "grid", gap: 6 }}>
+                      <span style={muted}>Latest import · {explorerJob.status.replaceAll("_", " ")} · {explorerJob.processed}/{explorerJob.total} processed · {explorerJob.added} added · {explorerJob.skipped} skipped{explorerJob.collection && explorerJob.collection !== "Inbox" ? ` · into “${explorerJob.collection}”` : ""}</span>
+                      <div style={{ height: 6, borderRadius: 6, background: "#16000b", overflow: "hidden" }}><div style={{ width: `${explorerJob.total ? Math.min(100, Math.round(explorerJob.processed / explorerJob.total * 100)) : 0}%`, height: "100%", background: "linear-gradient(90deg,#ff347d,#ff8bb6)" }} /></div>
+                    </div> : null}
+                    {explorerStatus ? <p role="status" style={muted}>{explorerStatus}</p> : null}
+                    {visibleExplorerAssets.length ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(112px, 1fr))", gap: 9 }}>
+                      {visibleExplorerAssets.map((asset) => {
+                        const checked = explorerSelected.includes(asset.id);
+                        return <label key={asset.assetType + ":" + asset.id} title={asset.name} style={{ display: "grid", gap: 5, padding: 8, borderRadius: 12, cursor: "pointer",
+                          border: `1px solid ${checked ? "#ff4c8c" : "#472039"}`, background: checked ? "#3a0b24" : "#170710", position: "relative" }}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleExplorerAsset(asset.id)} style={{ position: "absolute", top: 7, left: 7 }} aria-label={`Select ${asset.name}`} />
+                          <img src={asset.url} alt={asset.name} loading="lazy" referrerPolicy="no-referrer" style={{ width: "100%", height: 64, objectFit: "contain" }} />
+                          <span style={{ fontSize: 12.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{asset.name}</span>
+                          <span style={{ fontSize: 11, color: asset.inVault ? "#4fd18b" : "#efb4c9" }}>{asset.inVault ? "✓ In vault" : asset.assetType}{asset.animated ? " · animated" : ""}</span>
+                        </label>;
+                      })}
+                    </div> : null}
+
+                    {explorerGuild.manageable ? <div style={{ ...panel, background: "#180813", display: "grid", gap: 9 }}>
+                      <strong>Done here? Remove Possum Bot</strong>
+                      <p style={{ ...muted, margin: 0 }}>Your saved assets stay in your vault. Any Possum Bot features set up in this server stop working until it is added again.{explorerJobActive ? " Wait for the import above to finish first." : ""}</p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "end" }}>
+                        <label style={{ ...muted, display: "grid", gap: 4, flex: "1 1 220px" }}>Type “{explorerGuild.name}” to confirm<input style={field} value={leaveConfirmName} onChange={(event) => setLeaveConfirmName(event.target.value)} /></label>
+                        <button type="button" style={{ ...smallButton, background: "#421328" }} disabled={explorerJobActive || leaveConfirmName.trim() !== explorerGuild.name.trim() || Boolean(busy)} onClick={() => void leaveExplorerGuild()}>{busy === "explorer-leave" ? "Leaving…" : "Remove Possum Bot"}</button>
+                      </div>
+                    </div> : <p style={{ ...muted, fontSize: 13, margin: 0 }}>When you&apos;re finished, ask a server admin to remove Possum Bot if it was added just for you.</p>}
+                  </> : null}
+                </>}
+              </div>
+            </div>
+          </>}
         </section> : null}
 
         {view === "vault" ? <section style={{ ...panel, display: "grid", gap: 16 }}>
@@ -783,7 +1023,7 @@ export default function EmoteLibraryPage() {
                 </article>;
               }) : <div style={panel}>No imports have been queued yet.</div>}
             </div>
-            {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={panel}><strong>{selectedSourceGuild.name}</strong><p style={muted}>JED can show this server in your source list, but Discord will only share its inventory after the server installs Possum Bot.</p>{botInviteUrl ? <a href={(() => { try { const url = new URL(botInviteUrl); url.searchParams.set("guild_id", selectedSourceGuild.id); url.searchParams.set("disable_guild_select", "true"); return url.toString(); } catch { return botInviteUrl; } })()} target="_blank" rel="noreferrer" style={{ ...smallButton, textDecoration: "none", display: "inline-block" }}>Add Possum Bot</a> : null}</div> : null}
+            {sourceGuildId !== "all" && selectedSourceGuild && !selectedSourceGuild.botPresent ? <div style={panel}><strong>{selectedSourceGuild.name}</strong><p style={muted}>JED can show this server in your source list, but Discord will only share its inventory after the server installs Possum Bot.</p>{sourceInviteUrl(selectedSourceGuild.id) ? <a href={sourceInviteUrl(selectedSourceGuild.id)} target="_blank" rel="noreferrer" style={{ ...smallButton, textDecoration: "none", display: "inline-block" }}>Add Possum Bot</a> : null}</div> : null}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14 }}>
               <div style={panel}><h3 style={{ marginTop: 0 }}>Import a direct Discord link</h3><p style={muted}>Add a Discord emoji, sticker, or attachment CDN link for an image or GIF. JED validates and stores a private copy.</p><div style={{ display: "grid", gap: 9 }}>
                 <input style={field} maxLength={32} value={linkedAssetName} onChange={(event) => setLinkedAssetName(event.target.value)} placeholder="Name for this asset" aria-label="Linked asset name" />

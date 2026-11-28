@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type StatusState = "online" | "maintenance" | "offline";
+export type StatusState = "online" | "maintenance" | "offline" | "unknown";
 
 export type PublicStatusService = {
   id: string;
@@ -22,26 +22,26 @@ export type PublicStatusPayload = {
 const STORE_PATH = path.join(process.cwd(), "data", "ui", "public-status.json");
 
 const DEFAULT_SERVICES: PublicStatusService[] = [
-  { id: "bot-core", label: "Bot Core", summary: "Primary bot runtime and command router.", status: "online", updatedAt: "" },
-  { id: "dashboard", label: "Dashboard", summary: "OAuth, guild selector, and dashboard APIs.", status: "online", updatedAt: "" },
-  { id: "possum-ai", label: "Possum AI", summary: "Homemade adaptive AI and learned routing.", status: "online", updatedAt: "" },
-  { id: "persona-ai", label: "Persona Engine AI", summary: "Hosted persona model path and prompt routing.", status: "online", updatedAt: "" },
-  { id: "tts", label: "TTS Engine", summary: "Speech routing and voice playback.", status: "online", updatedAt: "" },
-  { id: "tickets", label: "Tickets", summary: "Panel flows, claim/close/reopen/delete, transcripts.", status: "online", updatedAt: "" },
-  { id: "selfroles", label: "Selfroles", summary: "Panel deployment and role button/select logic.", status: "online", updatedAt: "" },
-  { id: "heist", label: "Heist Engine", summary: "Heist signups, rotation, and logs.", status: "online", updatedAt: "" },
-  { id: "crew", label: "Crew", summary: "Crew creation, vaults, and member logic.", status: "online", updatedAt: "" },
-  { id: "dominion", label: "Dominion", summary: "Raid/alliance/war control surface.", status: "online", updatedAt: "" },
-  { id: "contracts", label: "Contracts", summary: "Contract generation, completion, and reward flow.", status: "online", updatedAt: "" },
-  { id: "catdrop", label: "Cat Drop", summary: "Weighted cat spawns, catches, and rewards.", status: "online", updatedAt: "" },
-  { id: "rarespawn", label: "Rare Spawn", summary: "Auto/manual rare event spawns and claims.", status: "online", updatedAt: "" },
-  { id: "range", label: "Range", summary: "Range rounds, cooldowns, and scoring.", status: "online", updatedAt: "" },
+  { id: "bot-core", label: "Bot Core", summary: "Primary bot runtime and command router.", status: "unknown", updatedAt: "" },
+  { id: "dashboard", label: "Dashboard", summary: "OAuth, guild selector, and dashboard APIs.", status: "unknown", updatedAt: "" },
+  { id: "possum-ai", label: "Possum AI", summary: "Homemade adaptive AI and learned routing.", status: "unknown", updatedAt: "" },
+  { id: "persona-ai", label: "Persona Engine AI", summary: "Hosted persona model path and prompt routing.", status: "unknown", updatedAt: "" },
+  { id: "tts", label: "TTS Engine", summary: "Speech routing and voice playback.", status: "unknown", updatedAt: "" },
+  { id: "tickets", label: "Tickets", summary: "Panel flows, claim/close/reopen/delete, transcripts.", status: "unknown", updatedAt: "" },
+  { id: "selfroles", label: "Selfroles", summary: "Panel deployment and role button/select logic.", status: "unknown", updatedAt: "" },
+  { id: "heist", label: "Heist Engine", summary: "Heist signups, rotation, and logs.", status: "unknown", updatedAt: "" },
+  { id: "crew", label: "Crew", summary: "Crew creation, vaults, and member logic.", status: "unknown", updatedAt: "" },
+  { id: "dominion", label: "Dominion", summary: "Raid/alliance/war control surface.", status: "unknown", updatedAt: "" },
+  { id: "contracts", label: "Contracts", summary: "Contract generation, completion, and reward flow.", status: "unknown", updatedAt: "" },
+  { id: "catdrop", label: "Cat Drop", summary: "Weighted cat spawns, catches, and rewards.", status: "unknown", updatedAt: "" },
+  { id: "rarespawn", label: "Rare Spawn", summary: "Auto/manual rare event spawns and claims.", status: "unknown", updatedAt: "" },
+  { id: "range", label: "Range", summary: "Range rounds, cooldowns, and scoring.", status: "unknown", updatedAt: "" },
 ];
 
 const DEFAULT_STATUS: PublicStatusPayload = {
-  overall: "online",
-  headline: "Possum systems are online",
-  message: "Public dashboard, control surfaces, and the live bot stack are healthy.",
+  overall: "unknown",
+  headline: "System status has not been reported",
+  message: "No owner-published status is available yet. Live runtime checks are shown separately.",
   updatedAt: "",
   services: DEFAULT_SERVICES,
 };
@@ -56,7 +56,7 @@ function ensureStoreDir() {
 
 function normalizeState(input: unknown, fallback: StatusState): StatusState {
   const value = String(input || "").trim().toLowerCase();
-  if (value === "online" || value === "maintenance" || value === "offline") return value;
+  if (value === "online" || value === "maintenance" || value === "offline" || value === "unknown") return value;
   return fallback;
 }
 

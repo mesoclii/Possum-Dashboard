@@ -101,6 +101,7 @@ export async function callAgent(options: {
   body?: unknown;
   actor?: OpsActor;
   responseLimit?: "metrics";
+  timeoutMs?: number;
 }): Promise<AgentResult> {
   const token = String(process.env.OPS_AGENT_TOKEN || "").trim();
   if (!token) {
@@ -111,6 +112,10 @@ export async function callAgent(options: {
   }
 
   try {
+    const requestedTimeout = Number(options.timeoutMs);
+    const timeoutMs = Number.isFinite(requestedTimeout)
+      ? Math.max(250, Math.min(DEFAULT_TIMEOUT_MS, Math.floor(requestedTimeout)))
+      : DEFAULT_TIMEOUT_MS;
     const baseUrl = new URL(agentBaseUrl());
     const targetUrl = new URL(options.path, baseUrl);
     if (targetUrl.origin !== baseUrl.origin) throw new Error("Invalid operations agent path.");
@@ -123,7 +128,7 @@ export async function callAgent(options: {
         ...(options.actor ? { "x-ops-actor": options.actor.userId } : {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
-      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       cache: "no-store",
     });
 

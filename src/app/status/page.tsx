@@ -2,8 +2,9 @@
 
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
+import type { PublicLiveHealth, LiveHealthStatus } from "@/lib/publicLiveHealth";
 
-type StatusState = "online" | "maintenance" | "offline";
+type StatusState = "online" | "maintenance" | "offline" | "unknown";
 type ServiceStatus = {
   id: string;
   label: string;
@@ -39,14 +40,16 @@ const card: CSSProperties = {
   padding: 18,
 };
 
-function colorForStatus(status: StatusState) {
+function colorForStatus(status: StatusState | LiveHealthStatus) {
   if (status === "online") return { border: "#ff2bd6", text: "#ffd1f5", bg: "rgba(255,43,214,0.18)" };
   if (status === "maintenance") return { border: "#ff2a4d", text: "#ffd1f5", bg: "rgba(255,42,77,0.2)" };
-  return { border: "#7a1010", text: "#ffc0c0", bg: "rgba(120,0,0,0.22)" };
+  if (status === "offline") return { border: "#7a1010", text: "#ffc0c0", bg: "rgba(120,0,0,0.22)" };
+  return { border: "#665d7a", text: "#ded7f1", bg: "rgba(80,70,105,0.2)" };
 }
 
 export default function StatusPage() {
   const [status, setStatus] = useState<PublicStatus | null>(null);
+  const [liveHealth, setLiveHealth] = useState<PublicLiveHealth | null>(null);
   const [session, setSession] = useState<SessionState>({ loggedIn: false, isMasterOwner: false });
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -60,6 +63,7 @@ export default function StatusPage() {
       const statusJson = await statusRes?.json().catch(() => ({}));
       const sessionJson = await sessionRes?.json().catch(() => ({}));
       setStatus(statusJson?.status || null);
+      setLiveHealth(statusJson?.liveHealth || null);
       setSession({
         loggedIn: Boolean(sessionJson?.loggedIn),
         isMasterOwner: Boolean(sessionJson?.isMasterOwner),
@@ -69,7 +73,8 @@ export default function StatusPage() {
   }, []);
 
   const canEdit = session.loggedIn && session.isMasterOwner;
-  const overallTone = useMemo(() => colorForStatus(status?.overall || "online"), [status?.overall]);
+  const overallTone = useMemo(() => colorForStatus(status?.overall || "unknown"), [status?.overall]);
+  const liveTone = useMemo(() => colorForStatus(liveHealth?.status || "unknown"), [liveHealth?.status]);
 
   async function saveStatus() {
     if (!canEdit || !status) return;
@@ -121,8 +126,8 @@ export default function StatusPage() {
                 Board
               </h1>
               <div style={{ maxWidth: 900, color: "#ffd5d5", lineHeight: 1.7 }}>
-                This page is for clean public visibility. It shows whether the bot and its main engine surfaces are
-                online, offline, or under maintenance. Logged-in master owner sessions can update the board live.
+                Live runtime checks come from the Operations Agent. The public status below is an owner-published notice;
+                it is kept separate from measured service health. Logged-in master owner sessions can update that notice.
               </div>
             </div>
 
@@ -136,15 +141,50 @@ export default function StatusPage() {
               }}
             >
               <div style={{ color: "#ffb2b2", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.14em" }}>
-                Overall
+                Owner-published status
               </div>
               <div style={{ color: overallTone.text, fontSize: 34, fontWeight: 900, textTransform: "uppercase", marginTop: 8 }}>
-                {status?.overall || "online"}
+                {status?.overall || "unknown"}
               </div>
               <div style={{ color: "#ffd4d4", marginTop: 10 }}>{status?.headline || "Loading system status..."}</div>
             </div>
           </div>
           {message ? <div style={{ color: "#ffd37a", marginTop: 14 }}>{message}</div> : null}
+        </section>
+
+        <section style={{ ...card, marginBottom: 20, borderColor: liveTone.border, background: liveTone.bg }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ color: "#ff9c9c", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.14em" }}>
+                Live Runtime Checks · Operations Agent
+              </div>
+              <div style={{ color: liveTone.text, fontSize: 27, fontWeight: 900, textTransform: "uppercase", marginTop: 8 }}>
+                {liveHealth?.status || "unknown"}
+              </div>
+              <div style={{ color: "#ffd4d4", marginTop: 8 }}>
+                {liveHealth?.message || "Live health data is loading."}
+              </div>
+              <div style={{ color: "#ffb7b7", fontSize: 12, marginTop: 8 }}>
+                Sample: {liveHealth?.checkedAt ? new Date(liveHealth.checkedAt).toLocaleString() : "unavailable"}
+                {liveHealth ? ` · ${liveHealth.freshness}` : ""}
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 10, flex: "1 1 620px" }}>
+              {(liveHealth?.checks || []).map((check) => {
+                const tone = colorForStatus(check.status);
+                return (
+                  <div key={check.id} style={{ border: `1px solid ${tone.border}`, borderRadius: 12, padding: 12, background: "rgba(0,0,0,0.28)" }}>
+                    <div style={{ color: "#ffd7d7", fontWeight: 800 }}>{check.label}</div>
+                    <div style={{ color: tone.text, fontSize: 12, fontWeight: 900, marginTop: 6, textTransform: "uppercase" }}>{check.status}</div>
+                    <div style={{ color: "#ffb7b7", fontSize: 11, marginTop: 6 }}>
+                      {check.checkedAt ? `Checked ${new Date(check.checkedAt).toLocaleTimeString()}` : "No verified sample"}
+                    </div>
+                  </div>
+                );
+              })}
+              {!liveHealth ? <div style={{ color: "#ffd4d4" }}>No verified live checks are available.</div> : null}
+            </div>
+          </div>
         </section>
 
         {status ? (
@@ -153,7 +193,7 @@ export default function StatusPage() {
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(320px,0.9fr)", gap: 18 }}>
                 <div>
                   <div style={{ color: "#ff9c9c", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.14em" }}>
-                    Public Message
+                    Owner-published Message
                   </div>
                   <div style={{ color: "#ffd7d7", fontSize: 24, fontWeight: 900, marginTop: 10 }}>{status.headline}</div>
                   <div style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 12 }}>{status.message}</div>
@@ -173,6 +213,7 @@ export default function StatusPage() {
                         onChange={(event) => setStatus((prev) => (prev ? { ...prev, overall: event.target.value as StatusState } : prev))}
                         style={{ background: "#0b0b0b", color: "#ffd7d7", border: "1px solid rgba(255,0,0,0.4)", borderRadius: 10, padding: 12 }}
                       >
+                        <option value="unknown">Not reported</option>
                         <option value="online">Online</option>
                         <option value="maintenance">Maintenance</option>
                         <option value="offline">Offline</option>
@@ -214,13 +255,18 @@ export default function StatusPage() {
                       Visibility
                     </div>
                     <div style={{ color: "#ffd0d0", lineHeight: 1.7, marginTop: 12 }}>
-                      This status board is public. Only the master owner login can change it.
+                      This owner-published notice is public. Only the master owner login can change it; live checks are shown separately above.
                     </div>
                   </div>
                 )}
               </div>
             </section>
 
+            <section style={{ marginBottom: 10 }}>
+              <p style={{ color: "#ffb7b7", fontSize: 12, margin: "0 0 12px" }}>
+                These service labels are owner-published notices. Use Live Runtime Checks above for monitored API, gateway, and database health.
+              </p>
+            </section>
             <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 14 }}>
               {status.services.map((service) => {
                 const tone = colorForStatus(service.status);
@@ -272,6 +318,7 @@ export default function StatusPage() {
                           padding: 12,
                         }}
                       >
+                        <option value="unknown">Not reported</option>
                         <option value="online">Online</option>
                         <option value="maintenance">Maintenance</option>
                         <option value="offline">Offline</option>

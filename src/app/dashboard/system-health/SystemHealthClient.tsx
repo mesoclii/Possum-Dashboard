@@ -127,7 +127,7 @@ export default function SystemHealthPage() {
     const nextGuildName = String(r6?.guild?.name || "").trim();
     setGuildName(nextGuildName);
     if (nextGuildName && typeof window !== "undefined") localStorage.setItem("activeGuildName", nextGuildName);
-    const status = r7?.status || null;
+    const status = r7?.status ? { ...r7.status, liveHealth: r7.liveHealth || null } : null;
     setStatusSummary(status);
     const catalogRoot = r8?.catalog || r8?.data?.catalog || null;
     const engineCount = Array.isArray(catalogRoot?.engines) ? catalogRoot.engines.length : 0;
@@ -140,8 +140,11 @@ export default function SystemHealthPage() {
 
   useEffect(() => {
     const gid = getGuildId();
-    setGuildId(gid);
-    loadAll(gid).catch(() => setMsg("Failed to load health data."));
+    const frame = window.requestAnimationFrame(() => {
+      setGuildId(gid);
+      loadAll(gid).catch(() => setMsg("Failed to load health data."));
+    });
+    return () => window.cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -242,9 +245,12 @@ export default function SystemHealthPage() {
           <b>Runtime Summary</b>
           <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
             <div style={{ background: "#0f0f0f", borderRadius: 10, padding: 10 }}>
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ff8c8c" }}>Public Status</div>
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ff8c8c" }}>Owner-published Status</div>
               <div style={{ fontWeight: 800, marginTop: 6 }}>{statusSummary?.overall || "unknown"}</div>
               <div style={{ fontSize: 12, marginTop: 4, color: "#ffd0d0" }}>{statusSummary?.headline || "No status headline."}</div>
+              <div style={{ fontSize: 12, marginTop: 8, color: "#ffd0d0" }}>
+                Live checks: {statusSummary?.liveHealth?.status || "unknown"} · {statusSummary?.liveHealth?.freshness || "unavailable"}
+              </div>
             </div>
             <div style={{ background: "#0f0f0f", borderRadius: 10, padding: 10 }}>
               <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#ff8c8c" }}>Engine Catalog</div>

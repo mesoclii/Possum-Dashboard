@@ -54,7 +54,9 @@ export function buildPublicLiveHealthSnapshot(input: unknown, now = Date.now()):
     ? "unavailable"
     : sampleFresh ? "fresh" : checkedAt ? "stale" : "unavailable";
   const http = record(root.http);
-  const httpServices = record(http.services);
+  const httpServices = Object.prototype.hasOwnProperty.call(http, "services")
+    ? record(http.services)
+    : http;
   const checks: PublicLiveCheck[] = [
     {
       id: "bot-core",

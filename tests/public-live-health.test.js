@@ -23,11 +23,9 @@ function healthySample(now) {
   return {
     agent: { lastTickAt: timestamp },
     http: {
-      services: {
-        bot: { ok: true, checkedAt: now - 15_000, discordReady: true, databaseReady: true },
-        dashboard: { ok: true, checkedAt: now - 15_000 },
-        bridge: { ok: true, checkedAt: now - 15_000 },
-      },
+      bot: { ok: true, checkedAt: now - 15_000, discordReady: true, databaseReady: true },
+      dashboard: { ok: true, checkedAt: now - 15_000 },
+      bridge: { ok: true, checkedAt: now - 15_000 },
     },
   };
 }
@@ -55,11 +53,11 @@ test("a stale monitoring sample becomes unknown instead of staying online", () =
 test("failed probes and partial Bot readiness are reported as offline or degraded", () => {
   const now = 1_800_000_000_000;
   const unavailable = healthySample(now);
-  unavailable.http.services.dashboard.ok = false;
+  unavailable.http.dashboard.ok = false;
   assert.equal(buildPublicLiveHealthSnapshot(unavailable, now).status, "offline");
 
   const degraded = healthySample(now);
-  degraded.http.services.bot.databaseReady = false;
+  degraded.http.bot.databaseReady = false;
   const result = buildPublicLiveHealthSnapshot(degraded, now);
   assert.equal(result.status, "degraded");
   assert.equal(result.checks[0].status, "degraded");

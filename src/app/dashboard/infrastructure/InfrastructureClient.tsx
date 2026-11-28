@@ -814,7 +814,7 @@ export default function InfrastructureClient() {
   const pendingMappings = (report?.proposals || []).filter((proposal) => proposal.status !== "populated" && !isPanelField(proposal));
   const activePlanSummary = summarizeSetupPlan(activePlan?.plan.actions || [], activePlan?.plan.state === "succeeded");
   const planPermissionBlocked = Boolean(activePlan?.plan.actions.some((action) =>
-    action.type === "create_resource" && action.permissionStatus !== "verified"
+    ["create_resource", "deploy_panel"].includes(action.type) && action.permissionStatus !== "verified"
   ));
   const selectedFeatureCount = report?.settings?.trackedEnginesConfigured === true
     ? (report.settings.trackedEngines || []).length
@@ -1123,7 +1123,7 @@ export default function InfrastructureClient() {
         title={`Review ${activePlan?.plan.actions.length || 0} setup checkpoint${activePlan?.plan.actions.length === 1 ? "" : "s"}`}
         detail={activePlan?.plan.intent === "connect-existing"
           ? "Review the destinations the bot found in this server. Apply the plan to connect them to the listed feature settings."
-          : "Review the exact resources to create and the existing destinations to connect."}
+          : `Review the exact resources to create and the existing destinations to connect.${activePlanSummary.panels ? ` The approved plan will also publish or refresh ${activePlanSummary.panels} configured ticket and self-role panel messages.` : ""}`}
         confirmLabel="Apply reviewed plan"
         busy={busyAction === "setup-plan"}
         locked={locked && busyAction !== "setup-plan"}
@@ -1131,7 +1131,7 @@ export default function InfrastructureClient() {
         onConfirm={() => void executeSetupPlan()}
         onCancel={() => setConfirm("")}
       >
-        {planPermissionBlocked ? <p className="mb-2 rounded-lg border border-amber-700/60 bg-amber-950/30 p-2 text-xs text-amber-100">The bot is missing a required Discord permission for at least one planned resource. The plan cannot run until Discord permissions are corrected and a fresh preview is created.</p> : null}
+        {planPermissionBlocked ? <p className="mb-2 rounded-lg border border-amber-700/60 bg-amber-950/30 p-2 text-xs text-amber-100">The bot is missing a required Discord permission for at least one planned resource or panel. The plan cannot run until Discord permissions are corrected and a fresh preview is created.</p> : null}
         {activePlan?.plan.intent === "connect-existing" && activePlan.plan.actions.some((action) =>
           action.type === "configure_autopilot" && action.changes?.some((change) => change.key === "automaticProvisioningEnabled")) ? (
           <p className="mb-2 text-xs text-amber-100">This plan turns off Auto-create for this server so it can reuse your existing layout.</p>
@@ -1139,8 +1139,9 @@ export default function InfrastructureClient() {
         <div className="max-h-72 space-y-2 overflow-y-auto">
           {(activePlan?.plan.actions || []).map((action) => (
             <div key={action.id} className="rounded-lg border border-red-900/50 px-3 py-2">
-              <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.type.replace(/_/g, " ")} · {action.resourceType || action.flow || "settings"}</p>
-              <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || "Apply selected setup settings"}</p>
+              <p className="text-xs uppercase tracking-[0.12em] text-pink-200">{action.type.replace(/_/g, " ")} · {action.resourceType || action.flow || action.panelKind || "settings"}</p>
+              <p className="mt-1 text-sm font-bold text-red-100">{action.name || action.resourceName || [action.engine, action.field].filter(Boolean).join(" · ") || action.flow || (action.panelKind ? `Publish or refresh ${action.panelCount || 1} ${action.panelKind} panel message(s)` : "Apply selected setup settings")}</p>
+              {action.panelDestinations?.length ? <p className="mt-1 text-xs text-pink-100/75">Destinations: {action.panelDestinations.map((destination) => `${destination.label}: ${destination.channelName || destination.channelId || "planned channel"}${destination.channelId ? ` (ID ${destination.channelId})` : destination.actionId ? " (created or connected by this plan)" : ""}`).join(" · ")}</p> : null}
               {action.requiredPermissions?.length ? <p className="mt-1 text-xs text-pink-100/70">Bot permission: {action.requiredPermissions.join(", ")}{action.permissionStatus === "verified" ? " · verified" : " · not verified"}</p> : null}
               {describeBlueprintResource(action, activePlan?.plan.actions).map((detail) => <p key={detail} className="mt-1 text-xs leading-relaxed text-pink-100/65">{detail}</p>)}
             </div>

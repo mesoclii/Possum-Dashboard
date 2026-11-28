@@ -527,7 +527,7 @@ export default function InfrastructureSetupWizard() {
   const categoryDestinations = previewSnapshot?.report.categoryDestinations || [];
   const categoryReviewRequired = categoryDestinations.some((destination) => destination.status === "review");
   const blockedCreations = planActions.filter((action) =>
-    action.type === "create_resource" && action.permissionStatus !== "verified");
+    ["create_resource", "deploy_panel"].includes(action.type) && action.permissionStatus !== "verified");
   const skippedMappingCount = previewSnapshot?.skippedMappings.length || 0;
   const namesDirty = Boolean(previewSnapshot && !sameNames(names, previewSnapshot.names));
   const categoryNamesDirty = Boolean(previewSnapshot && !sameNames(categoryNames, previewSnapshot.categoryNames));
@@ -1281,10 +1281,10 @@ export default function InfrastructureSetupWizard() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-black uppercase">Review the complete setup</h2>
-              <p className="mt-1 text-sm text-pink-100/75">Review proposed resources. Clear channel matches are mapped; approved missing destinations can be created. Setup never publishes panel messages.</p>
+              <p className="mt-1 text-sm text-pink-100/75">Review proposed resources. Clear channel matches are mapped; approved missing destinations can be created. Configured ticket and self-role panels are published or refreshed after their destinations are ready.</p>
             </div>
             <span className="rounded-md border possum-divider px-2 py-1 text-xs">
-              {planSummary.creates} to create · {planSummary.roles} roles · {planSummary.channels} channels · {planSummary.categories} categories · {planSummary.mappings} existing mappings
+              {planSummary.creates} to create · {planSummary.roles} roles · {planSummary.channels} channels · {planSummary.categories} categories · {planSummary.mappings} existing mappings · {planSummary.panels} panel messages
             </span>
           </div>
 
@@ -1538,7 +1538,7 @@ export default function InfrastructureSetupWizard() {
             </details>
           ) : null}
           {setupReviewBlocked ? <p className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Resolve the channel, role, and category choices above, then refresh the plan. Approval stays disabled until those choices are reflected in the reviewed plan.</p> : null}
-          {blockedCreations.length ? <p className="text-sm text-amber-200">Discord permissions block {blockedCreations.length} resource actions. Review the bot permissions and refresh the preview.</p> : null}
+          {blockedCreations.length ? <p className="text-sm text-amber-200">Discord permissions block {blockedCreations.length} resource or panel actions. Review the bot permissions and refresh the preview.</p> : null}
           {previewDirty ? (
             <p className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3 text-sm text-amber-100">Your feature or name edits changed after this preview. Refresh the preview before approving.</p>
           ) : null}
@@ -1556,12 +1556,20 @@ export default function InfrastructureSetupWizard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setPreviewOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-labelledby="server-setup-confirm-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border possum-divider bg-black p-4 shadow-2xl sm:p-6">
             <h2 id="server-setup-confirm-title" className="text-xl font-black uppercase">Approve server setup?</h2>
-            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {planSummary.mappings} existing destinations and create {planSummary.creates} resources in this server.</p>
-            <p className="mt-2 text-sm text-pink-100/80">Setup may create or map approved panel destination channels; it never posts panel messages. Protected onboarding settings and existing mappings stay unchanged.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Possum will connect {planSummary.mappings} existing destinations, create {planSummary.creates} resources, and publish or refresh {planSummary.panels} configured ticket and self-role panel messages in this server.</p>
+            <p className="mt-2 text-sm text-pink-100/80">Panel updates match Possum-owned messages by their component IDs. Existing unrelated messages stay untouched, and setup never purges a panel channel. Protected onboarding settings and existing mappings stay unchanged.</p>
             <details className="mt-3 rounded-lg border border-pink-900/40 p-3">
-              <summary className="cursor-pointer text-sm font-bold">Show the full creation and mapping list</summary>
+              <summary className="cursor-pointer text-sm font-bold">Show the full setup action list</summary>
               <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto text-sm">
-                {planActions.filter((action) => action.type === "create_resource" || action.type === "map_existing_resource").map((action) => {
+                {planActions.filter((action) => ["create_resource", "map_existing_resource", "deploy_panel"].includes(action.type)).map((action) => {
+                  if (action.type === "deploy_panel") return <li key={action.id}>
+                    Publish or refresh {action.panelCount || 1} {action.panelKind === "selfroles" ? "self-role" : "ticket"} panel message{Number(action.panelCount || 1) === 1 ? "" : "s"}.
+                    <span className="block pl-3 text-xs text-pink-100/75">Destinations: {(action.panelDestinations || []).map((destination) => {
+                      const target = destination.channelName || (destination.channelId ? "Discord channel" : destination.actionId ? "planned channel" : "unresolved channel");
+                      return `${destination.label}: ${target}${destination.channelId ? ` (ID ${destination.channelId})` : destination.actionId ? " (created or connected by this plan)" : ""}`;
+                    }).join(" · ") || "No destination has been resolved."}</span>
+                    <span className="block pl-3 text-xs text-pink-100/65">Possum updates an exact matching bot-owned panel or posts one when none exists. Other channel messages are left untouched.</span>
+                  </li>;
                   const parentAction = action.group && action.resourceType !== "category"
                     ? planActions.find((candidate) => candidate.id === `resource:group-category:${action.group}`)
                     : null;

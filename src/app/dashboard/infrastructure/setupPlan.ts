@@ -15,6 +15,15 @@ export type SetupPlanAction = {
   resourceName?: string;
   flow?: string;
   choice?: string;
+  panelKind?: string;
+  panelCount?: number;
+  panelDestinations?: {
+    targetKey: string;
+    label: string;
+    channelId?: string;
+    channelName?: string;
+    actionId?: string;
+  }[];
   changes?: { key: string }[];
   requiredPermissions?: string[];
   permissionStatus?: string;
@@ -106,6 +115,8 @@ export function summarizeSetupPlan(actions: SetupPlanAction[], completed = false
   const relevant = completed ? actions.filter((action) => action.status === "completed") : actions;
   const creates = relevant.filter((action) => action.type === "create_resource");
   const mappings = relevant.filter((action) => action.type === "map_existing_resource").length;
+  const panelActions = relevant.filter((action) => action.type === "deploy_panel");
+  const panels = panelActions.reduce((total, action) => total + Math.max(1, Number(action.panelCount || 0)), 0);
   const settings = relevant.filter((action) => action.type === "configure_protected_flow" ||
     action.changes?.some((change) => change.key !== "mode")).length;
   return {
@@ -114,6 +125,7 @@ export function summarizeSetupPlan(actions: SetupPlanAction[], completed = false
     categories: creates.filter((action) => action.resourceType === "category").length,
     roles: creates.filter((action) => action.resourceType === "role").length,
     mappings,
-    total: creates.length + mappings + settings,
+    panels,
+    total: creates.length + mappings + settings + panelActions.length,
   };
 }

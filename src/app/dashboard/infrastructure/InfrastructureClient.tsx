@@ -100,7 +100,9 @@ type ApiJson = {
 
 type Notice = { id: number; tone: "ok" | "err"; title: string; detail?: string };
 type PendingWrite = { title: string; detail: string; confirmLabel: string; body: Record<string, unknown> };
-type DialogKind = "repair" | "adapt" | "setup-plan" | "";
+type CompensationItem = { actionId: string; status: string; reason?: string; resourceId?: string };
+type CompensationPreview = { ok: boolean; planId: string; planState: string; previewToken: string; items: CompensationItem[]; canExecute: boolean; deletesResources: boolean };
+type DialogKind = "repair" | "adapt" | "setup-plan" | "compensation" | "";
 
 function isPanelField(row: { engine: string; field: string }) {
   return /deploy/i.test(`${row.engine}:${row.field}`);
@@ -243,6 +245,18 @@ function describeResult(body: Record<string, unknown>, json: ApiJson): { title: 
     return {
       title: `Repair recreated ${countOf(result.repaired)} resource${countOf(result.repaired) === 1 ? "" : "s"}`,
       lines: [...(names.length ? [`Recreated: ${names.join(", ")}`] : []), ...(result.message ? [String(result.message)] : [])],
+    };
+  }
+  if (action === "plan-rollback") {
+    const summary = (result.compensation || {}) as Record<string, number>;
+    return {
+      title: result.completed === true ? "Previous setup state restored" : "Restore finished with items for review",
+      lines: [
+        String(summary.completed || 0) + " changes restored",
+        String(summary.alreadyCompensated || 0) + " already restored",
+        String(summary.retainedResources || 0) + " created resources retained",
+        String((summary.conflicts || 0) + (summary.manualReview || 0) + (summary.failed || 0)) + " items need review",
+      ],
     };
   }
   if (action === "approve") {
@@ -427,6 +441,7 @@ export default function InfrastructureClient() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [confirm, setConfirm] = useState<DialogKind>("");
   const [preview, setPreview] = useState<AdaptPreview | null>(null);
+  const [compensationPreview, setCompensationPreview] = useState<CompensationPreview | null>(null);
   const [pending, setPending] = useState<PendingWrite | null>(null);
   const inFlight = useRef(false);
   const loadSequence = useRef(0);
@@ -471,6 +486,10 @@ export default function InfrastructureClient() {
       setReport(null);
       setActivePlan(null);
       setPlanProgress("");
+      if (contextChanged) {
+        setCompensationPreview(null);
+        setConfirm("");
+      }
       if (!nextGuild) return;
       fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(nextGuild)}&userId=${encodeURIComponent(nextUser)}`, { cache: "no-store" })
         .then(async (response) => {
@@ -544,6 +563,19 @@ export default function InfrastructureClient() {
       const json = await readJson(response);
       if (readDashboardGuildId() !== guildId || readDashboardUserId() !== userId) return;
       if (!response.ok || json.success === false) {
+        if (["plan-run", "plan-resume", "plan-cancel", "plan-rollback"].includes(String(body.action))) {
+          const refreshedResponse = await fetch(
+            `/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`,
+            { cache: "no-store" },
+          ).catch(() => null);
+          if (refreshedResponse?.ok) {
+            const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
+            if (readDashboardGuildId() === guildId && readDashboardUserId() === userId) {
+              setActivePlan(refreshed.activePlan || null);
+              if (refreshed.report?.guildId === guildId) setReport(refreshed.report);
+            }
+          }
+        }
         notify("err", `Request failed (${response.status})`, json.error || "The bot API did not return an error message.");
         return;
       }
@@ -561,6 +593,18 @@ export default function InfrastructureClient() {
           summary.total
             ? `${summary.channels} channels, ${summary.roles} roles, ${summary.categories} categories to create · ${summary.mappings} destinations to connect. Approve the plan to apply it.`
             : "No new connections were found. You can choose a destination for any unresolved field below.");
+        return;
+      }
+      if (body.action === "plan-rollback-preview") {
+        const next = json.result as unknown as CompensationPreview | undefined;
+        if (!next?.ok || next.planId !== activePlan?.plan.id || !next.previewToken ||
+          next.canExecute !== true || next.deletesResources !== false || !Array.isArray(next.items)) {
+          notify("err", "Restore preview unavailable", json.error || "The saved plan cannot be safely restored. No changes were made.");
+          return;
+        }
+        setCompensationPreview(next);
+        setConfirm("compensation");
+        notify("ok", "Restore preview ready", next.items.filter((item) => item.status === "ready").length + " settings can be restored. Discord resources will not be deleted.");
         return;
       }
       if (json.result?.duplicate === true || json.result?.stale === true) {
@@ -599,6 +643,7 @@ export default function InfrastructureClient() {
       setPreview(null);
       setConfirm("");
       setPending(null);
+      if (body.action === "plan-rollback") setCompensationPreview(null);
       const refreshedResponse = await fetch(`/api/bot/infrastructure?guildId=${encodeURIComponent(guildId)}&userId=${encodeURIComponent(userId)}`, { cache: "no-store" });
       const refreshed = await readJson(refreshedResponse).catch(() => ({} as ApiJson));
       const nextReport = refreshed.report || json.report || null;
@@ -906,6 +951,7 @@ export default function InfrastructureClient() {
               {activePlan.plan.state === "draft" && activePlan.canResume && activePlanSummary.total > 0 ? <ActionButton label="Review and apply" tip="Review every planned change before authorizing execution." busy={false} locked={locked} onClick={() => setConfirm("setup-plan")} /> : null}
               {activePlan.canResume && activePlan.plan.state !== "draft" ? <ActionButton label="Resume plan" tip="Continue the saved plan from its next safe checkpoint." busy={busyAction === "setup-plan"} busyLabel="Running…" locked={locked} onClick={() => void executeSetupPlan()} /> : null}
               {activePlan.canCancel ? <ActionButton label="Cancel plan" tip="Cancel pending actions. Anything already created stays and remains recorded." busy={false} locked={locked} onClick={() => ask({ title: "Cancel this saved plan?", detail: "Pending actions will stop. Anything already created stays in the server and is listed in the saved plan.", confirmLabel: "Cancel plan", body: { action: "plan-cancel", planId: activePlan.plan.id } })} /> : null}
+              {activePlan.canCompensate ? <ActionButton label="Preview settings restore" tip="Review which previous settings can be restored. This never deletes Discord resources." busy={busyAction === "plan-rollback-preview"} busyLabel="Checking..." locked={locked} onClick={() => post("plan-rollback-preview", { action: "plan-rollback-preview", planId: activePlan.plan.id })} /> : null}
             </div>
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1150,6 +1196,39 @@ export default function InfrastructureClient() {
       </ConfirmDialog>
 
 
+      <ConfirmDialog
+        open={confirm === "compensation" && Boolean(compensationPreview)}
+        title="Restore the previous setup state?"
+        detail="Possum will restore only setup settings that still match the reviewed checkpoint. Discord resources created by setup will be retained; this does not delete channels, roles, or messages. Conflicts remain for manual review."
+        confirmLabel="Restore setup settings"
+        busy={busyAction === "plan-rollback"}
+        locked={locked && busyAction !== "plan-rollback"}
+        confirmDisabled={!compensationPreview?.canExecute || compensationPreview.deletesResources || !compensationPreview.items.some((item) => item.status === "ready")}
+        onConfirm={() => {
+          if (!compensationPreview) return;
+          void post("plan-rollback", {
+            action: "plan-rollback",
+            planId: compensationPreview.planId,
+            previewToken: compensationPreview.previewToken,
+          });
+        }}
+        onCancel={() => { setConfirm(""); setCompensationPreview(null); }}
+      >
+        <div className="max-h-60 space-y-1 overflow-y-auto">
+          {(compensationPreview?.items || []).slice(0, 40).map((item) => {
+            const action = activePlan?.plan.actions.find((candidate) => candidate.id === item.actionId);
+            const label = action?.name || action?.resourceName || [action?.engine, action?.field].filter(Boolean).join(".") || action?.type || item.actionId;
+            return (
+              <p key={item.actionId} className="rounded-md border border-white/10 px-2 py-2 text-xs text-pink-100">
+                <strong>{label}</strong> - {item.status.replace(/_/g, " ")}
+                {item.resourceId ? " - Resource " + item.resourceId : ""}
+                {item.reason ? <span className="mt-1 block text-amber-100">{item.reason}</span> : null}
+              </p>
+            );
+          })}
+          {(compensationPreview?.items.length || 0) > 40 ? <p className="text-xs text-pink-100/70">Additional restore checks are available in the full plan history.</p> : null}
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }
